@@ -23,8 +23,10 @@ const pageVariants = {
     }
 };
 
-const FormSection = ({ title, children, isActive }) => {
+const FormSection = ({ title, children, isActive, errors = {} }) => {
     if (!isActive) return null;
+
+    const hasErrors = Object.keys(errors).length > 0;
 
     return (
         <motion.div
@@ -34,6 +36,11 @@ const FormSection = ({ title, children, isActive }) => {
             className="max-w-2xl mx-auto"
         >
             <h2 className="text-2xl font-semibold mb-6">{title}</h2>
+            {hasErrors && (
+                <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-md">
+                    <p className="text-red-600 text-sm">Please fill in all required fields correctly</p>
+                </div>
+            )}
             {children}
         </motion.div>
     );
@@ -135,6 +142,13 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel }) => {
         }
     };
 
+    const getInputClassName = (fieldName) => {
+        return `w-full p-2 border rounded-md ${errors[fieldName]
+            ? 'border-red-500 focus:ring-red-500 focus:border-red-500'
+            : 'border-gray-300 focus:ring-black focus:border-black'
+            } transition-colors`;
+    };
+
     return (
         <motion.div
             initial={{ opacity: 0, y: 20 }}
@@ -161,7 +175,7 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel }) => {
                 ))}
             </div>
 
-            <FormSection title="General Information" isActive={currentStep === 1}>
+            <FormSection title="General Information" isActive={currentStep === 1} errors={errors}>
                 <div className="space-y-4">
                     <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1">Your Name</label>
@@ -170,10 +184,9 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel }) => {
                             name="name"
                             value={formData.name}
                             onChange={handleInputChange}
-                            className="w-full p-2 border rounded-md"
+                            className={getInputClassName('name')}
                             placeholder="John Doe"
                         />
-                        {errors.name && <p className="text-red-500 text-sm mt-1">{errors.name}</p>}
                     </div>
                     <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -183,13 +196,12 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel }) => {
                             name="type"
                             value={formData.type}
                             onChange={handleInputChange}
-                            className="w-full p-2 border rounded-md"
+                            className={getInputClassName('type')}
                         >
                             <option value="">Select...</option>
                             <option value="Individual">Individual</option>
                             <option value="Married Couple">Married Couple</option>
                         </select>
-                        {errors.type && <p className="text-red-500 text-sm mt-1">{errors.type}</p>}
                     </div>
                     <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1">Your Birth Year</label>
@@ -198,10 +210,9 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel }) => {
                             name="birthYear"
                             value={formData.birthYear}
                             onChange={handleInputChange}
-                            className="w-full p-2 border rounded-md"
+                            className={getInputClassName('birthYear')}
                             placeholder="1990"
                         />
-                        {errors.birthYear && <p className="text-red-500 text-sm mt-1">{errors.birthYear}</p>}
                     </div>
                     {formData.type === 'Married Couple' && (
                         <div>
@@ -211,12 +222,9 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel }) => {
                                 name="spouseBirthYear"
                                 value={formData.spouseBirthYear}
                                 onChange={handleInputChange}
-                                className="w-full p-2 border rounded-md"
+                                className={getInputClassName('spouseBirthYear')}
                                 placeholder="1992"
                             />
-                            {errors.spouseBirthYear && (
-                                <p className="text-red-500 text-sm mt-1">{errors.spouseBirthYear}</p>
-                            )}
                         </div>
                     )}
                     <div>
@@ -226,12 +234,9 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel }) => {
                             name="lifeExpectancy"
                             value={formData.lifeExpectancy}
                             onChange={handleInputChange}
-                            className="w-full p-2 border rounded-md"
+                            className={getInputClassName('lifeExpectancy')}
                             placeholder="90"
                         />
-                        {errors.lifeExpectancy && (
-                            <p className="text-red-500 text-sm mt-1">{errors.lifeExpectancy}</p>
-                        )}
                     </div>
                     {formData.type === 'Married Couple' && (
                         <div>
@@ -243,18 +248,15 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel }) => {
                                 name="spouseLifeExpectancy"
                                 value={formData.spouseLifeExpectancy}
                                 onChange={handleInputChange}
-                                className="w-full p-2 border rounded-md"
+                                className={getInputClassName('spouseLifeExpectancy')}
                                 placeholder="90"
                             />
-                            {errors.spouseLifeExpectancy && (
-                                <p className="text-red-500 text-sm mt-1">{errors.spouseLifeExpectancy}</p>
-                            )}
                         </div>
                     )}
                 </div>
             </FormSection>
 
-            <FormSection title="Retirement Planning" isActive={currentStep === 2}>
+            <FormSection title="Retirement Planning" isActive={currentStep === 2} errors={errors}>
                 <div className="space-y-4">
                     <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1">Retirement Age</label>
@@ -263,12 +265,9 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel }) => {
                             name="retirementAge"
                             value={formData.retirementAge}
                             onChange={handleInputChange}
-                            className="w-full p-2 border rounded-md"
+                            className={getInputClassName('retirementAge')}
                             placeholder="65"
                         />
-                        {errors.retirementAge && (
-                            <p className="text-red-500 text-sm mt-1">{errors.retirementAge}</p>
-                        )}
                     </div>
                     {formData.type === 'Married Couple' && (
                         <div>
@@ -280,18 +279,15 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel }) => {
                                 name="spouseRetirementAge"
                                 value={formData.spouseRetirementAge}
                                 onChange={handleInputChange}
-                                className="w-full p-2 border rounded-md"
+                                className={getInputClassName('spouseRetirementAge')}
                                 placeholder="65"
                             />
-                            {errors.spouseRetirementAge && (
-                                <p className="text-red-500 text-sm mt-1">{errors.spouseRetirementAge}</p>
-                            )}
                         </div>
                     )}
                 </div>
             </FormSection>
 
-            <FormSection title="Financial Information" isActive={currentStep === 3}>
+            <FormSection title="Financial Information" isActive={currentStep === 3} errors={errors}>
                 <div className="space-y-4">
                     <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1">Current Savings ($)</label>
@@ -300,12 +296,9 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel }) => {
                             name="currentSavings"
                             value={formData.currentSavings}
                             onChange={handleInputChange}
-                            className="w-full p-2 border rounded-md"
+                            className={getInputClassName('currentSavings')}
                             placeholder="100000"
                         />
-                        {errors.currentSavings && (
-                            <p className="text-red-500 text-sm mt-1">{errors.currentSavings}</p>
-                        )}
                     </div>
                     <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -316,17 +309,14 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel }) => {
                             name="monthlyContribution"
                             value={formData.monthlyContribution}
                             onChange={handleInputChange}
-                            className="w-full p-2 border rounded-md"
+                            className={getInputClassName('monthlyContribution')}
                             placeholder="1000"
                         />
-                        {errors.monthlyContribution && (
-                            <p className="text-red-500 text-sm mt-1">{errors.monthlyContribution}</p>
-                        )}
                     </div>
                 </div>
             </FormSection>
 
-            <FormSection title="Investment Preferences" isActive={currentStep === 4}>
+            <FormSection title="Investment Preferences" isActive={currentStep === 4} errors={errors}>
                 <div className="space-y-4">
                     <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1">Risk Tolerance</label>
@@ -334,16 +324,13 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel }) => {
                             name="riskTolerance"
                             value={formData.riskTolerance}
                             onChange={handleInputChange}
-                            className="w-full p-2 border rounded-md"
+                            className={getInputClassName('riskTolerance')}
                         >
                             <option value="">Select...</option>
                             <option value="Conservative">Conservative</option>
                             <option value="Moderate">Moderate</option>
                             <option value="Aggressive">Aggressive</option>
                         </select>
-                        {errors.riskTolerance && (
-                            <p className="text-red-500 text-sm mt-1">{errors.riskTolerance}</p>
-                        )}
                     </div>
                     <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1">Investment Preference</label>
@@ -351,7 +338,7 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel }) => {
                             name="investmentPreference"
                             value={formData.investmentPreference}
                             onChange={handleInputChange}
-                            className="w-full p-2 border rounded-md"
+                            className={getInputClassName('investmentPreference')}
                         >
                             <option value="">Select...</option>
                             <option value="Stocks">Stocks</option>
@@ -359,9 +346,6 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel }) => {
                             <option value="Mixed">Mixed Portfolio</option>
                             <option value="RealEstate">Real Estate</option>
                         </select>
-                        {errors.investmentPreference && (
-                            <p className="text-red-500 text-sm mt-1">{errors.investmentPreference}</p>
-                        )}
                     </div>
                 </div>
             </FormSection>
