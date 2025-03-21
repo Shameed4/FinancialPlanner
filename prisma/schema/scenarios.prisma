@@ -1,0 +1,64 @@
+model Scenario {
+  id                       Int     @id @default(autoincrement())
+  name                     String
+  financialGoal            Int
+  forIndividual            Boolean
+  userBirthYear            Int
+  userLifeExpectancyMean   Int
+  userLifeExpectancyStd    Float // 0 if fixed
+  spouseBirthYear          Int?
+  spouseLifeExpectancyMean Int?
+  spouseLifeExpectancyStd  Float?
+
+  investmentScenario InvestmentScenario[]
+  eventSeries        EventSeries[]
+
+  inflationAssumption DistributionType
+  inflation           Int? // for fixed
+  inflationMin        Int? // for random_uniform
+  inflationMax        Int? // for random_uniform
+  inflationMean       Float? // for random_normal
+  inflationStd        Float? // for random_normal
+
+  ownerPrivilege     User   @relation("owner", fields: [ownerId], references: [id], onDelete: Cascade)
+  ownerId            String
+  readonlyPrivilege  User[] @relation("readonly")
+  readwritePrivilege User[] @relation("readwrite")
+
+  preTaxRetirementContributionLimit   Int
+  afterTaxRetirementContributionLimit Int
+
+  rothOptimizationStartYear Int?
+  rothOptimizationEndYear   Int?
+
+  residenceState State
+}
+
+model InvestmentScenario {
+  investment   Investment @relation(fields: [investmentId], references: [id], onDelete: Cascade)
+  investmentId Int
+  scenario     Scenario   @relation(fields: [scenarioId], references: [id], onDelete: Cascade)
+  scenarioId   Int
+
+  @@id([investmentId, scenarioId])
+}
+
+model User {
+  id              String         @id // id
+  googleId           String
+  stateBrackets      StateBracket[] @relation("userBrackets")
+  ownedScenarios     Scenario[]     @relation("owner")
+  readonlyScenarios  Scenario[]     @relation("readonly")
+  readwriteScenarios Scenario[]     @relation("readwrite")
+}
+
+model StateBracket {
+  id      Int   @id @default(autoincrement())
+  state   State
+  bracket Int
+  User    User  @relation("userBrackets", fields: [userId], references: [id], onDelete: Cascade)
+  userId  String
+  rate    Float
+
+  @@unique([state, bracket, userId])
+}

@@ -1,0 +1,136 @@
+model EventSeries {
+  id          Int      @id @default(autoincrement())
+  name        String
+  description String?
+  scenario    Scenario @relation(fields: [scenarioId], references: [id])
+  scenarioId  Int
+
+  // Start Year Logic
+  startYearType        StartYearType
+  startYear            Int? // Fixed year
+  startMin             Int? // Random uniform (min)
+  startMax             Int? // Random uniform (max)
+  startMean            Float? // Random normal (mean)
+  startStd             Float? // Random normal (std dev)
+  startOnOtherSeriesId Int? // References another EventSeries for same_as/after
+  startOnOtherSeries   EventSeries?  @relation("SameStartYear", fields: [startOnOtherSeriesId], references: [id])
+  relatedEventSeries   EventSeries[] @relation("SameStartYear")
+
+  // Duration Logic
+  durationType DistributionType
+  duration     Int? // Fixed duration
+  durationMin  Int? // Random uniform (min)
+  durationMax  Int? // Random uniform (max)
+  durationMean Float? // Random normal (mean)
+  durationStd  Float? // Random normal (std dev)
+
+  // Details
+  type EventType
+
+  // Relations to details
+  incomeEventDetails    IncomeEventDetails?
+  expenseEventDetails   ExpenseEventDetails?
+  investEventDetails    InvestEventDetails?
+  rebalanceEventDetails RebalanceEventDetails?
+}
+
+enum StartYearType {
+  fixed
+  random_uniform
+  random_normal
+  same_as
+  after
+}
+
+enum DistributionType {
+  fixed
+  random_uniform
+  random_normal
+}
+
+enum EventType {
+  income
+  expense
+  invest
+  rebalance
+}
+
+model IncomeEventDetails {
+  id                     Int              @id @default(autoincrement())
+  initialAmount          Float
+  annualChangeType       DistributionType
+  annualChangeAmount     Float? // Can be a fixed amount or percentage for fixed
+  annualChangePercentage Float? // Can be a fixed amount or percentage for fixed
+  annualChangeMin        Float? // for random_uniform
+  annualChangeMax        Float? // for random_uniform
+  annualChangeMean       Float? // for random_normal
+  annualChangeStd        Float? // for random_normal
+
+  inflationAdjustment Boolean
+  userPercentage      Float?
+  spousePercentage    Float?
+
+  isSocialSecurity Boolean
+
+  // Relation to EventSeries
+  eventSeries   EventSeries @relation(fields: [eventSeriesId], references: [id], onDelete: Cascade)
+  eventSeriesId Int         @unique
+}
+
+model ExpenseEventDetails {
+  id                     Int              @id @default(autoincrement())
+  initialAmount          Float
+  annualChangeType       DistributionType
+  annualChangeAmount     Float? // Can be a fixed amount or percentage for fixed
+  annualChangePercentage Float? // Can be a fixed amount or percentage for fixed
+  annualChangeMin        Float? // for random_uniform
+  annualChangeMax        Float? // for random_uniform
+  annualChangeMean       Float? // for random_normal
+  annualChangeStd        Float? // for random_normal
+
+  inflationAdjustment Boolean
+  userPercentage      Float?
+  spousePercentage    Float?
+
+  isDiscretionary Boolean
+  order           Int? // for the spending strategy of discretionary expenses
+
+  // Relation to EventSeries
+  eventSeries   EventSeries @relation(fields: [eventSeriesId], references: [id], onDelete: Cascade)
+  eventSeriesId Int         @unique
+}
+
+model InvestEventDetails {
+  id                Int    @id @default(autoincrement())
+  maxCash           Float
+  order             Int? // for expense withdrawal strategy
+  initialAllocation Float // used for both fixed and glide paths
+  finalAllocation   Float? // used only for glide paths
+
+  // Relation to EventSeries
+  eventSeries     EventSeries       @relation(fields: [eventSeriesId], references: [id], onDelete: Cascade)
+  eventSeriesId   Int               @unique
+  AssetAllocation AssetAllocation[] @relation()
+}
+
+model RebalanceEventDetails {
+  id              Int               @id @default(autoincrement())
+  // Relation to EventSeries
+  eventSeries     EventSeries       @relation(fields: [eventSeriesId], references: [id], onDelete: Cascade)
+  eventSeriesId   Int               @unique
+  AssetAllocation AssetAllocation[]
+}
+
+model AssetAllocation {
+  aId                     Int                    @id @default(autoincrement())
+  investment              Investment             @relation(references: [id], fields: [investmentId], onDelete: Cascade)
+  investmentId            Int
+  investEventDetails      InvestEventDetails?    @relation(references: [id], fields: [investEventDetailsId], onDelete: Cascade)
+  investEventDetailsId    Int?
+  rebalanceEventDetails   RebalanceEventDetails? @relation(references: [id], fields: [rebalanceEventDetailsId], onDelete: Cascade)
+  rebalanceEventDetailsId Int?
+  initialAllocation       Float
+  finalAllocation         Float?
+
+  // @@unique([investmentId, rebalanceEventDetailsId, investEventDetailsId])
+}
