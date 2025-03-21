@@ -161,8 +161,7 @@ async function main() {
       inflationMean: 0.025,
       inflationStd: 0.005,
       ownerId: user1.id,
-      preTaxRetirementContributionLimit: 22500, // 2023 401k limit
-      afterTaxRetirementContributionLimit: 6500, // 2023 IRA limit
+      initialAfterTaxRetirementContributionLimit: 6500, // 2023 IRA limit
       rothOptimizationStartYear: 2023,
       rothOptimizationEndYear: 2030,
       residenceState: State.CA,
@@ -175,6 +174,7 @@ async function main() {
       }
     }
   });
+  console.log(singlePersonScenario);
 
   const marriedCoupleScenario = await prisma.scenario.create({
     data: {
@@ -193,8 +193,7 @@ async function main() {
       readonlyPrivilege: {
         connect: [{ id: user1.id }]
       },
-      preTaxRetirementContributionLimit: 22500,
-      afterTaxRetirementContributionLimit: 6500,
+      initialAfterTaxRetirementContributionLimit: 6500,
       residenceState: State.NY,
       investmentScenario: {
         create: [

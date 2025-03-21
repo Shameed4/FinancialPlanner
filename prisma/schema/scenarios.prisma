@@ -4,8 +4,8 @@ model Scenario {
   financialGoal            Int
   forIndividual            Boolean
   userBirthYear            Int
-  userLifeExpectancyMean   Int
-  userLifeExpectancyStd    Float // 0 if fixed
+  userLifeExpectancyMean   Float
+  userLifeExpectancyStd    Float @default(0)
   spouseBirthYear          Int?
   spouseLifeExpectancyMean Int?
   spouseLifeExpectancyStd  Float?
@@ -25,8 +25,7 @@ model Scenario {
   readonlyPrivilege  User[] @relation("readonly")
   readwritePrivilege User[] @relation("readwrite")
 
-  preTaxRetirementContributionLimit   Int
-  afterTaxRetirementContributionLimit Int
+  initialAfterTaxRetirementContributionLimit Int
 
   rothOptimizationStartYear Int?
   rothOptimizationEndYear   Int?
