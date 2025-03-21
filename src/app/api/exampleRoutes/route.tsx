@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 
 // sample GET request (send a request to /api/exampleRoutes )
-export function GET(request: NextRequest) {
+export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams;
   const query = searchParams.get('query'); // e.g. `/api/search?query=hello`
 
