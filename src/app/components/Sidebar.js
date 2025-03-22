@@ -3,14 +3,14 @@
 import { motion, AnimatePresence } from 'framer-motion';
 import { useState } from 'react';
 import { usePage } from '../context/PageContext';
-import { House, Infinity, SquareActivity, CircleUserRound } from "lucide-react";
+import { House, Infinity, SquareActivity, CircleUserRound, Key } from "lucide-react";
 
 const NavItem = ({ icon, label, isCollapsed, onClick, isActive }) => (
     <motion.button
         initial={false}
         whileHover={!isActive ? { backgroundColor: 'rgba(255, 255, 255, 0.1)' } : {}}
         onClick={onClick}
-        className={`w-full text-left px-4 py-3 flex items-center gap-3 rounded-md ${isActive
+        className={`w-full text-left px-4 py-3 flex items-center gap-3 rounded-md cursor-pointer ${isActive
             ? 'bg-white/90 text-[#616161]'
             : 'text-white'
             }`}
@@ -70,7 +70,7 @@ const Sidebar = () => {
                     whileHover={{ scale: 1.05 }}
                     whileTap={{ scale: 0.95 }}
                     onClick={() => setIsCollapsed(!isCollapsed)}
-                    className="p-2 hover:bg-white/10 rounded-lg text-white/80 hover:text-white"
+                    className="p-2 hover:bg-white/10 rounded-lg text-white/80 hover:text-white cursor-pointer"
                 >
                     {isCollapsed ? '→' : '☰'}
                 </motion.button>
@@ -128,6 +128,15 @@ const Sidebar = () => {
                             isActive={activePage === 'account'}
                         />
                     </li>
+                    <li>
+                        <NavItem
+                            icon={<Key size={20} />}
+                            label="Login"
+                            isCollapsed={isCollapsed}
+                            onClick={() => setActivePage('login')}
+                            isActive={activePage === 'login'}
+                        />
+                    </li>
                 </ul>
             </nav>
 
@@ -135,7 +144,7 @@ const Sidebar = () => {
                 <motion.button
                     onClick={navigateToAccount}
                     whileHover={{ backgroundColor: 'rgba(255, 255, 255, 0.1)' }}
-                    className={`w-full flex items-center gap-3 p-2 rounded-md ${activePage === 'account' ? 'bg-white/90 text-[#616161]' : 'text-white'
+                    className={`w-full flex items-center gap-3 p-2 rounded-md cursor-pointer ${activePage === 'account' ? 'bg-white/90 text-[#616161]' : 'text-white'
                         }`}
                 >
                     <div className="w-8 h-8 bg-white/10 rounded-full flex items-center justify-center">
