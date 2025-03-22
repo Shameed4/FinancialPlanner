@@ -12,15 +12,15 @@ export async function GET(request: NextRequest) {
   }
 
   if (ownerId) {
-    const results = await prisma.scenario.findMany({
+    const results = await prisma.scenario.findFirst({
       where: {
         ownerId: ownerId
       }
     });
-    if (results.length === 0) {
+    if (results)
+      return NextResponse.json({ status: 200, result: results });
+    else
       return NextResponse.json({ status: 404, error: 'No scenarios found for the provided ownerId.' });
-    }
-    return NextResponse.json({ status: 200, result: results });
   }
 
   if (id) {
