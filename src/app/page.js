@@ -6,6 +6,7 @@ import ScenarioPage from './components/pages/ScenarioPage';
 import HomePage from './components/pages/HomePage';
 import SimulationPage from './components/pages/SimulationPage';
 import AccountPage from './components/pages/AccountPage';
+import LoginPage from './components/pages/LoginPage';
 
 export default function Home() {
   const { activePage } = usePage();
@@ -20,6 +21,8 @@ export default function Home() {
         return <SimulationPage />;
       case 'account':
         return <AccountPage />;
+      case 'login':
+        return <LoginPage />;
       default:
         return <HomePage />;
     }
