@@ -1,7 +1,7 @@
 'use client';
 
 import { motion } from 'framer-motion';
-import { useRouter } from 'next/navigation'; // Use next/navigation for App Router
+import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import { useState } from 'react';
 
@@ -62,15 +62,15 @@ const ToolCard = ({ image, title, description, onClick }) => {
 };
 
 const HomePage = () => {
-    const router = useRouter(); // Use the router for navigation
+    const router = useRouter();
     const [heroLoading, setHeroLoading] = useState(true);
 
     const navigateToSimulation = () => {
-        router.push('/simulation'); // Navigate to the simulation page
+        router.push('/simulation');
     };
 
     const navigateToScenario = () => {
-        router.push('/scenario'); // Navigate to the scenario page
+        router.push('/scenario');
     };
 
     return (
@@ -109,7 +109,7 @@ const HomePage = () => {
             </div>
 
             <div>
-                <h2 className="text-2xl font-semibold mb-6">Tools</h2>
+                <h2 className="text-black text-2xl font-semibold mb-6">Tools</h2>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                     <ToolCard
                         image="https://picsum.photos/seed/simulation/800/600"
