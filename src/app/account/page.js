@@ -87,7 +87,7 @@ const AccountPage = () => {
             exit="exit"
             className="p-8 max-w-6xl mx-auto"
         >
-            <h1 className="text-3xl font-bold mb-8">Hello John!</h1>
+            <h1 className="text-black text-3xl font-bold mb-8">Hello John!</h1>
 
             {/* User Information Card */}
             <div className="bg-[#3A3A3C] rounded-xl p-6 mb-12">
@@ -118,7 +118,7 @@ const AccountPage = () => {
 
             {/* Saved Scenarios */}
             <div className="mb-12">
-                <h2 className="text-2xl font-semibold mb-6">Saved Scenarios</h2>
+                <h2 className="text-black text-2xl font-semibold mb-6">Saved Scenarios</h2>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                     {scenarios.map((scenario, index) => (
                         <ScenarioPreview
@@ -133,7 +133,7 @@ const AccountPage = () => {
 
             {/* Friends Section */}
             <div>
-                <div className="flex justify-between items-center mb-6">
+                <div className="text-black flex justify-between items-center mb-6">
                     <h2 className="text-2xl font-semibold">Your Friends</h2>
                     <button className="text-2xl font-medium">Add Friend +</button>
                 </div>

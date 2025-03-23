@@ -36,7 +36,7 @@ const FormSection = ({ title, children, isActive, errors = {} }) => {
             exit={{ opacity: 0, x: -20 }}
             className="max-w-2xl mx-auto"
         >
-            <h2 className="text-2xl font-semibold mb-6">{title}</h2>
+            <h2 className="text-black text-2xl font-semibold mb-6">{title}</h2>
             {hasErrors && (
                 <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-md">
                     <p className="text-red-600 text-sm">Please fill in all required fields correctly</p>
@@ -362,7 +362,7 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel }) => {
     const getInputClassName = (fieldName) => {
         return `w-full p-2 border rounded-md ${errors[fieldName]
             ? 'border-red-500 focus:ring-red-500 focus:border-red-500'
-            : 'border-gray-300 focus:ring-black focus:border-black'
+            : 'border-gray-700 focus:ring-black focus:border-black'
             } transition-colors`;
     };
 
@@ -401,8 +401,8 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel }) => {
                             name="name"
                             value={formData.name}
                             onChange={handleInputChange}
-                            className={getInputClassName('name')}
-                            placeholder="John Doe"
+                            className={`${getInputClassName('name')} text-black`}
+                            placeholder="Ex: John Doe"
                         />
                     </div>
                     <div>
@@ -413,7 +413,7 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel }) => {
                             name="type"
                             value={formData.type}
                             onChange={handleInputChange}
-                            className={getInputClassName('type')}
+                            className={`${getInputClassName('type')} text-black`}
                         >
                             <option value="">Select...</option>
                             <option value="Individual">Individual</option>
@@ -427,8 +427,8 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel }) => {
                             name="birthYear"
                             value={formData.birthYear}
                             onChange={handleInputChange}
-                            className={getInputClassName('birthYear')}
-                            placeholder="1990"
+                            className={`${getInputClassName('birthYear')} text-black`}
+                            placeholder="Ex: 1990"
                         />
                     </div>
                     <div>
@@ -438,18 +438,18 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel }) => {
                             name="lifeExpectancy"
                             value={formData.lifeExpectancy}
                             onChange={handleInputChange}
-                            className={getInputClassName('lifeExpectancy')}
-                            placeholder="90"
+                            className={`${getInputClassName('lifeExpectancy')} text-black`}
+                            placeholder="Ex: 90"
                         />
                     </div>
                     <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Life Expectancy Standard Deviation(years)</label>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Life Expectancy Standard Deviation (years)</label>
                         <input
                             type="number"
                             name="lifeExpectancyStd"
                             value={formData.lifeExpectancyStd}
                             onChange={handleInputChange}
-                            className={getInputClassName('lifeExpectancyStd')}
+                            className={`${getInputClassName('lifeExpectancyStd')} text-black`}
                             placeholder="90"
                         />
                     </div>
@@ -461,7 +461,7 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel }) => {
                                 name="spouseBirthYear"
                                 value={formData.spouseBirthYear}
                                 onChange={handleInputChange}
-                                className={getInputClassName('spouseBirthYear')}
+                                className={`${getInputClassName('spouseBirthYear')} text-black`}
                                 placeholder="1992"
                             />
                         </div>
@@ -474,7 +474,7 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel }) => {
                                 name="spouseLifeExpectancy"
                                 value={formData.spouseLifeExpectancy}
                                 onChange={handleInputChange}
-                                className={getInputClassName('spouseLifeExpectancy')}
+                                className={`${getInputClassName('spouseLifeExpectancy')} text-black`}
                                 placeholder="90"
                             />
                         </div>
@@ -485,7 +485,7 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel }) => {
                                 name="spouseLifeExpectancyStd"
                                 value={formData.spouseLifeExpectancyStd}
                                 onChange={handleInputChange}
-                                className={getInputClassName('spouseLifeExpectancyStd')}
+                                className={`${getInputClassName('spouseLifeExpectancyStd')} text-black`}
                                 placeholder="90"
                             />
                         </div>
@@ -512,7 +512,7 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel }) => {
                                                 newAssetTypes[index].name = e.target.value;
                                                 setFormData({ ...formData, assetTypes: newAssetTypes });
                                             }}
-                                            className={getInputClassName(`assetTypes.${index}.name`)}
+                                            className={`${getInputClassName(`assetTypes.${index}.name`)} text-black`}
                                             placeholder="Asset Type Name"
                                         />
                                         {errors[`assetTypes.${index}.name`] && (
@@ -529,7 +529,7 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel }) => {
                                                 newAssetTypes[index].description = e.target.value;
                                                 setFormData({ ...formData, assetTypes: newAssetTypes });
                                             }}
-                                            className={getInputClassName(`assetTypes.${index}.description`)}
+                                            className={`${getInputClassName(`assetTypes.${index}.description`)} text-black`}
                                             placeholder="Description"
                                         />
                                         {errors[`assetTypes.${index}.description`] && (
@@ -547,8 +547,8 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel }) => {
                                                 newAssetTypes[index].returnMean = e.target.value;
                                                 setFormData({ ...formData, assetTypes: newAssetTypes });
                                             }}
-                                            className={getInputClassName(`assetTypes.${index}.returnMean`)}
-                                            placeholder="7.5"
+                                            className={`${getInputClassName(`assetTypes.${index}.returnMean`)} text-black`}
+                                            placeholder="Ex: 7.5"
                                         />
                                         {errors[`assetTypes.${index}.returnMean`] && (
                                             <p className="mt-1 text-sm text-red-600">{errors[`assetTypes.${index}.returnMean`]}</p>
@@ -565,8 +565,8 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel }) => {
                                                 newAssetTypes[index].returnStd = e.target.value;
                                                 setFormData({ ...formData, assetTypes: newAssetTypes });
                                             }}
-                                            className={getInputClassName(`assetTypes.${index}.returnStd`)}
-                                            placeholder="15.0"
+                                            className={`${getInputClassName(`assetTypes.${index}.returnStd`)} text-black`}
+                                            placeholder="Ex: 15.0"
                                         />
                                         {errors[`assetTypes.${index}.returnStd`] && (
                                             <p className="mt-1 text-sm text-red-600">{errors[`assetTypes.${index}.returnStd`]}</p>
@@ -583,8 +583,8 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel }) => {
                                                 newAssetTypes[index].expenseRatio = e.target.value;
                                                 setFormData({ ...formData, assetTypes: newAssetTypes });
                                             }}
-                                            className={getInputClassName(`assetTypes.${index}.expenseRatio`)}
-                                            placeholder="0.05"
+                                            className={`${getInputClassName(`assetTypes.${index}.expenseRatio`)} text-black`}
+                                            placeholder="Ex: 0.05"
                                         />
                                         {errors[`assetTypes.${index}.expenseRatio`] && (
                                             <p className="mt-1 text-sm text-red-600">{errors[`assetTypes.${index}.expenseRatio`]}</p>
@@ -601,8 +601,8 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel }) => {
                                                 newAssetTypes[index].incomeMean = e.target.value;
                                                 setFormData({ ...formData, assetTypes: newAssetTypes });
                                             }}
-                                            className={getInputClassName(`assetTypes.${index}.incomeMean`)}
-                                            placeholder="2.0"
+                                            className={`${getInputClassName(`assetTypes.${index}.incomeMean`)} text-black`}
+                                            placeholder="Ex: 2.0"
                                         />
                                         {errors[`assetTypes.${index}.incomeMean`] && (
                                             <p className="mt-1 text-sm text-red-600">{errors[`assetTypes.${index}.incomeMean`]}</p>
@@ -619,8 +619,8 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel }) => {
                                                 newAssetTypes[index].incomeStd = e.target.value;
                                                 setFormData({ ...formData, assetTypes: newAssetTypes });
                                             }}
-                                            className={getInputClassName(`assetTypes.${index}.incomeStd`)}
-                                            placeholder="0.5"
+                                            className={`${getInputClassName(`assetTypes.${index}.incomeStd`)} text-black`}
+                                            placeholder="Ex: 0.5"
                                         />
                                         {errors[`assetTypes.${index}.incomeStd`] && (
                                             <p className="mt-1 text-sm text-red-600">{errors[`assetTypes.${index}.incomeStd`]}</p>
@@ -702,7 +702,7 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel }) => {
                                                 newInvestments[index].assetType = e.target.value;
                                                 setFormData({ ...formData, investments: newInvestments });
                                             }}
-                                            className={getInputClassName(`investments.${index}.assetType`)}
+                                            className={`${getInputClassName(`investments.${index}.assetType`)} text-black`}
                                         >
                                             <option value="">Select an asset type...</option>
                                             {formData.assetTypes?.map((asset, assetIndex) => (
@@ -726,8 +726,8 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel }) => {
                                                 newInvestments[index].value = e.target.value;
                                                 setFormData({ ...formData, investments: newInvestments });
                                             }}
-                                            className={getInputClassName(`investments.${index}.value`)}
-                                            placeholder="10000"
+                                            className={`${getInputClassName(`investments.${index}.value`)} text-black`}
+                                            placeholder="Ex: 10000"
                                         />
                                         {errors[`investments.${index}.value`] && (
                                             <p className="mt-1 text-sm text-red-600">{errors[`investments.${index}.value`]}</p>
@@ -742,7 +742,7 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel }) => {
                                                 newInvestments[index].taxStatus = e.target.value;
                                                 setFormData({ ...formData, investments: newInvestments });
                                             }}
-                                            className={getInputClassName(`investments.${index}.taxStatus`)}
+                                            className={`${getInputClassName(`investments.${index}.taxStatus`)} text-black`}
                                         >
                                             <option value="">Select tax status...</option>
                                             <option value="non-retirement">Non-Retirement</option>
@@ -809,8 +809,8 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel }) => {
                                                 newEventSeries[index].name = e.target.value;
                                                 setFormData({ ...formData, eventSeries: newEventSeries });
                                             }}
-                                            className={getInputClassName(`eventSeries.${index}.name`)}
-                                            placeholder="e.g., College Education"
+                                            className={`${getInputClassName(`eventSeries.${index}.name`)} text-black`}
+                                            placeholder="Ex: College Education"
                                         />
                                         {errors[`eventSeries.${index}.name`] && (
                                             <p className="mt-1 text-sm text-red-600">{errors[`eventSeries.${index}.name`]}</p>
@@ -826,7 +826,7 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel }) => {
                                                 newEventSeries[index].description = e.target.value;
                                                 setFormData({ ...formData, eventSeries: newEventSeries });
                                             }}
-                                            className={getInputClassName(`eventSeries.${index}.description`)}
+                                            className={`${getInputClassName(`eventSeries.${index}.description`)} text-black`}
                                             placeholder="Optional description"
                                         />
                                     </div>
@@ -839,7 +839,7 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel }) => {
                                                 newEventSeries[index].startYearType = e.target.value;
                                                 setFormData({ ...formData, eventSeries: newEventSeries });
                                             }}
-                                            className={getInputClassName(`eventSeries.${index}.startYearType`)}
+                                            className={`${getInputClassName(`eventSeries.${index}.startYearType`)} text-black`}
                                         >
                                             <option value="">Select start year type...</option>
                                             <option value="fixed">Fixed Value</option>
@@ -865,8 +865,8 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel }) => {
                                                     newEventSeries[index].startYear = e.target.value;
                                                     setFormData({ ...formData, eventSeries: newEventSeries });
                                                 }}
-                                                className={getInputClassName(`eventSeries.${index}.startYear`)}
-                                                placeholder="2025"
+                                                className={`${getInputClassName(`eventSeries.${index}.startYear`)} text-black`}
+                                                placeholder="Ex: 2025"
                                             />
                                             {errors[`eventSeries.${index}.startYear`] && (
                                                 <p className="mt-1 text-sm text-red-600">{errors[`eventSeries.${index}.startYear`]}</p>
@@ -886,8 +886,8 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel }) => {
                                                         newEventSeries[index].startYearMin = e.target.value;
                                                         setFormData({ ...formData, eventSeries: newEventSeries });
                                                     }}
-                                                    className={getInputClassName(`eventSeries.${index}.startYearMin`)}
-                                                    placeholder="2025"
+                                                    className={`${getInputClassName(`eventSeries.${index}.startYearMin`)} text-black`}
+                                                    placeholder="Ex: 2025"
                                                 />
                                                 {errors[`eventSeries.${index}.startYearMin`] && (
                                                     <p className="mt-1 text-sm text-red-600">{errors[`eventSeries.${index}.startYearMin`]}</p>
@@ -903,8 +903,8 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel }) => {
                                                         newEventSeries[index].startYearMax = e.target.value;
                                                         setFormData({ ...formData, eventSeries: newEventSeries });
                                                     }}
-                                                    className={getInputClassName(`eventSeries.${index}.startYearMax`)}
-                                                    placeholder="2030"
+                                                    className={`${getInputClassName(`eventSeries.${index}.startYearMax`)} text-black`}
+                                                    placeholder="Ex: 2030"
                                                 />
                                             </div>
                                         </>
@@ -922,7 +922,7 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel }) => {
                                                         newEventSeries[index].startYearMean = e.target.value;
                                                         setFormData({ ...formData, eventSeries: newEventSeries });
                                                     }}
-                                                    className={getInputClassName(`eventSeries.${index}.startYearMean`)}
+                                                    className={`${getInputClassName(`eventSeries.${index}.startYearMean`)} text-black`}
                                                     placeholder="2025"
                                                 />
                                                 {errors[`eventSeries.${index}.startYearMean`] && (
@@ -940,7 +940,7 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel }) => {
                                                         newEventSeries[index].startYearStd = e.target.value;
                                                         setFormData({ ...formData, eventSeries: newEventSeries });
                                                     }}
-                                                    className={getInputClassName(`eventSeries.${index}.startYearStd`)}
+                                                    className={`${getInputClassName(`eventSeries.${index}.startYearStd`)} text-black`}
                                                     placeholder="1.0"
                                                 />
                                             </div>
@@ -957,7 +957,7 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel }) => {
                                                     newEventSeries[index].startYearEvent = e.target.value;
                                                     setFormData({ ...formData, eventSeries: newEventSeries });
                                                 }}
-                                                className={getInputClassName(`eventSeries.${index}.startYearEvent`)}
+                                                className={`${getInputClassName(`eventSeries.${index}.startYearEvent`)} text-black`}
                                             >
                                                 <option value="">Select reference event...</option>
                                                 {formData.eventSeries.map((e, i) => i !== index && (
@@ -979,7 +979,7 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel }) => {
                                                 newEventSeries[index].durationType = e.target.value;
                                                 setFormData({ ...formData, eventSeries: newEventSeries });
                                             }}
-                                            className={getInputClassName(`eventSeries.${index}.durationType`)}
+                                            className={`${getInputClassName(`eventSeries.${index}.durationType`)} text-black`}
                                         >
                                             <option value="fixed">Fixed</option>
                                             <option value="uniform">Uniform</option>
@@ -1000,7 +1000,7 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel }) => {
                                                     newEventSeries[index].durationMean = e.target.value; // For backward compatibility
                                                     setFormData({ ...formData, eventSeries: newEventSeries });
                                                 }}
-                                                className={getInputClassName(`eventSeries.${index}.durationFixed`)}
+                                                className={`${getInputClassName(`eventSeries.${index}.durationFixed`)} text-black`}
                                                 placeholder="4.0"
                                             />
                                             {errors[`eventSeries.${index}.durationFixed`] && (
@@ -1022,7 +1022,7 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel }) => {
                                                         newEventSeries[index].durationMin = e.target.value;
                                                         setFormData({ ...formData, eventSeries: newEventSeries });
                                                     }}
-                                                    className={getInputClassName(`eventSeries.${index}.durationMin`)}
+                                                    className={`${getInputClassName(`eventSeries.${index}.durationMin`)} text-black`}
                                                     placeholder="2.0"
                                                 />
                                                 {errors[`eventSeries.${index}.durationMin`] && (
@@ -1040,7 +1040,7 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel }) => {
                                                         newEventSeries[index].durationMax = e.target.value;
                                                         setFormData({ ...formData, eventSeries: newEventSeries });
                                                     }}
-                                                    className={getInputClassName(`eventSeries.${index}.durationMax`)}
+                                                    className={`${getInputClassName(`eventSeries.${index}.durationMax`)} text-black`}
                                                     placeholder="6.0"
                                                 />
                                                 {errors[`eventSeries.${index}.durationMax`] && (
@@ -1063,7 +1063,7 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel }) => {
                                                         newEventSeries[index].durationMean = e.target.value;
                                                         setFormData({ ...formData, eventSeries: newEventSeries });
                                                     }}
-                                                    className={getInputClassName(`eventSeries.${index}.durationMean`)}
+                                                    className={`${getInputClassName(`eventSeries.${index}.durationMean`)} text-black`}
                                                     placeholder="4.0"
                                                 />
                                                 {errors[`eventSeries.${index}.durationMean`] && (
@@ -1081,7 +1081,7 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel }) => {
                                                         newEventSeries[index].durationStd = e.target.value;
                                                         setFormData({ ...formData, eventSeries: newEventSeries });
                                                     }}
-                                                    className={getInputClassName(`eventSeries.${index}.durationStd`)}
+                                                    className={`${getInputClassName(`eventSeries.${index}.durationStd`)} text-black`}
                                                     placeholder="0.5"
                                                 />
                                                 {errors[`eventSeries.${index}.durationStd`] && (
@@ -1099,7 +1099,7 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel }) => {
                                                 newEventSeries[index].type = e.target.value;
                                                 setFormData({ ...formData, eventSeries: newEventSeries });
                                             }}
-                                            className={getInputClassName(`eventSeries.${index}.type`)}
+                                            className={`${getInputClassName(`eventSeries.${index}.type`)} text-black`}
                                         >
                                             <option value="">Select event type...</option>
                                             <option value="income">Income</option>
@@ -1126,7 +1126,7 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel }) => {
                                                         newEventSeries[index].amountMean = e.target.value;
                                                         setFormData({ ...formData, eventSeries: newEventSeries });
                                                     }}
-                                                    className={getInputClassName(`eventSeries.${index}.amountMean`)}
+                                                    className={`${getInputClassName(`eventSeries.${index}.amountMean`)} text-black`}
                                                     placeholder="10000"
                                                 />
                                                 {errors[`eventSeries.${index}.amountMean`] && (
@@ -1176,7 +1176,7 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel }) => {
                                                         newEventSeries[index].changeType = e.target.value;
                                                         setFormData({ ...formData, eventSeries: newEventSeries });
                                                     }}
-                                                    className={getInputClassName(`eventSeries.${index}.changeType`)}
+                                                    className={`${getInputClassName(`eventSeries.${index}.changeType`)} text-black`}
                                                 >
                                                     <option value="fixed">Fixed Amount</option>
                                                     <option value="percentage">Percentage</option>
@@ -1198,7 +1198,7 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel }) => {
                                                         newEventSeries[index].annualChange = e.target.value;
                                                         setFormData({ ...formData, eventSeries: newEventSeries });
                                                     }}
-                                                    className={getInputClassName(`eventSeries.${index}.annualChange`)}
+                                                    className={`${getInputClassName(`eventSeries.${index}.annualChange`)} text-black`}
                                                     placeholder={event.changeType === 'percentage' ? "3.0" : "500"}
                                                 />
                                                 {errors[`eventSeries.${index}.annualChange`] && (
@@ -1236,7 +1236,7 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel }) => {
                                                             newEventSeries[index].userPercentage = e.target.value;
                                                             setFormData({ ...formData, eventSeries: newEventSeries });
                                                         }}
-                                                        className={getInputClassName(`eventSeries.${index}.userPercentage`)}
+                                                        className={`${getInputClassName(`eventSeries.${index}.userPercentage`)} text-black`}
                                                         placeholder="100"
                                                     />
                                                     {errors[`eventSeries.${index}.userPercentage`] && (
@@ -1258,7 +1258,7 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel }) => {
                                                         newEventSeries[index].allocationType = e.target.value;
                                                         setFormData({ ...formData, eventSeries: newEventSeries });
                                                     }}
-                                                    className={getInputClassName(`eventSeries.${index}.allocationType`)}
+                                                    className={`${getInputClassName(`eventSeries.${index}.allocationType`)} text-black`}
                                                 >
                                                     <option value="fixed">Fixed Percentage</option>
                                                     <option value="glide">Linear Glide Path</option>
@@ -1288,7 +1288,7 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel }) => {
                                                                     newEventSeries[index].allocations[asset.name] = e.target.value;
                                                                     setFormData({ ...formData, eventSeries: newEventSeries });
                                                                 }}
-                                                                className={getInputClassName(`eventSeries.${index}.allocations.${asset.name}`)}
+                                                                className={`${getInputClassName(`eventSeries.${index}.allocations.${asset.name}`)} text-black`}
                                                                 placeholder="0"
                                                             />
                                                             <span className="text-sm text-gray-600">%</span>
@@ -1319,7 +1319,7 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel }) => {
                                                                         newEventSeries[index].initialAllocations[asset.name] = e.target.value;
                                                                         setFormData({ ...formData, eventSeries: newEventSeries });
                                                                     }}
-                                                                    className={getInputClassName(`eventSeries.${index}.initialAllocations.${asset.name}`)}
+                                                                    className={`${getInputClassName(`eventSeries.${index}.initialAllocations.${asset.name}`)} text-black`}
                                                                     placeholder="0"
                                                                 />
                                                                 <span className="text-sm text-gray-600">%</span>
@@ -1348,7 +1348,7 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel }) => {
                                                                         newEventSeries[index].finalAllocations[asset.name] = e.target.value;
                                                                         setFormData({ ...formData, eventSeries: newEventSeries });
                                                                     }}
-                                                                    className={getInputClassName(`eventSeries.${index}.finalAllocations.${asset.name}`)}
+                                                                    className={`${getInputClassName(`eventSeries.${index}.finalAllocations.${asset.name}`)} text-black`}
                                                                     placeholder="0"
                                                                 />
                                                                 <span className="text-sm text-gray-600">%</span>
@@ -1374,7 +1374,7 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel }) => {
                                                                 newEventSeries[index].maxCashValue = e.target.value;
                                                                 setFormData({ ...formData, eventSeries: newEventSeries });
                                                             }}
-                                                            className={getInputClassName(`eventSeries.${index}.maxCashValue`)}
+                                                            className={`${getInputClassName(`eventSeries.${index}.maxCashValue`)} text-black`}
                                                             placeholder="Optional"
                                                         />
                                                         {errors[`eventSeries.${index}.maxCashValue`] && (
@@ -1445,7 +1445,7 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel }) => {
                                             inflationStd: e.target.value === 'normal' ? formData.inflationStd : null
                                         });
                                     }}
-                                    className={getInputClassName('inflationAssumption')}
+                                    className={`${getInputClassName('inflationAssumption')} text-black`}
                                 >
                                     <option value="fixed">Fixed Percentage</option>
                                     <option value="uniform">Uniform Distribution</option>
@@ -1463,7 +1463,7 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel }) => {
                                         onChange={(e) => {
                                             setFormData({ ...formData, inflation: e.target.value });
                                         }}
-                                        className={getInputClassName('inflation')}
+                                        className={`${getInputClassName('inflation')} text-black`}
                                         placeholder="2.0"
                                     />
                                 </div>
@@ -1480,7 +1480,7 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel }) => {
                                             onChange={(e) => {
                                                 setFormData({ ...formData, inflationMin: e.target.value });
                                             }}
-                                            className={getInputClassName('inflationMin')}
+                                            className={`${getInputClassName('inflationMin')} text-black`}
                                             placeholder="1.5"
                                         />
                                     </div>
@@ -1493,7 +1493,7 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel }) => {
                                             onChange={(e) => {
                                                 setFormData({ ...formData, inflationMax: e.target.value });
                                             }}
-                                            className={getInputClassName('inflationMax')}
+                                            className={`${getInputClassName('inflationMax')} text-black`}
                                             placeholder="3.0"
                                         />
                                     </div>
@@ -1511,7 +1511,7 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel }) => {
                                             onChange={(e) => {
                                                 setFormData({ ...formData, inflationMean: e.target.value });
                                             }}
-                                            className={getInputClassName('inflationMean')}
+                                            className={`${getInputClassName('inflationMean')} text-black`}
                                             placeholder="2.0"
                                         />
                                     </div>
@@ -1524,7 +1524,7 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel }) => {
                                             onChange={(e) => {
                                                 setFormData({ ...formData, inflationStd: e.target.value });
                                             }}
-                                            className={getInputClassName('inflationStd')}
+                                            className={`${getInputClassName('inflationStd')} text-black`}
                                             placeholder="0.5"
                                         />
                                     </div>
@@ -1565,7 +1565,7 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel }) => {
                                             onChange={(e) => {
                                                 setFormData({ ...formData, taxOptimizationStartYear: e.target.value });
                                             }}
-                                            className={getInputClassName('taxOptimizationStartYear')}
+                                            className={`${getInputClassName('taxOptimizationStartYear')} text-black`}
                                             placeholder="2024"
                                         />
                                     </div>
@@ -1577,7 +1577,7 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel }) => {
                                             onChange={(e) => {
                                                 setFormData({ ...formData, taxOptimizationEndYear: e.target.value });
                                             }}
-                                            className={getInputClassName('taxOptimizationEndYear')}
+                                            className={`${getInputClassName('taxOptimizationEndYear')} text-black`}
                                             placeholder="2030"
                                         />
                                     </div>
@@ -1593,7 +1593,7 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel }) => {
                             {formData.investments?.map((investment, index) => (
                                 <div key={index} className="flex items-center gap-2 bg-gray-50 p-2 rounded">
                                     <span className="text-gray-500">⋮⋮</span>
-                                    <span className="flex-1">{investment.assetType} ({investment.taxStatus})</span>
+                                    <span className="flex-1 text-gray-500">{investment.assetType} ({investment.taxStatus})</span>
                                     <input
                                         type="number"
                                         min="1"
@@ -1620,7 +1620,7 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel }) => {
                                 .map((investment, index) => (
                                     <div key={index} className="flex items-center gap-2 bg-gray-50 p-2 rounded">
                                         <span className="text-gray-500">⋮⋮</span>
-                                        <span className="flex-1">{investment.assetType}</span>
+                                        <span className="flex-1 text-gray-500">{investment.assetType}</span>
                                         <input
                                             type="number"
                                             min="1"
@@ -1646,7 +1646,7 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel }) => {
                     onClick={() => currentStep > 1 && setCurrentStep(currentStep - 1)}
                     className={`px-6 py-2 rounded-md ${currentStep === 1
                         ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
-                        : 'bg-gray-200 text-gray-800 hover:bg-gray-300'
+                        : 'bg-gray-200 text-gray-800 hover:bg-gray-300 hover: cursor-pointer'
                         }`}
                     disabled={currentStep === 1}
                 >
@@ -1654,7 +1654,7 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel }) => {
                 </button>
                 <button
                     onClick={handleNext}
-                    className="px-6 py-2 rounded-md bg-black text-white hover:bg-gray-800"
+                    className="px-6 py-2 rounded-md bg-black text-white hover:bg-gray-800 hover: cursor-pointer"
                 >
                     {currentStep === 5 ? 'Create' : 'Next'}
                 </button>
@@ -1681,7 +1681,7 @@ const ScenarioPage = () => {
             className="p-8"
         >
             <div className="flex justify-between items-center mb-8">
-                <h1 className="text-3xl font-bold">
+                <h1 className="text-black text-3xl font-bold">
                     {isCreating ? 'Create New Scenario' : 'Your Scenarios'}
                 </h1>
                 {!isCreating && (
