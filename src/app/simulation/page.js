@@ -1,7 +1,6 @@
 'use client';
 
 import { motion } from 'framer-motion';
-import { usePage } from '../../context/PageContext';
 import { useState } from 'react';
 
 const pageVariants = {

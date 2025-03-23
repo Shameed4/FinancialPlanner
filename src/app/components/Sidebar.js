@@ -2,7 +2,7 @@
 
 import { motion, AnimatePresence } from 'framer-motion';
 import { useState } from 'react';
-import { usePage } from '../context/PageContext';
+import { useRouter } from 'next/navigation';
 import { House, Infinity, SquareActivity, CircleUserRound, Key } from "lucide-react";
 
 const NavItem = ({ icon, label, isCollapsed, onClick, isActive }) => (
@@ -35,10 +35,10 @@ const NavItem = ({ icon, label, isCollapsed, onClick, isActive }) => (
 
 const Sidebar = () => {
     const [isCollapsed, setIsCollapsed] = useState(false);
-    const { activePage, setActivePage } = usePage();
+    const router = useRouter();
 
-    const navigateToAccount = () => {
-        setActivePage('account');
+    const navigateTo = (path) => {
+        router.push(path);
     };
 
     return (
@@ -97,8 +97,8 @@ const Sidebar = () => {
                             icon={<House size={20} />}
                             label="Home"
                             isCollapsed={isCollapsed}
-                            onClick={() => setActivePage('home')}
-                            isActive={activePage === 'home'}
+                            onClick={() => navigateTo('/')}
+                            isActive={router.pathname === '/'}
                         />
                     </li>
                     <li>
@@ -106,8 +106,8 @@ const Sidebar = () => {
                             icon={<SquareActivity size={20} />}
                             label="Scenario"
                             isCollapsed={isCollapsed}
-                            onClick={() => setActivePage('scenario')}
-                            isActive={activePage === 'scenario'}
+                            onClick={() => navigateTo('/scenario')}
+                            isActive={router.pathname === '/scenario'}
                         />
                     </li>
                     <li>
@@ -115,8 +115,8 @@ const Sidebar = () => {
                             icon={<Infinity size={20} />}
                             label="Simulation"
                             isCollapsed={isCollapsed}
-                            onClick={() => setActivePage('simulation')}
-                            isActive={activePage === 'simulation'}
+                            onClick={() => navigateTo('/simulation')}
+                            isActive={router.pathname === '/simulation'}
                         />
                     </li>
                     <li>
@@ -124,8 +124,8 @@ const Sidebar = () => {
                             icon={<CircleUserRound size={20} />}
                             label="Your Account"
                             isCollapsed={isCollapsed}
-                            onClick={() => setActivePage('account')}
-                            isActive={activePage === 'account'}
+                            onClick={() => navigateTo('/account')}
+                            isActive={router.pathname === '/account'}
                         />
                     </li>
                     <li>
@@ -133,8 +133,8 @@ const Sidebar = () => {
                             icon={<Key size={20} />}
                             label="Login"
                             isCollapsed={isCollapsed}
-                            onClick={() => setActivePage('login')}
-                            isActive={activePage === 'login'}
+                            onClick={() => navigateTo('/login')}
+                            isActive={router.pathname === '/login'}
                         />
                     </li>
                 </ul>
@@ -142,9 +142,9 @@ const Sidebar = () => {
 
             <div className="border-t border-gray-700 p-4">
                 <motion.button
-                    onClick={navigateToAccount}
+                    onClick={() => navigateTo('/account')}
                     whileHover={{ backgroundColor: 'rgba(255, 255, 255, 0.1)' }}
-                    className={`w-full flex items-center gap-3 p-2 rounded-md cursor-pointer ${activePage === 'account' ? 'bg-white/90 text-[#616161]' : 'text-white'
+                    className={`w-full flex items-center gap-3 p-2 rounded-md cursor-pointer ${router.pathname === '/account' ? 'bg-white/90 text-[#616161]' : 'text-white'
                         }`}
                 >
                     <div className="w-8 h-8 bg-white/10 rounded-full flex items-center justify-center">
@@ -169,4 +169,4 @@ const Sidebar = () => {
     );
 };
 
-export default Sidebar; 
+export default Sidebar;
