@@ -3,6 +3,7 @@
 import { motion } from 'framer-motion'
 import { useState } from 'react'
 
+// Animation variants for the page transitions
 const pageVariants = {
     initial: { opacity: 0, y: 20 },
     animate: {
@@ -23,15 +24,17 @@ const pageVariants = {
     }
 }
 
+// Card component representing a single simulation scenario
 const ScenarioCard = ({ scenario, isSelected, onClick }) => (
     <button
         onClick={onClick}
-        className={`p-4 rounded-xl transition-all transform shadow-sm hover:cursor-pointer ${isSelected
-            ? 'bg-white text-gray-900 scale-[1.02] ring-2 ring-blue-500 ring-offset-2'
-            : 'bg-white hover:bg-gray-50 hover:scale-[1.01]'
-            }`}
+        className={`p-4 rounded-xl transition-all transform shadow-sm hover:cursor-pointer ${
+            isSelected
+                ? 'bg-white text-gray-900 scale-[1.02] ring-2 ring-blue-500 ring-offset-2'
+                : 'bg-white hover:bg-gray-50 hover:scale-[1.01]'
+        }`}
     >
-        <div className={`relative h-32 w-full mb-4 rounded-lg overflow-hidden`}>
+        <div className="relative h-32 w-full mb-4 rounded-lg overflow-hidden">
             <img
                 src={`https://picsum.photos/seed/${scenario.name}/400/300`}
                 alt={scenario.name}
@@ -47,7 +50,7 @@ const ScenarioCard = ({ scenario, isSelected, onClick }) => (
         </div>
         <div className="text-left">
             <h3 className="font-semibold text-lg text-gray-900">{scenario.name}</h3>
-            <p className={`text-sm text-gray-600`}>
+            <p className="text-sm text-gray-600">
                 Retirement: {scenario.retirementDate}
             </p>
         </div>
@@ -55,6 +58,7 @@ const ScenarioCard = ({ scenario, isSelected, onClick }) => (
 )
 
 const SimulationPage = () => {
+    // Predefined simulation scenarios
     const scenarios = [
         { id: 1, name: "John's Plan", retirementDate: "2055" },
         { id: 2, name: "Jane's Plan", retirementDate: "2050" },
@@ -64,6 +68,7 @@ const SimulationPage = () => {
         { id: 6, name: "Aggressive Plan", retirementDate: "2035" }
     ]
 
+    // Local state for selected scenario, simulation count, and type
     const [selectedScenario, setSelectedScenario] = useState(null)
     const [simulationCount, setSimulationCount] = useState(5)
     const [simulationType, setSimulationType] = useState('')
@@ -79,7 +84,7 @@ const SimulationPage = () => {
             <h1 className="text-3xl font-bold mb-8 text-gray-900">Start Simulation</h1>
 
             <div className="space-y-8">
-                {/* Scenario Selection */}
+                {/* Section for selecting a saved simulation scenario */}
                 <div>
                     <h2 className="text-xl font-semibold mb-4 text-gray-900">Select a Saved Scenario</h2>
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -94,11 +99,13 @@ const SimulationPage = () => {
                     </div>
                 </div>
 
-                {/* Simulation Configuration */}
+                {/* Section for configuring simulation settings */}
                 <div className="max-w-xl">
                     <div className="space-y-6">
                         <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">Number of Simulations</label>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                                Number of Simulations
+                            </label>
                             <input
                                 type="number"
                                 value={simulationCount}
@@ -111,7 +118,9 @@ const SimulationPage = () => {
                         </div>
 
                         <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">Simulation Type</label>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                                Simulation Type
+                            </label>
                             <select
                                 value={simulationType}
                                 onChange={(e) => setSimulationType(e.target.value)}
@@ -125,13 +134,14 @@ const SimulationPage = () => {
                     </div>
                 </div>
 
-                {/* Begin Button */}
+                {/* Button to begin the simulation, enabled only when a scenario and simulation type are selected */}
                 <div className="flex justify-end">
                     <button
-                        className={`px-8 py-3 rounded-md font-medium ${selectedScenario && simulationType
-                            ? 'bg-black text-white hover:bg-gray-800 hover:cursor-pointer'
-                            : 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                            } transition-colors duration-200`}
+                        className={`px-8 py-3 rounded-md font-medium ${
+                            selectedScenario && simulationType
+                                ? 'bg-black text-white hover:bg-gray-800 hover:cursor-pointer'
+                                : 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                        } transition-colors duration-200`}
                         disabled={!selectedScenario || !simulationType}
                     >
                         Begin
