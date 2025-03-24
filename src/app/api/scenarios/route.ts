@@ -13,6 +13,40 @@ const yesNoToBoolean = (arg: string) => {
   }
 }
 
+// Helper function to map string startYearType to StartYearType enum
+function mapStartYearType(startYearTypeString: string): StartYearType {
+  switch (startYearTypeString.toLowerCase()) {
+    case 'fixed':
+      return StartYearType.fixed;
+    case 'uniform':
+      return StartYearType.random_uniform;
+    case 'normal':
+      return StartYearType.random_normal;
+    case 'same_as':
+      return StartYearType.same_as;
+    case 'after':
+      return StartYearType.after;
+    default:
+      console.warn(`Unknown startYearType: ${startYearTypeString}, defaulting to 'fixed'`);
+      return StartYearType.fixed;
+  }
+}
+
+// Helper function to map string distribution type to DistributionType enum
+function mapDistributionType(distributionTypeString: string): DistributionType {
+  switch (distributionTypeString.toLowerCase()) {
+    case 'fixed':
+      return DistributionType.fixed;
+    case 'uniform':
+      return DistributionType.random_uniform;
+    case 'normal':
+      return DistributionType.random_normal;
+    default:
+      console.warn(`Unknown distributionType: ${distributionTypeString}, defaulting to 'fixed'`);
+      return DistributionType.fixed;
+  }
+}
+
 // Helper function to create event series and their details
 async function createEventSeries(scenarioId: number, eventSeries: any[], investments: any[]) {
   const createdEvents = [];
@@ -28,13 +62,13 @@ async function createEventSeries(scenarioId: number, eventSeries: any[], investm
       name: event.name,
       description: event.description || null,
       scenarioId,
-      startYearType: event.startYearType,
+      startYearType: typeof event.startYearType === 'string' ? mapStartYearType(event.startYearType) : event.startYearType,
       startYear: event.startYear,
       startMin: event.startYearMin,
       startMax: event.startYearMax,
       startMean: event.startYearMean,
       startStd: event.startYearStd,
-      durationType: event.durationType,
+      durationType: typeof event.durationType === 'string' ? mapDistributionType(event.durationType) : event.durationType,
       duration: event.durationFixed,
       durationMin: event.durationMin,
       durationMax: event.durationMax,
@@ -55,9 +89,11 @@ async function createEventSeries(scenarioId: number, eventSeries: any[], investm
           data: {
             eventSeriesId: createdEvent.id,
             initialAmount: event.amount,
-            annualChangeType: event.changeType,
-            annualChangeAmount: event.changeType === 'fixed' ? event.annualChange : null,
-            annualChangePercentage: event.changeType === 'percentage' ? event.annualChange : null,
+            annualChangeType: typeof (event.annualChangeType || event.changeType) === 'string' ?
+              mapDistributionType(event.annualChangeType || event.changeType) :
+              (event.annualChangeType || event.changeType),
+            annualChangeAmount: (event.annualChangeType || event.changeType) === DistributionType.fixed ? event.annualChange : null,
+            annualChangePercentage: (event.annualChangeType || event.changeType) === 'percentage' ? event.annualChange : null,
             annualChangeMin: event.annualChangeMin,
             annualChangeMax: event.annualChangeMax,
             annualChangeMean: event.annualChangeMean,
@@ -74,14 +110,16 @@ async function createEventSeries(scenarioId: number, eventSeries: any[], investm
           data: {
             eventSeriesId: createdEvent.id,
             initialAmount: event.amount,
-            annualChangeType: event.changeType,
-            annualChangeAmount: event.changeType === 'fixed' ? event.annualChange : null,
-            annualChangePercentage: event.changeType === 'percentage' ? event.annualChange : null,
+            annualChangeType: typeof (event.annualChangeType || event.changeType) === 'string' ?
+              mapDistributionType(event.annualChangeType || event.changeType) :
+              (event.annualChangeType || event.changeType),
+            annualChangeAmount: (event.annualChangeType || event.changeType) === DistributionType.fixed ? event.annualChange : null,
+            annualChangePercentage: (event.annualChangeType || event.changeType) === 'percentage' ? event.annualChange : null,
             annualChangeMin: event.annualChangeMin,
             annualChangeMax: event.annualChangeMax,
             annualChangeMean: event.annualChangeMean,
             annualChangeStd: event.annualChangeStd,
-            inflationAdjustment: event.inflationAdjusted ,
+            inflationAdjustment: event.inflationAdjusted,
             userPercentage: event.userPercentage,
             isDiscretionary: event.isDiscretionary,
             order: event.order
@@ -155,11 +193,11 @@ async function createEventSeries(scenarioId: number, eventSeries: any[], investm
 // Helper function to map string tax status to TaxStatus enum
 function mapTaxStatus(taxStatusString: string): TaxStatus {
   switch (taxStatusString) {
-    case 'NON_RETIREMENT':
+    case 'non-retirement':
       return TaxStatus.NON_RETIREMENT;
-    case 'PRE_TAX_RETIREMENT':
+    case 'pre-tax-retirement':
       return TaxStatus.PRE_TAX_RETIREMENT;
-    case 'AFTER_TAX_RETIREMENT':
+    case 'after-tax-retirement':
       return TaxStatus.AFTER_TAX_RETIREMENT;
     default:
       console.warn(`Unknown tax status: ${taxStatusString}, defaulting to NON_RETIREMENT`);
@@ -169,18 +207,26 @@ function mapTaxStatus(taxStatusString: string): TaxStatus {
 
 // Helper function to map string taxability to Taxability enum
 function mapTaxability(taxabilityString: string): Taxability {
-  if (taxabilityString === 'TAX_EXEMPT') {
+  if (taxabilityString === 'tax-exempt') {
     return Taxability.TAX_EXEMPT;
   }
-  return Taxability.TAXABLE;
+  else {
+    console.warn(`Unknown taxability: ${taxabilityString}, defaulting to TAXABLE`);
+    return Taxability.TAXABLE;
+  }
 }
 
 // Helper function to map string return type to ReturnType enum
 function mapReturnType(returnTypeString: string): ReturnType {
-  if (returnTypeString === 'FIXED') {
-    return ReturnType.FIXED;
+  switch (returnTypeString.toLowerCase()) {
+    case 'fixed':
+      return ReturnType.FIXED;
+    case 'normal':
+      return ReturnType.NORMAL;
+    default:
+      console.warn(`Unknown return type: ${returnTypeString}, defaulting to NORMAL`);
+      return ReturnType.NORMAL;
   }
-  return ReturnType.NORMAL;
 }
 
 // Helper function to create asset types
@@ -189,18 +235,18 @@ async function createAssetTypes(assetTypes: any[]) {
 
   for (const assetType of assetTypes) {
     // Map the taxability from string to enum if needed
-    const taxability = typeof assetType.taxability === 'string' 
-      ? mapTaxability(assetType.taxability) 
+    const taxability = typeof assetType.taxability === 'string'
+      ? mapTaxability(assetType.taxability)
       : (assetType.taxability || Taxability.TAXABLE);
-      
+
     // Map the return type from string to enum if needed
     const returnType = typeof assetType.returnType === 'string'
       ? mapReturnType(assetType.returnType)
       : (assetType.returnType || ReturnType.NORMAL);
-      
+
     // Map the expected annual income type from string to enum if needed
     const expectedAnnualIncomeType = typeof assetType.expectedAnnualIncomeType === 'string'
-      ? mapReturnType(assetType.expectedAnnualIncomeType) 
+      ? mapReturnType(assetType.expectedAnnualIncomeType)
       : (assetType.expectedAnnualIncomeType || ReturnType.FIXED);
 
     // Create asset type
@@ -209,9 +255,9 @@ async function createAssetTypes(assetTypes: any[]) {
         name: assetType.name,
         description: assetType.description,
         returnType: returnType,
-        fixedReturn: assetType.fixedReturn,
-        normalReturnMean: assetType.normalReturnMean,
-        normalReturnStd: assetType.normalReturnStd,
+        fixedReturn: returnType === ReturnType.FIXED ? parseFloat(assetType.fixedReturn) : null,
+        normalReturnMean: returnType === ReturnType.NORMAL ? parseFloat(assetType.normalReturnMean) : null,
+        normalReturnStd: returnType === ReturnType.NORMAL ? parseFloat(assetType.normalReturnStd) : null,
         expectedAnnualIncomeType: expectedAnnualIncomeType,
         fixedIncome: assetType.fixedIncome,
         normalIncomeMean: assetType.normalIncomeMean,
@@ -236,15 +282,15 @@ async function createInvestments(scenarioId: number, investments: any[], assetTy
   for (const investment of investments) {
     // Get the asset type ID from the map
     const assetTypeId = investment.assetTypeId || assetTypeMap.get(investment.assetType);
-    
+
     if (!assetTypeId) {
       console.error(`No asset type found for investment: ${JSON.stringify(investment)}`);
       continue;
     }
 
     // Map the tax status from string to enum if needed
-    const taxStatus = typeof investment.taxStatus === 'string' 
-      ? mapTaxStatus(investment.taxStatus) 
+    const taxStatus = typeof investment.taxStatus === 'string'
+      ? mapTaxStatus(investment.taxStatus)
       : investment.taxStatus;
 
     // Create investment
@@ -396,6 +442,31 @@ export async function POST(request: NextRequest) {
       eventSeries
     } = body;
 
+    // Process inflation fields
+    const processedInflationAssumption = typeof inflationAssumption === 'string'
+      ? mapDistributionType(inflationAssumption)
+      : inflationAssumption;
+
+    const processedInflation = processedInflationAssumption === DistributionType.fixed
+      ? inflation
+      : null;
+
+    const processedInflationMin = processedInflationAssumption === DistributionType.random_uniform
+      ? inflationMin
+      : null;
+
+    const processedInflationMax = processedInflationAssumption === DistributionType.random_uniform
+      ? inflationMax
+      : null;
+
+    const processedInflationMean = processedInflationAssumption === DistributionType.random_normal
+      ? inflationMean
+      : null;
+
+    const processedInflationStd = processedInflationAssumption === DistributionType.random_normal
+      ? inflationStd
+      : null;
+
     // Create the base scenario
     const scenario = await prisma.scenario.create({
       data: {
@@ -408,12 +479,12 @@ export async function POST(request: NextRequest) {
         spouseBirthYear,
         spouseLifeExpectancyMean,
         spouseLifeExpectancyStd,
-        inflationAssumption,
-        inflation,
-        inflationMin,
-        inflationMax,
-        inflationMean,
-        inflationStd,
+        inflationAssumption: processedInflationAssumption,
+        inflation: processedInflation,
+        inflationMin: processedInflationMin,
+        inflationMax: processedInflationMax,
+        inflationMean: processedInflationMean,
+        inflationStd: processedInflationStd,
         ownerPrivilege: { connect: { id: ownerId } },
         initialAfterTaxRetirementContributionLimit,
         rothOptimizationStartYear,

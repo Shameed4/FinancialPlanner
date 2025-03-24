@@ -243,10 +243,7 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel }) => {
         spouseBirthYear: '',
         spouseLifeExpectancyMean: '',
         spouseLifeExpectancyStd: '0',
-        currentSavings: '',
         monthlyContribution: '',
-        riskTolerance: '',
-        investmentPreference: '',
         assetTypes: [],
         investments: [],
         eventSeries: [],
@@ -269,7 +266,6 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel }) => {
         switch (step) {
             case 1:
                 if (!formData.name) newErrors.name = 'Name is required';
-                if (!formData.forIndividual) newErrors.forIndividual = 'Please select a type';
                 if (!formData.userBirthYear) newErrors.userBirthYear = 'Birth year is required';
                 if (!formData.userLifeExpectancyMean) newErrors.userLifeExpectancyMean = 'Life expectancy is required';
                 if (!formData.userLifeExpectancyStd) newErrors.userLifeExpectancyStd = 'Life expectancy standard deviation is required';
@@ -320,8 +316,25 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel }) => {
                 formData.assetTypes?.forEach((asset, index) => {
                     if (!asset.name) newErrors[`assetTypes.${index}.name`] = 'Asset name is required';
                     if (!asset.description) newErrors[`assetTypes.${index}.description`] = 'Description is required';
-                    if (!asset.returnMean) newErrors[`assetTypes.${index}.returnMean`] = 'Expected return is required';
-                    if (!asset.returnStd) newErrors[`assetTypes.${index}.returnStd`] = 'Return standard deviation is required';
+                    if (!asset.returnType) newErrors[`assetTypes.${index}.returnType`] = 'Return type is required';
+                    
+                    // Validate return fields based on return type
+                    if (asset.returnType === 'fixed') {
+                        if (!asset.fixedReturn) newErrors[`assetTypes.${index}.fixedReturn`] = 'Fixed return is required';
+                        if (asset.fixedReturn && (isNaN(asset.fixedReturn) || parseFloat(asset.fixedReturn) <= 0)) {
+                            newErrors[`assetTypes.${index}.fixedReturn`] = 'Fixed return must be a positive number';
+                        }
+                    } else {
+                        if (!asset.normalReturnMean) newErrors[`assetTypes.${index}.normalReturnMean`] = 'Expected return mean is required';
+                        if (!asset.normalReturnStd) newErrors[`assetTypes.${index}.normalReturnStd`] = 'Return standard deviation is required';
+                        if (asset.normalReturnMean && (isNaN(asset.normalReturnMean) || parseFloat(asset.normalReturnMean) <= 0)) {
+                            newErrors[`assetTypes.${index}.normalReturnMean`] = 'Expected return mean must be a positive number';
+                        }
+                        if (asset.normalReturnStd && (isNaN(asset.normalReturnStd) || parseFloat(asset.normalReturnStd) <= 0)) {
+                            newErrors[`assetTypes.${index}.normalReturnStd`] = 'Return standard deviation must be a positive number';
+                        }
+                    }
+                    
                     if (!asset.expenseRatio) newErrors[`assetTypes.${index}.expenseRatio`] = 'Expense ratio is required';
                     if (!asset.incomeMean) newErrors[`assetTypes.${index}.incomeMean`] = 'Income mean is required';
                 });
@@ -542,6 +555,11 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel }) => {
                         'rothOptimizationStartYear', 'rothOptimizationEndYear'
                     ];
                     
+                    // List of field paths that should be converted to boolean values
+                    const booleanFields = [
+                        'hasSpouse', 'selfEmployed', 'forIndividual'
+                    ];
+                    
                     // Helper to check if a path should be numeric
                     const shouldBeNumeric = (path) => {
                         // Direct match for top-level fields
@@ -581,6 +599,21 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel }) => {
                                     if (shouldBeNumeric(itemPath) && typeof item === 'string' && !isNaN(Number(item))) {
                                         return Number(item);
                                     }
+                                    // Process boolean values in arrays
+                                    if ((itemPath.includes('.taxable') || 
+                                         itemPath.includes('.isSocialSecurity') || 
+                                         itemPath.includes('.isDiscretionary') ||
+                                         booleanFields.includes(itemPath)) && 
+                                         typeof item === 'string') {
+                                        if (item.toLowerCase() === 'yes' || item === 'true') {
+                                            return true;
+                                        } else if (item.toLowerCase() === 'no' || item === 'false') {
+                                            return false;
+                                        } else {
+                                            // If it's not explicitly "yes"/"no" or "true"/"false", keep as is
+                                            return item;
+                                        }
+                                    }
                                     return item;
                                 });
                             }
@@ -591,6 +624,22 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel }) => {
                             // Process primitive values
                             else if (shouldBeNumeric(currentPath) && typeof value === 'string' && !isNaN(Number(value))) {
                                 result[key] = Number(value);
+                            }
+                            // Process boolean values - only convert specific fields to avoid affecting text descriptions
+                            else if ((currentPath.includes('.taxable') || 
+                                    currentPath.includes('.isSocialSecurity') || 
+                                    currentPath.includes('.isDiscretionary') ||
+                                    booleanFields.includes(currentPath)) && 
+                                    typeof value === 'string') {
+                                // Convert only checkbox-related fields
+                                if (value.toLowerCase() === 'yes' || value === 'true') {
+                                    result[key] = true;
+                                } else if (value.toLowerCase() === 'no' || value === 'false') {
+                                    result[key] = false;
+                                } else {
+                                    // If it's not explicitly "yes"/"no" or "true"/"false", keep as is
+                                    result[key] = value;
+                                }
                             }
                             else {
                                 result[key] = value;
@@ -671,15 +720,26 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel }) => {
                         <label className="block text-sm font-medium text-gray-700 mb-1">
                             Is this scenario intended for an individual or a married couple?
                         </label>
-                        <select
-                            name="forIndividual"
-                            value={formData.forIndividual}
-                            onChange={handleInputChange}
-                            className={`${getInputClassName('forIndividual')} text-black`}
-                        >
-                            <option value={true}>Individual</option>
-                            <option value={false}>Married Couple</option>
-                        </select>
+                        <div className="flex items-center mt-2">
+                            <input
+                                type="checkbox"
+                                id="hasSpouse"
+                                checked={!formData.forIndividual}
+                                onChange={(e) => {
+                                    setFormData({ 
+                                        ...formData, 
+                                        forIndividual: !e.target.checked 
+                                    });
+                                }}
+                                className="form-checkbox h-5 w-5 text-black"
+                            />
+                            <label htmlFor="hasSpouse" className="ml-2 text-gray-700">
+                                Married Couple (check if married)
+                            </label>
+                        </div>
+                        {errors.forIndividual && (
+                            <p className="mt-1 text-sm text-red-600">{errors.forIndividual}</p>
+                        )}
                     </div>
                     <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1">Your Birth Year</label>
@@ -927,6 +987,34 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel }) => {
                                         )}
                                     </div>
                                     <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-1">Return Type</label>
+                                        <select
+                                            value={asset.returnType || 'normal'}
+                                            onChange={(e) => {
+                                                const newAssetTypes = [...formData.assetTypes];
+                                                newAssetTypes[index].returnType = e.target.value;
+                                                // Reset return values when switching types
+                                                if (e.target.value === 'fixed') {
+                                                    newAssetTypes[index].fixedReturn = '';
+                                                    newAssetTypes[index].normalReturnMean = null;
+                                                    newAssetTypes[index].normalReturnStd = null;
+                                                } else {
+                                                    newAssetTypes[index].fixedReturn = null;
+                                                    newAssetTypes[index].normalReturnMean = '';
+                                                    newAssetTypes[index].normalReturnStd = '';
+                                                }
+                                                setFormData({ ...formData, assetTypes: newAssetTypes });
+                                            }}
+                                            className={`${getInputClassName(`assetTypes.${index}.returnType`)} text-black`}
+                                        >
+                                            <option value="fixed">Fixed</option>
+                                            <option value="normal">Normal Distribution</option>
+                                        </select>
+                                        {errors[`assetTypes.${index}.returnType`] && (
+                                            <p className="mt-1 text-sm text-red-600">{errors[`assetTypes.${index}.returnType`]}</p>
+                                        )}
+                                    </div>
+                                    <div>
                                         <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
                                         <input
                                             type="text"
@@ -943,42 +1031,65 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel }) => {
                                             <p className="mt-1 text-sm text-red-600">{errors[`assetTypes.${index}.description`]}</p>
                                         )}
                                     </div>
-                                    <div>
-                                        <label className="block text-sm font-medium text-gray-700 mb-1">Expected Annual Return Mean (%)</label>
-                                        <input
-                                            type="number"
-                                            step="0.01"
-                                            value={asset.returnMean}
-                                            onChange={(e) => {
-                                                const newAssetTypes = [...formData.assetTypes];
-                                                newAssetTypes[index].returnMean = e.target.value;
-                                                setFormData({ ...formData, assetTypes: newAssetTypes });
-                                            }}
-                                            className={`${getInputClassName(`assetTypes.${index}.returnMean`)} text-black`}
-                                            placeholder="Ex: 7.5"
-                                        />
-                                        {errors[`assetTypes.${index}.returnMean`] && (
-                                            <p className="mt-1 text-sm text-red-600">{errors[`assetTypes.${index}.returnMean`]}</p>
-                                        )}
-                                    </div>
-                                    <div>
-                                        <label className="block text-sm font-medium text-gray-700 mb-1">Return Standard Deviation (%)</label>
-                                        <input
-                                            type="number"
-                                            step="0.01"
-                                            value={asset.returnStd}
-                                            onChange={(e) => {
-                                                const newAssetTypes = [...formData.assetTypes];
-                                                newAssetTypes[index].returnStd = e.target.value;
-                                                setFormData({ ...formData, assetTypes: newAssetTypes });
-                                            }}
-                                            className={`${getInputClassName(`assetTypes.${index}.returnStd`)} text-black`}
-                                            placeholder="Ex: 15.0"
-                                        />
-                                        {errors[`assetTypes.${index}.returnStd`] && (
-                                            <p className="mt-1 text-sm text-red-600">{errors[`assetTypes.${index}.returnStd`]}</p>
-                                        )}
-                                    </div>
+                                    {asset.returnType === 'fixed' ? (
+                                        <div>
+                                            <label className="block text-sm font-medium text-gray-700 mb-1">Fixed Annual Return (%)</label>
+                                            <input
+                                                type="number"
+                                                step="0.01"
+                                                value={asset.fixedReturn || ''}
+                                                onChange={(e) => {
+                                                    const newAssetTypes = [...formData.assetTypes];
+                                                    newAssetTypes[index].fixedReturn = e.target.value;
+                                                    setFormData({ ...formData, assetTypes: newAssetTypes });
+                                                }}
+                                                className={`${getInputClassName(`assetTypes.${index}.fixedReturn`)} text-black`}
+                                                placeholder="Ex: 7.5"
+                                            />
+                                            {errors[`assetTypes.${index}.fixedReturn`] && (
+                                                <p className="mt-1 text-sm text-red-600">{errors[`assetTypes.${index}.fixedReturn`]}</p>
+                                            )}
+                                        </div>
+                                    ) : (
+                                        <>
+                                            <div>
+                                                <label className="block text-sm font-medium text-gray-700 mb-1">Expected Annual Return Mean (%)</label>
+                                                <input
+                                                    type="number"
+                                                    step="0.01"
+                                                    value={asset.normalReturnMean || ''}
+                                                    onChange={(e) => {
+                                                        const newAssetTypes = [...formData.assetTypes];
+                                                        newAssetTypes[index].normalReturnMean = e.target.value;
+                                                        setFormData({ ...formData, assetTypes: newAssetTypes });
+                                                    }}
+                                                    className={`${getInputClassName(`assetTypes.${index}.normalReturnMean`)} text-black`}
+                                                    placeholder="Ex: 7.5"
+                                                />
+                                                {errors[`assetTypes.${index}.normalReturnMean`] && (
+                                                    <p className="mt-1 text-sm text-red-600">{errors[`assetTypes.${index}.normalReturnMean`]}</p>
+                                                )}
+                                            </div>
+                                            <div>
+                                                <label className="block text-sm font-medium text-gray-700 mb-1">Return Standard Deviation (%)</label>
+                                                <input
+                                                    type="number"
+                                                    step="0.01"
+                                                    value={asset.normalReturnStd || ''}
+                                                    onChange={(e) => {
+                                                        const newAssetTypes = [...formData.assetTypes];
+                                                        newAssetTypes[index].normalReturnStd = e.target.value;
+                                                        setFormData({ ...formData, assetTypes: newAssetTypes });
+                                                    }}
+                                                    className={`${getInputClassName(`assetTypes.${index}.normalReturnStd`)} text-black`}
+                                                    placeholder="Ex: 15.0"
+                                                />
+                                                {errors[`assetTypes.${index}.normalReturnStd`] && (
+                                                    <p className="mt-1 text-sm text-red-600">{errors[`assetTypes.${index}.normalReturnStd`]}</p>
+                                                )}
+                                            </div>
+                                        </>
+                                    )}
                                     <div>
                                         <label className="block text-sm font-medium text-gray-700 mb-1">Expense Ratio (%)</label>
                                         <input
@@ -1073,6 +1184,7 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel }) => {
                                     assetTypes: [...assetTypes, {
                                         name: '',
                                         description: '',
+                                        returnType: '',
                                         returnMean: '',
                                         returnStd: '',
                                         expenseRatio: '',
@@ -2093,7 +2205,7 @@ const ScenarioPage = () => {
 
     const handleScenarioCreate = (newScenario) => {
         setScenarios([...scenarios, newScenario]);
-        setIsCreating(false);
+        // setIsCreating(false);
     };
 
     return (
