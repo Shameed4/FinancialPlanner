@@ -1,5 +1,6 @@
 'use client';
 
+import { useSession } from 'next-auth/react';
 import { motion } from 'framer-motion';
 import { useState } from 'react';
 import Image from 'next/image';
@@ -61,6 +62,12 @@ const FriendBadge = ({ name, avatar, onRemove }) => (
 );
 
 const AccountPage = () => {
+    const { data: session } = useSession();
+
+    // default values if user is not logged in
+    const userName = session?.user?.name || "John Doe";
+    const userEmail = session?.user?.email || "john.doe@email.com";
+
     const [friends, setFriends] = useState([
         { name: 'JANE', avatar: null },
         { name: 'BOB', avatar: null },
@@ -87,7 +94,7 @@ const AccountPage = () => {
             exit="exit"
             className="p-8 max-w-6xl mx-auto"
         >
-            <h1 className="text-black text-3xl font-bold mb-8">Hello John!</h1>
+            <h1 className="text-black text-3xl font-bold mb-8">Hello {userName}!</h1>
 
             {/* User Information Card */}
             <div className="bg-[#3A3A3C] rounded-xl p-6 mb-12">
@@ -96,11 +103,11 @@ const AccountPage = () => {
                     <div className="space-y-4">
                         <div>
                             <p className="text-gray-400">Name</p>
-                            <p className="text-white">John Doe</p>
+                            <p className="text-white">{userName}</p>
                         </div>
                         <div>
                             <p className="text-gray-400">Email</p>
-                            <p className="text-white">john.doe@email.com</p>
+                            <p className="text-white">{userEmail}</p>
                         </div>
                     </div>
                     <div className="space-y-4">
