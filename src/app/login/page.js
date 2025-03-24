@@ -2,49 +2,10 @@
 
 import Image from 'next/image';
 import { signIn } from 'next-auth/react';
-import NextAuth from 'next-auth/next'
-import GoogleProvider from 'next-auth/providers/google'
-
-const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID
-const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET
-
-const authOptions = {
-    session: {
-        strategy: 'jwt'
-    },
-    providers: [
-        GoogleProvider({
-            clientId: GOOGLE_CLIENT_ID,
-            clientSecret: GOOGLE_CLIENT_SECRET
-        })
-    ],
-    callbacks: {
-        async signIn({ user }) {
-            return true
-        },
-        async createUser({ user }) {
-            return {
-                id: user.email,
-                email: user.email,
-                name: user.name
-            }
-        },
-        async session({ session, user }) {
-            if (user) {
-                session.user = {
-                    id: user.id,
-                    email: user.email,
-                    name: user.name
-                }
-            }
-            return session
-        }
-    }
-}
 
 const LoginPage = () => {
     const handleGoogleLogin = async () => {
-        await NextAuth(authOptions).signIn('google')
+        signIn("google");
     }
     
     return (
@@ -52,7 +13,7 @@ const LoginPage = () => {
             <div className="bg-white p-8 rounded-lg shadow-2xl w-full max-w-md backdrop-blur-lg bg-opacity-50">
                 <div className="text-center mb-8">
                     <h1 className="text-3xl font-bold text-gray-800 mb-2">Welcome to LFP</h1>
-                    <p className="text-gray-600">Sign in to continue</p>
+                    <p className="text-gray-600">Sign in with Google to continue</p>
                 </div>
                 
                 <button
@@ -67,7 +28,7 @@ const LoginPage = () => {
                             height={24}
                             className="rounded-full"
                         />
-                        <span className="text-gray-800 font-medium">Continue with Google</span>
+                        <span className="text-gray-800 font-medium hover:cursor-pointer">Continue with Google</span>
                     </div>
                 </button>
             </div>

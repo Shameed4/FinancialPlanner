@@ -71,7 +71,7 @@ const US_STATES = [
 
 const ScenarioCard = ({ scenario }) => (
     <div className="bg-white p-6 rounded-lg shadow-md hover:shadow-lg transition-shadow">
-        <h3 className="text-xl font-semibold mb-2">{scenario.name}'s Scenario</h3>
+        <h3 className="text-xl font-semibold mb-2 text-black">{scenario.name}'s Scenario</h3>
         <div className="space-y-4 text-gray-600">
             <div>
                 <p className="font-medium mb-2">Basic Information</p>
@@ -638,7 +638,7 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel }) => {
             <div className="flex justify-between items-center mb-6">
                 <button
                     onClick={onCancel}
-                    className="text-gray-500 hover:text-gray-700"
+                    className="text-gray-500 hover:text-gray-700 hover:cursor-pointer"
                 >
                     ✕
                 </button>
@@ -720,7 +720,7 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel }) => {
                             name="residenceState"
                             value={formData.residenceState}
                             onChange={handleInputChange}
-                            className={getInputClassName('residenceState')}
+                            className={`${getInputClassName('residenceState')} text-black`}
                         >
                             <option value="">Select a state...</option>
                             {US_STATES.map(state => (
@@ -735,8 +735,8 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel }) => {
                             name="financialGoal"
                             value={formData.financialGoal}
                             onChange={handleInputChange}
-                            className={getInputClassName('financialGoal')}
-                            placeholder="1000000"
+                            className={`${getInputClassName('financialGoal')} text-black`}
+                            placeholder="Ex: 1000000"
                             min="0"
                             step="0.01"
                         />
@@ -748,8 +748,8 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel }) => {
                             name="initialAfterTaxRetirementContributionLimit"
                             value={formData.initialAfterTaxRetirementContributionLimit}
                             onChange={handleInputChange}
-                            className={getInputClassName('initialAfterTaxRetirementContributionLimit')}
-                            placeholder="6500"
+                            className={`${getInputClassName('initialAfterTaxRetirementContributionLimit')} text-black`}
+                            placeholder="Ex: 6500"
                             min="0"
                             step="0.01"
                         />
@@ -776,7 +776,7 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel }) => {
                                 value={formData.spouseLifeExpectancyMean}
                                 onChange={handleInputChange}
                                 className={`${getInputClassName('spouseLifeExpectancyMean')} text-black`}
-                                placeholder="90"
+                                placeholder="Ex: 90"
                             />
                         </div>
                         <div>
@@ -787,7 +787,7 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel }) => {
                                 value={formData.spouseLifeExpectancyStd}
                                 onChange={handleInputChange}
                                 className={`${getInputClassName('spouseLifeExpectancyStd')} text-black`}
-                                placeholder="90"
+                                placeholder="Ex: 90"
                             />
                         </div>
                     </>)}
@@ -810,7 +810,7 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel }) => {
                                             inflationStd: e.target.value === 'normal' ? formData.inflationStd : null
                                         });
                                     }}
-                                    className={getInputClassName('inflationAssumption')}
+                                    className={`${getInputClassName('inflationAssumption')} text-black`}
                                 >
                                     <option value="fixed">Fixed Percentage</option>
                                     <option value="uniform">Uniform Distribution</option>
@@ -828,8 +828,8 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel }) => {
                                         onChange={(e) => {
                                             setFormData({ ...formData, inflation: e.target.value });
                                         }}
-                                        className={getInputClassName('inflation')}
-                                        placeholder="2.0"
+                                        className={`${getInputClassName('inflation')} text-black`}
+                                        placeholder="Ex: 2.0"
                                     />
                                 </div>
                             )}
@@ -845,8 +845,8 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel }) => {
                                             onChange={(e) => {
                                                 setFormData({ ...formData, inflationMin: e.target.value });
                                             }}
-                                            className={getInputClassName('inflationMin')}
-                                            placeholder="1.5"
+                                            className={`${getInputClassName('inflationMin')} text-black`}
+                                            placeholder="Ex: 1.5"
                                         />
                                     </div>
                                     <div>
@@ -858,8 +858,8 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel }) => {
                                             onChange={(e) => {
                                                 setFormData({ ...formData, inflationMax: e.target.value });
                                             }}
-                                            className={getInputClassName('inflationMax')}
-                                            placeholder="3.0"
+                                            className={`${getInputClassName('inflationMax')} text-black`}
+                                            placeholder="Ex: 3.0"
                                         />
                                     </div>
                                 </>
@@ -876,8 +876,8 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel }) => {
                                             onChange={(e) => {
                                                 setFormData({ ...formData, inflationMean: e.target.value });
                                             }}
-                                            className={getInputClassName('inflationMean')}
-                                            placeholder="2.0"
+                                            className={`${getInputClassName('inflationMean')} text-black`}
+                                            placeholder="Ex: 2.0"
                                         />
                                     </div>
                                     <div>
@@ -889,8 +889,8 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel }) => {
                                             onChange={(e) => {
                                                 setFormData({ ...formData, inflationStd: e.target.value });
                                             }}
-                                            className={getInputClassName('inflationStd')}
-                                            placeholder="0.5"
+                                            className={`${getInputClassName('inflationStd')} text-black`}
+                                            placeholder="Ex: 0.5"
                                         />
                                     </div>
                                 </>
