@@ -6,6 +6,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { House, Infinity, SquareActivity, CircleUserRound, LogIn, LogOut } from "lucide-react";
 
+// Navigation item component with animated label based on sidebar collapse state.
 const NavItem = ({ icon, label, isCollapsed, onClick, isActive }) => (
     <motion.button
         initial={false}
@@ -35,15 +36,15 @@ const NavItem = ({ icon, label, isCollapsed, onClick, isActive }) => (
 );
 
 const Sidebar = () => {
-    const { data: session, status } = useSession();
+    const { data: session, status } = useSession(); // Retrieve user session
     const isAuthenticated = status === 'authenticated';
     
     const userName = session?.user?.name || "John Doe";
-    const [isCollapsed, setIsCollapsed] = useState(false);
+    const [isCollapsed, setIsCollapsed] = useState(false); // Manage sidebar collapse state
     const router = useRouter();
 
     const navigateTo = (path) => {
-        router.push(path);
+        router.push(path); // Navigate to the specified route
     };
 
     const handleLogout = async () => {
@@ -54,8 +55,7 @@ const Sidebar = () => {
     return (
         <motion.div
             layout="position"
-            className={`bg-[#24292f] text-white h-screen flex flex-col ${isCollapsed ? 'w-20' : 'w-64'
-                }`}
+            className={`bg-[#24292f] text-white h-screen flex flex-col ${isCollapsed ? 'w-20' : 'w-64'}`}
             transition={{
                 type: "spring",
                 stiffness: 300,
@@ -149,8 +149,7 @@ const Sidebar = () => {
                         <motion.button
                             onClick={() => navigateTo('/account')}
                             whileHover={{ backgroundColor: 'rgba(255, 255, 255, 0.1)' }}
-                            className={`w-full flex items-center gap-3 p-2 rounded-md cursor-pointer ${router.pathname === '/account' ? 'bg-white/90 text-[#616161]' : 'text-white'
-                                }`}
+                            className={`w-full flex items-center gap-3 p-2 rounded-md cursor-pointer ${router.pathname === '/account' ? 'bg-white/90 text-[#616161]' : 'text-white'}`}
                         >
                             <div className="w-8 h-8 bg-white/10 rounded-full flex items-center justify-center">
                                 👤
