@@ -1,5 +1,6 @@
 'use client';
 
+import { useSession } from 'next-auth/react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
@@ -34,6 +35,9 @@ const NavItem = ({ icon, label, isCollapsed, onClick, isActive }) => (
 );
 
 const Sidebar = () => {
+    const { data: session } = useSession();
+    
+    const userName = session?.user?.name || "John Doe";
     const [isCollapsed, setIsCollapsed] = useState(false);
     const router = useRouter();
 
@@ -158,7 +162,7 @@ const Sidebar = () => {
                                 exit={{ opacity: 0 }}
                                 transition={{ duration: 0.2 }}
                             >
-                                <div className="font-medium text-inherit">John Doe</div>
+                                <div className="font-medium text-inherit">{userName}</div>
                                 <div className="text-sm text-inherit opacity-60">Account Settings</div>
                             </motion.div>
                         )}
