@@ -1,10 +1,10 @@
 'use client';
 
-import { useSession } from 'next-auth/react';
+import { useSession, signOut } from 'next-auth/react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { House, Infinity, SquareActivity, CircleUserRound, Key } from "lucide-react";
+import { House, Infinity, SquareActivity, CircleUserRound, LogIn, LogOut } from "lucide-react";
 
 const NavItem = ({ icon, label, isCollapsed, onClick, isActive }) => (
     <motion.button
@@ -35,7 +35,8 @@ const NavItem = ({ icon, label, isCollapsed, onClick, isActive }) => (
 );
 
 const Sidebar = () => {
-    const { data: session } = useSession();
+    const { data: session, status } = useSession();
+    const isAuthenticated = status === 'authenticated';
     
     const userName = session?.user?.name || "John Doe";
     const [isCollapsed, setIsCollapsed] = useState(false);
@@ -43,6 +44,11 @@ const Sidebar = () => {
 
     const navigateTo = (path) => {
         router.push(path);
+    };
+
+    const handleLogout = async () => {
+        await signOut({ redirect: false });
+        router.push('/');
     };
 
     return (
@@ -123,51 +129,93 @@ const Sidebar = () => {
                             isActive={router.pathname === '/simulation'}
                         />
                     </li>
-                    <li>
-                        <NavItem
-                            icon={<CircleUserRound size={20} />}
-                            label="Your Account"
-                            isCollapsed={isCollapsed}
-                            onClick={() => navigateTo('/account')}
-                            isActive={router.pathname === '/account'}
-                        />
-                    </li>
-                    <li>
-                        <NavItem
-                            icon={<Key size={20} />}
-                            label="Login"
-                            isCollapsed={isCollapsed}
-                            onClick={() => navigateTo('/login')}
-                            isActive={router.pathname === '/login'}
-                        />
-                    </li>
+                    {isAuthenticated && (
+                        <li>
+                            <NavItem
+                                icon={<CircleUserRound size={20} />}
+                                label="Your Account"
+                                isCollapsed={isCollapsed}
+                                onClick={() => navigateTo('/account')}
+                                isActive={router.pathname === '/account'}
+                            />
+                        </li>
+                    )}
                 </ul>
             </nav>
 
             <div className="border-t border-gray-700 p-4">
-                <motion.button
-                    onClick={() => navigateTo('/account')}
-                    whileHover={{ backgroundColor: 'rgba(255, 255, 255, 0.1)' }}
-                    className={`w-full flex items-center gap-3 p-2 rounded-md cursor-pointer ${router.pathname === '/account' ? 'bg-white/90 text-[#616161]' : 'text-white'
-                        }`}
-                >
-                    <div className="w-8 h-8 bg-white/10 rounded-full flex items-center justify-center">
-                        👤
+                {isAuthenticated ? (
+                    <div className="space-y-2">
+                        <motion.button
+                            onClick={() => navigateTo('/account')}
+                            whileHover={{ backgroundColor: 'rgba(255, 255, 255, 0.1)' }}
+                            className={`w-full flex items-center gap-3 p-2 rounded-md cursor-pointer ${router.pathname === '/account' ? 'bg-white/90 text-[#616161]' : 'text-white'
+                                }`}
+                        >
+                            <div className="w-8 h-8 bg-white/10 rounded-full flex items-center justify-center">
+                                👤
+                            </div>
+                            <AnimatePresence mode="wait">
+                                {!isCollapsed && (
+                                    <motion.div
+                                        initial={{ opacity: 0 }}
+                                        animate={{ opacity: 1 }}
+                                        exit={{ opacity: 0 }}
+                                        transition={{ duration: 0.2 }}
+                                    >
+                                        <div className="font-medium text-inherit">{userName}</div>
+                                        <div className="text-sm text-inherit opacity-60">Account Settings</div>
+                                    </motion.div>
+                                )}
+                            </AnimatePresence>
+                        </motion.button>
+                        
+                        <motion.button
+                            onClick={handleLogout}
+                            whileHover={{ backgroundColor: 'rgba(255, 255, 255, 0.1)' }}
+                            className="w-full flex items-center gap-3 p-2 rounded-md cursor-pointer text-white"
+                        >
+                            <div className="w-8 h-8 bg-white/10 rounded-full flex items-center justify-center">
+                                <LogOut size={18} />
+                            </div>
+                            <AnimatePresence mode="wait">
+                                {!isCollapsed && (
+                                    <motion.div
+                                        initial={{ opacity: 0 }}
+                                        animate={{ opacity: 1 }}
+                                        exit={{ opacity: 0 }}
+                                        transition={{ duration: 0.2 }}
+                                    >
+                                        <div className="font-medium">Log Out</div>
+                                    </motion.div>
+                                )}
+                            </AnimatePresence>
+                        </motion.button>
                     </div>
-                    <AnimatePresence mode="wait">
-                        {!isCollapsed && (
-                            <motion.div
-                                initial={{ opacity: 0 }}
-                                animate={{ opacity: 1 }}
-                                exit={{ opacity: 0 }}
-                                transition={{ duration: 0.2 }}
-                            >
-                                <div className="font-medium text-inherit">{userName}</div>
-                                <div className="text-sm text-inherit opacity-60">Account Settings</div>
-                            </motion.div>
-                        )}
-                    </AnimatePresence>
-                </motion.button>
+                ) : (
+                    <motion.button
+                        onClick={() => navigateTo('/login')}
+                        whileHover={{ backgroundColor: 'rgba(255, 255, 255, 0.1)' }}
+                        className="w-full flex items-center gap-3 p-2 rounded-md cursor-pointer text-white"
+                    >
+                        <div className="w-8 h-8 bg-white/10 rounded-full flex items-center justify-center">
+                            <LogIn size={18} />
+                        </div>
+                        <AnimatePresence mode="wait">
+                            {!isCollapsed && (
+                                <motion.div
+                                    initial={{ opacity: 0 }}
+                                    animate={{ opacity: 1 }}
+                                    exit={{ opacity: 0 }}
+                                    transition={{ duration: 0.2 }}
+                                >
+                                    <div className="font-medium">Log In</div>
+                                    <div className="text-sm opacity-60">Access your account</div>
+                                </motion.div>
+                            )}
+                        </AnimatePresence>
+                    </motion.button>
+                )}
             </div>
         </motion.div>
     );
