@@ -429,8 +429,8 @@ const transformScenarioForFrontend = (scenario: any) => {
           normalReturnMean: assetType.normalReturnMean,
           normalReturnStd: assetType.normalReturnStd,
           expenseRatio: assetType.expenseRatio,
-          incomeMean: assetType.normalIncomeMean,
-          incomeStd: assetType.normalIncomeStd,
+          normalIncomeMean: assetType.normalIncomeMean,
+          normalIncomeStd: assetType.normalIncomeStd,
           taxable: assetType.taxability === 'TAXABLE'
         });
       }
@@ -563,16 +563,16 @@ export async function GET(request: NextRequest) {
         permissions: {
           isOwner: scenario.ownerId === ownerId,
           canWrite: scenario.ownerId === ownerId || scenario.readwritePrivilege.some(user => user.id === ownerId),
-          canRead: scenario.ownerId === ownerId || 
-                   scenario.readonlyPrivilege.some(user => user.id === ownerId) ||
-                   scenario.readwritePrivilege.some(user => user.id === ownerId),
+          canRead: scenario.ownerId === ownerId ||
+            scenario.readonlyPrivilege.some(user => user.id === ownerId) ||
+            scenario.readwritePrivilege.some(user => user.id === ownerId),
           owner: {
             email: scenario.ownerId
           }
         }
       };
     });
-    
+
     return NextResponse.json({ status: 200, result: transformedResults });
   }
 
@@ -773,7 +773,7 @@ export async function POST(request: NextRequest) {
 
     // Apply the transformation and add permissions
     const transformedScenario = transformScenarioForFrontend(completeScenario);
-    
+
     // If the transformed scenario doesn't have all the asset types (because they might not be linked to investments yet),
     // add them manually 
     const transformedAssetTypeNames = transformedScenario.assetTypes.map(at => at.name);
@@ -787,11 +787,11 @@ export async function POST(request: NextRequest) {
         normalReturnMean: at.normalReturnMean,
         normalReturnStd: at.normalReturnStd,
         expenseRatio: at.expenseRatio,
-        incomeMean: at.normalIncomeMean,
-        incomeStd: at.normalIncomeStd,
+        normalIncomeMean: at.normalIncomeMean,
+        normalIncomeStd: at.normalIncomeStd,
         taxable: at.taxability === 'TAXABLE'
       }));
-    
+
     const responseData = {
       ...transformedScenario,
       assetTypes: [...transformedScenario.assetTypes, ...additionalAssetTypes],
@@ -1078,7 +1078,7 @@ export async function PUT(request: NextRequest) {
     });
 
     const transformedScenario = transformScenarioForFrontend(completeScenario);
-    
+
     // If the transformed scenario doesn't have all the asset types (because they might not be linked to investments yet),
     // add them manually 
     const transformedAssetTypeNames = transformedScenario.assetTypes.map(at => at.name);
@@ -1092,26 +1092,26 @@ export async function PUT(request: NextRequest) {
         normalReturnMean: at.normalReturnMean,
         normalReturnStd: at.normalReturnStd,
         expenseRatio: at.expenseRatio,
-        incomeMean: at.normalIncomeMean,
-        incomeStd: at.normalIncomeStd,
+        normalIncomeMean: at.normalIncomeMean,
+        normalIncomeStd: at.normalIncomeStd,
         taxable: at.taxability === 'TAXABLE'
       }));
-    
+
     // Add permissions to the response
     const responseData = {
       ...transformedScenario,
       assetTypes: [...transformedScenario.assetTypes, ...additionalAssetTypes],
       permissions: {
         isOwner: completeScenario?.ownerId === ownerId,
-        canWrite: completeScenario?.ownerId === ownerId || 
-                 existingScenario.readwritePrivilege.some(user => user.id === ownerId),
+        canWrite: completeScenario?.ownerId === ownerId ||
+          existingScenario.readwritePrivilege.some(user => user.id === ownerId),
         canRead: true, // If they can update, they can definitely read
         owner: {
           email: completeScenario?.ownerId || ownerId
         }
       }
     };
-    
+
     return NextResponse.json({ status: 200, result: responseData });
   } catch (error) {
     console.error('Error updating scenario:', error);

@@ -397,40 +397,16 @@ const ScenarioCard = ({ scenario, onEdit }) => {
     };
 
     return (
-        <div className="bg-white p-6 rounded-lg shadow-md hover:shadow-lg transition-shadow">
+        <div className="bg-white p-6 rounded-lg shadow-md hover:shadow-lg transition-shadow flex flex-col h-full">
             <div className="flex justify-between items-start mb-4">
                 <div className="flex items-center">
                     <h3 className="text-xl font-semibold text-black">{scenario.name}'s Scenario</h3>
                     {permissionBadge}
                 </div>
-                <div className="flex space-x-2">
-                    <button
-                        onClick={handleDownload}
-                        className="px-4 py-2 text-sm bg-green-100 hover:bg-green-200 text-green-700 rounded-md transition-colors"
-                    >
-                        Export YAML
-                    </button>
-                    {isOwner && (
-                        <button
-                            onClick={() => setIsShareModalOpen(true)}
-                            className="px-4 py-2 text-sm bg-blue-100 hover:bg-blue-200 text-blue-700 rounded-md transition-colors"
-                        >
-                            Share
-                        </button>
-                    )}
-                    {canEdit && (
-                        <button
-                            onClick={() => onEdit(scenario)}
-                            className="px-4 py-2 text-sm bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-md transition-colors"
-                        >
-                            Edit
-                        </button>
-                    )}
-                </div>
             </div>
 
             {/* Rest of the card content remains the same */}
-            <div className="space-y-4 text-gray-600">
+            <div className="space-y-4 text-gray-600 flex-grow">
                 <div>
                     <p className="font-medium mb-2">Basic Information</p>
                     <p>Type: {scenario.forIndividual ? 'Individual' : 'Married Couple'}</p>
@@ -467,9 +443,9 @@ const ScenarioCard = ({ scenario, onEdit }) => {
                                 <p className="text-sm">Fixed Income: {asset.fixedIncome}%</p>
                             ) : (
                                 <>
-                                    <p className="text-sm">Income: {asset.incomeMean || asset.normalIncomeMean}%
-                                        {(asset.incomeStd || asset.normalIncomeStd) &&
-                                            ` (std dev: ${asset.incomeStd || asset.normalIncomeStd}%)`}</p>
+                                    <p className="text-sm">Income: {asset.normalIncomeMean || asset.normalIncomeMean}%
+                                        {(asset.normalIncomeStd || asset.normalIncomeStd) &&
+                                            ` (std dev: ${asset.normalIncomeStd || asset.normalIncomeStd}%)`}</p>
                                 </>
                             )}
                             <p className="text-sm">Taxable: {asset.taxable !== undefined ? (asset.taxable ? 'Yes' : 'No') :
@@ -564,6 +540,32 @@ const ScenarioCard = ({ scenario, onEdit }) => {
                         )}
                     </div>
                 </div>
+            </div>
+
+            {/* Move buttons to bottom */}
+            <div className="flex justify-end space-x-2 mt-4 pt-3 border-t border-gray-100">
+                <button
+                    onClick={handleDownload}
+                    className="px-4 py-2 text-sm bg-green-100 hover:bg-green-200 text-green-700 rounded-md transition-colors"
+                >
+                    Export YAML
+                </button>
+                {isOwner && (
+                    <button
+                        onClick={() => setIsShareModalOpen(true)}
+                        className="px-4 py-2 text-sm bg-blue-100 hover:bg-blue-200 text-blue-700 rounded-md transition-colors"
+                    >
+                        Share
+                    </button>
+                )}
+                {canEdit && (
+                    <button
+                        onClick={() => onEdit(scenario)}
+                        className="px-4 py-2 text-sm bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-md transition-colors"
+                    >
+                        Edit
+                    </button>
+                )}
             </div>
 
             {/* Share Modal */}
@@ -706,7 +708,7 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel, initialData = null }) 
                     }
 
                     if (!asset.expenseRatio) newErrors[`assetTypes.${index}.expenseRatio`] = 'Expense ratio is required';
-                    if (!asset.incomeMean) newErrors[`assetTypes.${index}.incomeMean`] = 'Income mean is required';
+                    if (!asset.normalIncomeMean) newErrors[`assetTypes.${index}.normalIncomeMean`] = 'Income mean is required';
                 });
                 break;
             case 3:
@@ -993,6 +995,9 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel, initialData = null }) 
                         const result = {};
 
                         Object.entries(obj).forEach(([key, value]) => {
+                            // Skip empty strings
+                            if (value === '') return;
+
                             const currentPath = path ? `${path}.${key}` : key;
 
                             // Process arrays
@@ -1004,12 +1009,15 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel, initialData = null }) 
                                         if (currentPath === 'assetTypes') {
                                             const processedItem = {};
                                             Object.entries(item).forEach(([itemKey, itemValue]) => {
+                                                // Skip empty strings
+                                                if (itemValue === '') return;
+
                                                 // Convert all numeric fields in assetTypes to numbers
                                                 if (['fixedReturn', 'normalReturnMean', 'normalReturnStd',
-                                                    'expenseRatio', 'fixedIncome', 'normalIncomeMean',
+                                                    'expenseRatio', 'normalIncomeMean',
                                                     'normalIncomeStd', 'percentage', 'value', 'fee',
                                                     'minAllocation', 'maxAllocation', 'targetAllocation'].includes(itemKey) &&
-                                                    typeof itemValue === 'string' && itemValue !== '' && !isNaN(Number(itemValue))) {
+                                                    typeof itemValue === 'string' && !isNaN(Number(itemValue))) {
                                                     processedItem[itemKey] = Number(itemValue);
                                                 } else {
                                                     processedItem[itemKey] = itemValue;
@@ -1019,6 +1027,9 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel, initialData = null }) 
                                         }
                                         return processObject(item, `${currentPath}.${index}`);
                                     }
+
+                                    // Skip empty strings
+                                    if (item === '') return null;
 
                                     const itemPath = `${currentPath}.${index}`;
                                     if (shouldBeNumeric(itemPath) && typeof item === 'string' && !isNaN(Number(item))) {
@@ -1035,19 +1046,18 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel, initialData = null }) 
                                         } else if (item.toLowerCase() === 'no' || item === 'false') {
                                             return false;
                                         } else {
-                                            // If it's not explicitly "yes"/"no" or "true"/"false", keep as is
                                             return item;
                                         }
                                     }
                                     return item;
-                                });
+                                }).filter(item => item !== null);
                             }
                             // Process nested objects
                             else if (value !== null && typeof value === 'object') {
                                 result[key] = processObject(value, currentPath);
                             }
                             // Process primitive values - Convert numeric fields
-                            else if (shouldBeNumeric(currentPath) && typeof value === 'string' && value !== '' && !isNaN(Number(value))) {
+                            else if (shouldBeNumeric(currentPath) && typeof value === 'string' && !isNaN(Number(value))) {
                                 result[key] = Number(value);
                             }
                             // Process boolean values - only convert specific fields to avoid affecting text descriptions
@@ -1062,7 +1072,6 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel, initialData = null }) 
                                 } else if (value.toLowerCase() === 'no' || value === 'false') {
                                     result[key] = false;
                                 } else {
-                                    // If it's not explicitly "yes"/"no" or "true"/"false", keep as is
                                     result[key] = value;
                                 }
                             }
@@ -1538,17 +1547,17 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel, initialData = null }) 
                                         <input
                                             type="number"
                                             step="0.01"
-                                            value={asset.incomeMean}
+                                            value={asset.normalIncomeMean || ''}
                                             onChange={(e) => {
                                                 const newAssetTypes = [...formData.assetTypes];
-                                                newAssetTypes[index].incomeMean = e.target.value;
+                                                newAssetTypes[index].normalIncomeMean = e.target.value;
                                                 setFormData({ ...formData, assetTypes: newAssetTypes });
                                             }}
-                                            className={`${getInputClassName(`assetTypes.${index}.incomeMean`)} text-black`}
+                                            className={`${getInputClassName(`assetTypes.${index}.normalIncomeMean`)} text-black`}
                                             placeholder="Ex: 2.0"
                                         />
-                                        {errors[`assetTypes.${index}.incomeMean`] && (
-                                            <p className="mt-1 text-sm text-red-600">{errors[`assetTypes.${index}.incomeMean`]}</p>
+                                        {errors[`assetTypes.${index}.normalIncomeMean`] && (
+                                            <p className="mt-1 text-sm text-red-600">{errors[`assetTypes.${index}.normalIncomeMean`]}</p>
                                         )}
                                     </div>
                                     <div>
@@ -1556,17 +1565,17 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel, initialData = null }) 
                                         <input
                                             type="number"
                                             step="0.01"
-                                            value={asset.incomeStd}
+                                            value={asset.normalIncomeStd || ''}
                                             onChange={(e) => {
                                                 const newAssetTypes = [...formData.assetTypes];
-                                                newAssetTypes[index].incomeStd = e.target.value;
+                                                newAssetTypes[index].normalIncomeStd = e.target.value;
                                                 setFormData({ ...formData, assetTypes: newAssetTypes });
                                             }}
-                                            className={`${getInputClassName(`assetTypes.${index}.incomeStd`)} text-black`}
+                                            className={`${getInputClassName(`assetTypes.${index}.normalIncomeStd`)} text-black`}
                                             placeholder="Ex: 0.5"
                                         />
-                                        {errors[`assetTypes.${index}.incomeStd`] && (
-                                            <p className="mt-1 text-sm text-red-600">{errors[`assetTypes.${index}.incomeStd`]}</p>
+                                        {errors[`assetTypes.${index}.normalIncomeStd`] && (
+                                            <p className="mt-1 text-sm text-red-600">{errors[`assetTypes.${index}.normalIncomeStd`]}</p>
                                         )}
                                     </div>
                                     <div className="flex items-center">
@@ -1614,10 +1623,12 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel, initialData = null }) 
                                         normalReturnMean: '',
                                         normalReturnStd: '',
                                         expenseRatio: '',
+                                        incomeType: 'fixed',
                                         expectedAnnualIncomeType: 'FIXED',
                                         fixedIncome: '',
                                         normalIncomeMean: '',
                                         normalIncomeStd: '',
+                                        taxable: false,
                                         taxability: 'TAXABLE'
                                     }]
                                 });
@@ -2803,26 +2814,299 @@ const ScenarioPage = () => {
                 const yamlContent = event.target.result;
                 setIsLoading(true);
 
-                // Create form data to send the YAML content
-                const formData = new FormData();
-                formData.append('yamlFile', file);
+                // Client-side validation before sending to API
+                try {
+                    // Import the YAML parser directly in the component
+                    const yaml = await import('js-yaml');
+                    const parsedData = yaml.load(yamlContent);
 
-                // Call the YAML API endpoint to import the scenario
-                const response = await fetch(`/api/scenarios/yaml?userEmail=${userEmail}`, {
-                    method: 'POST',
-                    body: yamlContent,
-                    headers: {
-                        'Content-Type': 'text/yaml',
-                    },
-                });
+                    // Basic structure validation
+                    if (!parsedData || typeof parsedData !== 'object') {
+                        throw new Error('Invalid YAML format: File must contain a valid scenario object');
+                    }
 
-                const data = await response.json();
+                    // Normalize the data structure - exported YAMLs might have properties in different locations
+                    const normalizedData = { ...parsedData };
 
-                if (data.status === 201) {
-                    await fetchScenarios();
-                    setError(null);
-                } else {
-                    setError(data.error || 'Failed to import scenario');
+                    // Exported YAMLs might have these arrays inside investmentScenario or with prefix
+                    if (!Array.isArray(normalizedData.assetTypes)) {
+                        // Try to find assetTypes in nested locations
+                        if (normalizedData.investmentScenario && Array.isArray(normalizedData.investmentScenario)) {
+                            const extractedAssetTypes = [];
+                            // Extract from investments
+                            normalizedData.investmentScenario.forEach(is => {
+                                if (is.investment && is.investment.assetType) {
+                                    extractedAssetTypes.push(is.investment.assetType);
+                                }
+                            });
+                            if (extractedAssetTypes.length > 0) {
+                                normalizedData.assetTypes = extractedAssetTypes;
+                            }
+                        }
+                    }
+
+                    // Try to extract investments if they're not directly in the root
+                    if (!Array.isArray(normalizedData.investments)) {
+                        if (normalizedData.investmentScenario && Array.isArray(normalizedData.investmentScenario)) {
+                            normalizedData.investments = normalizedData.investmentScenario.map(is => {
+                                if (is.investment) {
+                                    return {
+                                        ...is.investment,
+                                        assetType: is.investment.assetType?.name || is.investment.assetTypeId
+                                    };
+                                }
+                                return is;
+                            });
+                        }
+                    }
+
+                    // Create empty arrays if they don't exist to avoid validation errors
+                    if (!Array.isArray(normalizedData.assetTypes)) normalizedData.assetTypes = [];
+                    if (!Array.isArray(normalizedData.investments)) normalizedData.investments = [];
+                    if (!Array.isArray(normalizedData.eventSeries)) normalizedData.eventSeries = [];
+
+                    // Ensure the required fields exist to pass backend validation
+                    const requiredFields = [
+                        'name', 'forIndividual', 'userBirthYear', 'userLifeExpectancyMean',
+                        'userLifeExpectancyStd', 'inflationAssumption', 'residenceState',
+                        'financialGoal', 'initialAfterTaxRetirementContributionLimit',
+                        'assetTypes', 'investments', 'eventSeries'
+                    ];
+
+                    // Normalize event series to ensure they have all required fields
+                    if (Array.isArray(normalizedData.eventSeries)) {
+                        normalizedData.eventSeries = normalizedData.eventSeries.map(event => {
+                            const normalizedEvent = { ...event };
+
+                            // Ensure type field uses correct casing
+                            if (normalizedEvent.type) {
+                                // Convert to proper format for backend compatibility
+                                // Map common values to the exact enum values expected by Prisma
+                                const typeMap = {
+                                    'INCOME': 'income',
+                                    'EXPENSE': 'expense',
+                                    'INVEST': 'invest',
+                                    'REBALANCE': 'rebalance',
+                                    'income': 'income',
+                                    'expense': 'expense',
+                                    'invest': 'invest',
+                                    'rebalance': 'rebalance'
+                                };
+
+                                const normalizedType = normalizedEvent.type.toUpperCase();
+                                normalizedEvent.type = typeMap[normalizedType] || 'income'; // Default to income if type is unknown
+                            } else {
+                                normalizedEvent.type = 'income'; // Default type
+                            }
+
+                            // Handle income and expense events
+                            if (normalizedEvent.type === 'income' || normalizedEvent.type === 'expense') {
+                                // Ensure annualChangeType is set
+                                if (!normalizedEvent.annualChangeType) {
+                                    // Try to derive from existing fields
+                                    if (normalizedEvent.changeType) {
+                                        normalizedEvent.annualChangeType = normalizedEvent.changeType.toUpperCase();
+                                    } else {
+                                        // Default to FIXED
+                                        normalizedEvent.annualChangeType = 'FIXED';
+                                    }
+                                }
+
+                                // Ensure amount is set
+                                if (normalizedEvent.amount === undefined && normalizedEvent.initialAmount === undefined) {
+                                    normalizedEvent.amount = 0;
+                                }
+
+                                // Ensure inflation adjustment is set
+                                if (normalizedEvent.inflationAdjusted === undefined &&
+                                    normalizedEvent.inflationAdjustment === undefined) {
+                                    normalizedEvent.inflationAdjusted = false;
+                                }
+                            } else if (normalizedEvent.type === 'INVEST' || normalizedEvent.type === 'REBALANCE') {
+                                // Ensure investments have proper allocations
+                                if (!normalizedEvent.allocations) {
+                                    normalizedEvent.allocations = {};
+                                }
+                            }
+
+                            // Ensure startYearType and durationType are set with correct formats
+                            if (!normalizedEvent.startYearType) {
+                                normalizedEvent.startYearType = 'fixed';
+                            } else {
+                                // Map to expected enum values
+                                const startYearTypeMap = {
+                                    'FIXED': 'fixed',
+                                    'RANDOM_UNIFORM': 'random_uniform',
+                                    'RANDOM_NORMAL': 'random_normal',
+                                    'SAME_AS': 'same_as',
+                                    'AFTER': 'after',
+                                    'fixed': 'fixed',
+                                    'random_uniform': 'random_uniform',
+                                    'random_normal': 'random_normal',
+                                    'same_as': 'same_as',
+                                    'after': 'after'
+                                };
+
+                                const normalizedStartYearType = normalizedEvent.startYearType.toUpperCase();
+                                normalizedEvent.startYearType = startYearTypeMap[normalizedStartYearType] || 'fixed';
+                            }
+
+                            if (!normalizedEvent.durationType) {
+                                normalizedEvent.durationType = 'fixed';
+                            } else {
+                                // Map to expected enum values
+                                const durationTypeMap = {
+                                    'FIXED': 'fixed',
+                                    'RANDOM_UNIFORM': 'random_uniform',
+                                    'RANDOM_NORMAL': 'random_normal',
+                                    'fixed': 'fixed',
+                                    'random_uniform': 'random_uniform',
+                                    'random_normal': 'random_normal'
+                                };
+
+                                const normalizedDurationType = normalizedEvent.durationType.toUpperCase();
+                                normalizedEvent.durationType = durationTypeMap[normalizedDurationType] || 'fixed';
+                            }
+
+                            // Ensure duration is set for fixed duration
+                            if (normalizedEvent.durationType === 'FIXED' && normalizedEvent.durationFixed === undefined) {
+                                normalizedEvent.durationFixed = 1;
+                            }
+
+                            // Ensure start year is set for fixed start
+                            if (normalizedEvent.startYearType === 'FIXED' && normalizedEvent.startYear === undefined) {
+                                normalizedEvent.startYear = new Date().getFullYear();
+                            }
+
+                            return normalizedEvent;
+                        });
+                    }
+
+                    // Create a sanitized version of the data with minimal required structure
+                    const sanitizedData = {};
+                    requiredFields.forEach(field => {
+                        // If field exists in normalized data, use it
+                        if (normalizedData[field] !== undefined) {
+                            sanitizedData[field] = normalizedData[field];
+                        }
+                        // Otherwise use a minimal default
+                        else if (field === 'assetTypes' || field === 'investments' || field === 'eventSeries') {
+                            sanitizedData[field] = [];
+                        } else if (field === 'forIndividual') {
+                            sanitizedData[field] = true;
+                        } else if (field === 'inflationAssumption') {
+                            sanitizedData[field] = 'fixed';
+                        } else if (field === 'userLifeExpectancyStd' || field === 'financialGoal' ||
+                            field === 'initialAfterTaxRetirementContributionLimit') {
+                            sanitizedData[field] = 0;
+                        } else {
+                            sanitizedData[field] = '';
+                        }
+                    });
+
+                    // Keep any additional fields from normalized data
+                    Object.keys(normalizedData).forEach(key => {
+                        if (!requiredFields.includes(key)) {
+                            sanitizedData[key] = normalizedData[key];
+                        }
+                    });
+
+                    // Use the same validation as the form but with more flexible checks
+                    const validateFields = (data) => {
+                        const errors = [];
+
+                        // Check required top-level fields
+                        const requiredFields = [
+                            'name', 'forIndividual', 'userBirthYear', 'userLifeExpectancyMean',
+                            'userLifeExpectancyStd', 'inflationAssumption', 'residenceState',
+                            'financialGoal', 'initialAfterTaxRetirementContributionLimit',
+                            'assetTypes', 'investments', 'eventSeries'
+                        ];
+
+                        requiredFields.forEach(field => {
+                            if (data[field] === undefined) {
+                                errors.push(`Missing required field: ${field}`);
+                            }
+                        });
+
+                        // Skip array validation since we're normalizing them above
+
+                        // Only validate assetTypes if we have some
+                        if (data.assetTypes.length > 0) {
+                            data.assetTypes.forEach((asset, index) => {
+                                if (!asset.name) errors.push(`Asset type #${index + 1} missing name`);
+
+                                // More lenient on description
+                                if (!asset.description && !asset.name) {
+                                    errors.push(`Asset type #${index + 1} missing description`);
+                                }
+
+                                // Checks for return values are more flexible
+                                const returnType = (asset.returnType || '').toLowerCase();
+                                if (returnType === 'fixed') {
+                                    if (asset.fixedReturn === undefined &&
+                                        asset.return === undefined &&
+                                        asset.fixedIncome === undefined) {
+                                        errors.push(`Asset type #${index + 1} missing a return value`);
+                                    }
+                                }
+                            });
+                        }
+
+                        // Only validate investments if we have some
+                        if (data.investments.length > 0) {
+                            data.investments.forEach((investment, index) => {
+                                // AssetType might be provided as a name or ID reference
+                                if (!investment.assetType &&
+                                    !investment.assetTypeId &&
+                                    !investment.assetTypeName) {
+                                    errors.push(`Investment #${index + 1} missing asset type reference`);
+                                }
+
+                                // More lenient with value check
+                                if (investment.value === undefined &&
+                                    investment.amount === undefined) {
+                                    errors.push(`Investment #${index + 1} missing value`);
+                                }
+                            });
+                        }
+
+                        return errors;
+                    };
+
+                    const validationErrors = validateFields(normalizedData);
+
+                    if (validationErrors.length > 0) {
+                        throw new Error(`Invalid scenario format:\n${validationErrors.join('\n')}`);
+                    }
+
+                    // Convert the sanitized data back to YAML to send to the API
+                    const transformedYamlContent = yaml.dump(sanitizedData);
+
+                    // Call the YAML API endpoint to import the scenario
+                    const response = await fetch(`/api/scenarios/yaml?userEmail=${userEmail}`, {
+                        method: 'POST',
+                        body: transformedYamlContent,
+                        headers: {
+                            'Content-Type': 'text/yaml',
+                        },
+                    });
+
+                    const data = await response.json();
+
+                    if (data.status === 201) {
+                        await fetchScenarios();
+                        setError(null);
+                    } else {
+                        setError(data.error || 'Failed to import scenario');
+                    }
+                } catch (validationError) {
+                    setError(`Validation failed: ${validationError.message}`);
+                    setIsLoading(false);
+                    if (fileInputRef.current) {
+                        fileInputRef.current.value = '';
+                    }
+                    return;
                 }
             } catch (error) {
                 console.error('Error importing scenario:', error);
