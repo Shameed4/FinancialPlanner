@@ -14,8 +14,9 @@
 
 'use client';
 
+import { useSession } from 'next-auth/react';
 import { motion } from 'framer-motion';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 
 const pageVariants = {
     initial: { opacity: 0, y: 20 },
@@ -69,195 +70,214 @@ const US_STATES = [
     'SD', 'TN', 'TX', 'UT', 'VT', 'VA', 'WA', 'WV', 'WI', 'WY'
 ];
 
-const ScenarioCard = ({ scenario }) => (
-    <div className="bg-white p-6 rounded-lg shadow-md hover:shadow-lg transition-shadow">
-        <h3 className="text-xl font-semibold mb-2 text-black">{scenario.name}'s Scenario</h3>
-        <div className="space-y-4 text-gray-600">
-            <div>
-                <p className="font-medium mb-2">Basic Information</p>
-                <p>Type: {scenario.forIndividual ? 'Individual' : 'Married Couple'}</p>
-                <p>Birth Year: {scenario.userBirthYear}</p>
-                <p>Life Expectancy: {scenario.userLifeExpectancyMean} years</p>
-                <p>Life Expectancy Std Dev: {scenario.userLifeExpectancyStd} years</p>
-                <p>Residence State: {scenario.residenceState}</p>
-                <p>Financial Goal: ${scenario.financialGoal?.toLocaleString()}</p>
-                {!scenario.forIndividual && (
-                    <>
-                        <p>Spouse Birth Year: {scenario.spouseBirthYear}</p>
-                        <p>Spouse Life Expectancy: {scenario.spouseLifeExpectancyMean} years</p>
-                        <p>Spouse Life Expectancy Std Dev: {scenario.spouseLifeExpectancyStd} years</p>
-                    </>
-                )}
-            </div>
+const ScenarioCard = ({ scenario, onEdit }) => {
+    // Helper function to format investment data
+    const formatInvestments = () => {
+        if (!scenario.investmentScenario) return [];
+        return scenario.investmentScenario.map(is => is.investment);
+    };
 
-            <div>
-                <p className="font-medium mb-2">Asset Types</p>
-                {scenario.assetTypes?.map((asset, index) => (
-                    <div key={index} className="ml-4 mb-2">
-                        <p className="font-medium">{asset.name}</p>
-                        <p className="text-sm">Description: {asset.description}</p>
-                        <p className="text-sm">Return: {asset.returnMean}% (std dev: {asset.returnStd}%)</p>
-                        <p className="text-sm">Expense Ratio: {asset.expenseRatio}%</p>
-                        <p className="text-sm">Income: {asset.incomeMean}% (std dev: {asset.incomeStd}%)</p>
-                        <p className="text-sm">Taxable: {asset.taxable ? 'Yes' : 'No'}</p>
+    // Helper function to get asset types from investments
+    const getAssetTypes = () => {
+        if (!scenario.investmentScenario) return [];
+        return Array.from(new Set(scenario.investmentScenario.map(is => is.investment.assetType)));
+    };
+
+    return (
+        <div className="bg-white p-6 rounded-lg shadow-md hover:shadow-lg transition-shadow">
+            <div className="flex justify-between items-start mb-4">
+                <h3 className="text-xl font-semibold text-black">{scenario.name}'s Scenario</h3>
+                <button
+                    onClick={() => onEdit(scenario)}
+                    className="px-4 py-2 text-sm bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-md transition-colors"
+                >
+                    Edit Scenario
+                </button>
+            </div>
+            <div className="space-y-4 text-gray-600">
+                <div>
+                    <p className="font-medium mb-2">Basic Information</p>
+                    <p>Type: {scenario.forIndividual ? 'Individual' : 'Married Couple'}</p>
+                    <p>Birth Year: {scenario.userBirthYear}</p>
+                    <p>Life Expectancy: {scenario.userLifeExpectancyMean} years</p>
+                    <p>Life Expectancy Std Dev: {scenario.userLifeExpectancyStd} years</p>
+                    <p>Residence State: {scenario.residenceState}</p>
+                    <p>Financial Goal: ${scenario.financialGoal?.toLocaleString()}</p>
+                    {!scenario.forIndividual && (
+                        <>
+                            <p>Spouse Birth Year: {scenario.spouseBirthYear}</p>
+                            <p>Spouse Life Expectancy: {scenario.spouseLifeExpectancyMean} years</p>
+                            <p>Spouse Life Expectancy Std Dev: {scenario.spouseLifeExpectancyStd} years</p>
+                        </>
+                    )}
+                </div>
+
+                <div>
+                    <p className="font-medium mb-2">Asset Types</p>
+                    {getAssetTypes().map((asset, index) => (
+                        <div key={index} className="ml-4 mb-2">
+                            <p className="font-medium">{asset.name}</p>
+                            <p className="text-sm">Description: {asset.description}</p>
+                            {asset.returnType === 'FIXED' ? (
+                                <p className="text-sm">Fixed Return: {asset.fixedReturn}%</p>
+                            ) : (
+                                <>
+                                    <p className="text-sm">Return: {asset.normalReturnMean}% (std dev: {asset.normalReturnStd}%)</p>
+                                </>
+                            )}
+                            <p className="text-sm">Expense Ratio: {asset.expenseRatio}%</p>
+                            {asset.expectedAnnualIncomeType === 'FIXED' ? (
+                                <p className="text-sm">Fixed Income: {asset.fixedIncome}%</p>
+                            ) : (
+                                <>
+                                    <p className="text-sm">Income: {asset.normalIncomeMean}% (std dev: {asset.normalIncomeStd}%)</p>
+                                </>
+                            )}
+                            <p className="text-sm">Taxable: {asset.taxability === 'TAXABLE' ? 'Yes' : 'No'}</p>
+                        </div>
+                    ))}
+                </div>
+
+                <div>
+                    <p className="font-medium mb-2">Investments</p>
+                    {formatInvestments().map((investment, index) => (
+                        <div key={index} className="ml-4 mb-2">
+                            <p>{investment.assetType.name}</p>
+                            <p className="text-sm">Value: ${investment.value.toLocaleString()}</p>
+                            <p className="text-sm">Tax Status: {investment.taxStatus.replace(/_/g, ' ').toLowerCase()}</p>
+                            {investment.rothConversionOrder && (
+                                <p className="text-sm">Roth Conversion Order: {investment.rothConversionOrder}</p>
+                            )}
+                        </div>
+                    ))}
+                </div>
+
+                <div>
+                    <p className="font-medium mb-2">Event Series</p>
+                    {scenario.eventSeries?.map((event, index) => (
+                        <div key={index} className="ml-4 mb-2">
+                            <p className="font-medium">{event.name}</p>
+                            {event.description && (
+                                <p className="text-sm">Description: {event.description}</p>
+                            )}
+                            <p className="text-sm">Type: {event.type.toLowerCase()}</p>
+                            <p className="text-sm">Start Year Type: {event.startYearType.replace(/_/g, ' ').toLowerCase()}</p>
+                            {event.startYear && (
+                                <p className="text-sm">Start Year: {event.startYear}</p>
+                            )}
+                            {event.startMin && event.startMax && (
+                                <p className="text-sm">Start Year Range: {event.startMin} - {event.startMax}</p>
+                            )}
+                            {event.startMean && event.startStd && (
+                                <p className="text-sm">Start Year: {event.startMean} (std dev: {event.startStd})</p>
+                            )}
+                            <p className="text-sm">Duration Type: {event.durationType.replace(/_/g, ' ').toLowerCase()}</p>
+                            {event.duration && (
+                                <p className="text-sm">Duration: {event.duration} years</p>
+                            )}
+                            {event.durationMin && event.durationMax && (
+                                <p className="text-sm">Duration Range: {event.durationMin} - {event.durationMax} years</p>
+                            )}
+                            {event.durationMean && event.durationStd && (
+                                <p className="text-sm">Duration: {event.durationMean} years (std dev: {event.durationStd})</p>
+                            )}
+                            {(event.type === 'INCOME' || event.type === 'EXPENSE') && event.incomeEventDetails && (
+                                <>
+                                    <p className="text-sm">Amount: ${event.incomeEventDetails.initialAmount.toLocaleString()}</p>
+                                    {event.type === 'INCOME' && (
+                                        <p className="text-sm">Social Security: {event.incomeEventDetails.isSocialSecurity ? 'Yes' : 'No'}</p>
+                                    )}
+                                    {event.type === 'EXPENSE' && (
+                                        <p className="text-sm">Discretionary: {event.expenseEventDetails.isDiscretionary ? 'Yes' : 'No'}</p>
+                                    )}
+                                    <p className="text-sm">Annual Change Type: {event.incomeEventDetails.annualChangeType.replace(/_/g, ' ').toLowerCase()}</p>
+                                    <p className="text-sm">Annual Change: {event.incomeEventDetails.annualChangeAmount || event.incomeEventDetails.annualChangePercentage}{event.incomeEventDetails.annualChangePercentage ? '%' : '$'}</p>
+                                    <p className="text-sm">Inflation Adjusted: {event.incomeEventDetails.inflationAdjustment ? 'Yes' : 'No'}</p>
+                                    {!scenario.forIndividual && (
+                                        <p className="text-sm">User Percentage: {event.incomeEventDetails.userPercentage}%</p>
+                                    )}
+                                </>
+                            )}
+                        </div>
+                    ))}
+                </div>
+
+                <div>
+                    <p className="font-medium mb-2">Strategies</p>
+                    <div className="ml-4">
+                        <p className="font-medium">Inflation Assumption</p>
+                        <p className="text-sm">Type: {scenario.inflationAssumption.replace(/_/g, ' ').toLowerCase()}</p>
+                        {scenario.inflationAssumption === 'FIXED' && (
+                            <p className="text-sm">Rate: {scenario.inflation}%</p>
+                        )}
+                        {scenario.inflationAssumption === 'RANDOM_UNIFORM' && (
+                            <p className="text-sm">Range: {scenario.inflationMin}% - {scenario.inflationMax}%</p>
+                        )}
+                        {scenario.inflationAssumption === 'RANDOM_NORMAL' && (
+                            <p className="text-sm">Mean: {scenario.inflationMean}% (std dev: {scenario.inflationStd}%)</p>
+                        )}
+
+                        <p className="font-medium mt-2">Tax Optimization</p>
+                        <p className="text-sm">Enabled: {scenario.rothOptimizationStartYear ? 'Yes' : 'No'}</p>
+                        {scenario.rothOptimizationStartYear && (
+                            <p className="text-sm">Period: {scenario.rothOptimizationStartYear} - {scenario.rothOptimizationEndYear}</p>
+                        )}
                     </div>
-                ))}
-            </div>
-
-            <div>
-                <p className="font-medium mb-2">Investments</p>
-                {scenario.investments?.map((investment, index) => (
-                    <div key={index} className="ml-4 mb-2">
-                        <p>{investment.assetType}</p>
-                        <p className="text-sm">Value: ${investment.value}</p>
-                        <p className="text-sm">Tax Status: {investment.taxStatus}</p>
-                        {investment.withdrawalOrder && (
-                            <p className="text-sm">Withdrawal Order: {investment.withdrawalOrder}</p>
-                        )}
-                        {investment.rothConversionOrder && (
-                            <p className="text-sm">Roth Conversion Order: {investment.rothConversionOrder}</p>
-                        )}
-                    </div>
-                ))}
-            </div>
-
-            <div>
-                <p className="font-medium mb-2">Event Series</p>
-                {scenario.eventSeries?.map((event, index) => (
-                    <div key={index} className="ml-4 mb-2">
-                        <p className="font-medium">{event.name}</p>
-                        {event.description && (
-                            <p className="text-sm">Description: {event.description}</p>
-                        )}
-                        <p className="text-sm">Type: {event.type}</p>
-                        <p className="text-sm">Start Year Type: {event.startYearType}</p>
-                        {event.startYearType === 'fixed' && (
-                            <p className="text-sm">Start Year: {event.startYear}</p>
-                        )}
-                        {event.startYearType === 'uniform' && (
-                            <p className="text-sm">Start Year Range: {event.startYearMin} - {event.startYearMax}</p>
-                        )}
-                        {event.startYearType === 'normal' && (
-                            <p className="text-sm">Start Year: {event.startYearMean} (std dev: {event.startYearStd})</p>
-                        )}
-                        {(event.startYearType === 'withEvent' || event.startYearType === 'afterEvent') && (
-                            <p className="text-sm">Reference Event: {event.startYearEvent}</p>
-                        )}
-                        <p className="text-sm">Duration Type: {event.durationType}</p>
-                        {event.durationType === 'fixed' && (
-                            <p className="text-sm">Duration: {event.durationFixed} years</p>
-                        )}
-                        {event.durationType === 'uniform' && (
-                            <p className="text-sm">Duration Range: {event.durationMin} - {event.durationMax} years</p>
-                        )}
-                        {event.durationType === 'normal' && (
-                            <p className="text-sm">Duration: {event.durationMean} years (std dev: {event.durationStd})</p>
-                        )}
-                        {(event.type === 'income' || event.type === 'expense') && (
-                            <>
-                                <p className="text-sm">Amount: ${event.amount}</p>
-                                {event.type === 'income' && (
-                                    <p className="text-sm">Social Security: {event.isSocialSecurity ? 'Yes' : 'No'}</p>
-                                )}
-                                {event.type === 'expense' && (
-                                    <p className="text-sm">Discretionary: {event.isDiscretionary ? 'Yes' : 'No'}</p>
-                                )}
-                                <p className="text-sm">Annual Change Type: {event.changeType}</p>
-                                <p className="text-sm">Annual Change: {event.annualChange}{event.changeType === 'percentage' ? '%' : '$'}</p>
-                                <p className="text-sm">Inflation Adjusted: {event.inflationAdjusted ? 'Yes' : 'No'}</p>
-                                {!scenario.forIndividual && (
-                                    <p className="text-sm">User Percentage: {event.userPercentage}%</p>
-                                )}
-                            </>
-                        )}
-                        {(event.type === 'invest' || event.type === 'rebalance') && (
-                            <>
-                                <p className="text-sm">Allocation Type: {event.allocationType}</p>
-                                {event.allocationType === 'fixed' && (
-                                    <div className="text-sm">
-                                        <p>Allocations:</p>
-                                        {Object.entries(event.allocations || {}).map(([asset, percentage]) => (
-                                            <p key={asset} className="ml-2">{asset}: {percentage}%</p>
-                                        ))}
-                                    </div>
-                                )}
-                                {event.allocationType === 'glide' && (
-                                    <>
-                                        <div className="text-sm">
-                                            <p>Initial Allocations:</p>
-                                            {Object.entries(event.initialAllocations || {}).map(([asset, percentage]) => (
-                                                <p key={asset} className="ml-2">{asset}: {percentage}%</p>
-                                            ))}
-                                        </div>
-                                        <div className="text-sm">
-                                            <p>Final Allocations:</p>
-                                            {Object.entries(event.finalAllocations || {}).map(([asset, percentage]) => (
-                                                <p key={asset} className="ml-2">{asset}: {percentage}%</p>
-                                            ))}
-                                        </div>
-                                    </>
-                                )}
-                                {event.type === 'invest' && event.maxCashValue && (
-                                    <p className="text-sm">Max Cash Value: ${event.maxCashValue}</p>
-                                )}
-                            </>
-                        )}
-                    </div>
-                ))}
-            </div>
-
-            <div>
-                <p className="font-medium mb-2">Strategies</p>
-                <div className="ml-4">
-                    <p className="font-medium">Inflation Assumption</p>
-                    <p className="text-sm">Type: {scenario.inflationAssumption}</p>
-                    {scenario.inflationAssumption === 'fixed' && (
-                        <p className="text-sm">Rate: {scenario.inflation}%</p>
-                    )}
-                    {scenario.inflationAssumption === 'uniform' && (
-                        <p className="text-sm">Range: {scenario.inflationMin}% - {scenario.inflationMax}%</p>
-                    )}
-                    {scenario.inflationAssumption === 'normal' && (
-                        <p className="text-sm">Mean: {scenario.inflationMean}% (std dev: {scenario.inflationStd}%)</p>
-                    )}
-
-                    <p className="font-medium mt-2">Tax Optimization</p>
-                    <p className="text-sm">Enabled: {scenario.enableTaxOptimization ? 'Yes' : 'No'}</p>
-                    {scenario.enableTaxOptimization && (
-                        <p className="text-sm">Period: {scenario.rothOptimizationStartYear} - {scenario.rothOptimizationEndYear}</p>
-                    )}
                 </div>
             </div>
         </div>
-    </div>
-);
+    );
+};
 
-const CreateScenarioForm = ({ onScenarioCreate, onCancel }) => {
+const CreateScenarioForm = ({ onScenarioCreate, onCancel, initialData = null }) => {
     const [currentStep, setCurrentStep] = useState(1);
-    const [formData, setFormData] = useState({
-        name: '',
-        forIndividual: true,
-        userBirthYear: '',
-        userLifeExpectancyMean: '',
-        userLifeExpectancyStd: '0',
-        spouseBirthYear: '',
-        spouseLifeExpectancyMean: '',
-        spouseLifeExpectancyStd: '0',
-        monthlyContribution: '',
-        assetTypes: [],
-        investments: [],
-        eventSeries: [],
-        inflationAssumption: 'fixed',
-        inflation: '',
-        inflationMin: '',
-        inflationMax: '',
-        inflationMean: '',
-        inflationStd: '',
-        rothOptimizationStartYear: '',
-        rothOptimizationEndYear: '',
-        residenceState: '',
-        financialGoal: '',
-        initialAfterTaxRetirementContributionLimit: ''
+    const [formData, setFormData] = useState(() => {
+        if (initialData) {
+            return {
+                ...initialData,
+                // Ensure arrays are initialized
+                assetTypes: initialData.assetTypes || [],
+                investments: initialData.investments || [],
+                eventSeries: initialData.eventSeries || [],
+                // Convert numeric values to strings for form inputs
+                userBirthYear: initialData.userBirthYear?.toString() || '',
+                userLifeExpectancyMean: initialData.userLifeExpectancyMean?.toString() || '',
+                userLifeExpectancyStd: initialData.userLifeExpectancyStd?.toString() || '',
+                spouseBirthYear: initialData.spouseBirthYear?.toString() || '',
+                spouseLifeExpectancyMean: initialData.spouseLifeExpectancyMean?.toString() || '',
+                spouseLifeExpectancyStd: initialData.spouseLifeExpectancyStd?.toString() || '',
+                financialGoal: initialData.financialGoal?.toString() || '',
+                initialAfterTaxRetirementContributionLimit: 
+                    initialData.initialAfterTaxRetirementContributionLimit?.toString() || '',
+                // Ensure inflation values are properly set
+                inflationAssumption: initialData.inflationAssumption || 'fixed',
+                inflation: initialData.inflation?.toString() || '',
+                inflationMin: initialData.inflationMin?.toString() || '',
+                inflationMax: initialData.inflationMax?.toString() || '',
+                inflationMean: initialData.inflationMean?.toString() || '',
+                inflationStd: initialData.inflationStd?.toString() || '',
+                // Ensure boolean values are properly set
+                enableTaxOptimization: Boolean(initialData.rothOptimizationStartYear),
+                forIndividual: Boolean(initialData.forIndividual)
+            };
+        }
+        return {
+            name: '',
+            forIndividual: true,
+            userBirthYear: '',
+            userLifeExpectancyMean: '',
+            userLifeExpectancyStd: '0',
+            spouseBirthYear: '',
+            spouseLifeExpectancyMean: '',
+            spouseLifeExpectancyStd: '0',
+            assetTypes: [],
+            investments: [],
+            eventSeries: [],
+            inflationAssumption: 'fixed',
+            residenceState: '',
+            financialGoal: '',
+            initialAfterTaxRetirementContributionLimit: ''
+        };
     });
     const [errors, setErrors] = useState({});
 
@@ -2202,10 +2222,95 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel }) => {
 const ScenarioPage = () => {
     const [scenarios, setScenarios] = useState([]);
     const [isCreating, setIsCreating] = useState(false);
+    const [editingScenario, setEditingScenario] = useState(null);
+    const [isLoading, setIsLoading] = useState(true);
+    const [error, setError] = useState(null);
 
-    const handleScenarioCreate = (newScenario) => {
-        setScenarios([...scenarios, newScenario]);
-        // setIsCreating(false);
+    const { data: session, status } = useSession();
+    const userEmail = session?.user?.email || "john.doe@email.com";
+
+    useEffect(() => {
+        const fetchScenarios = async () => {
+            try {
+                const response = await fetch(`/api/scenarios?ownerId=${userEmail}`);
+                const data = await response.json();
+                
+                if (data.status === 200) {
+                    setScenarios(data.result);
+                } else {
+                    setError(data.error || 'Failed to fetch scenarios');
+                }
+            } catch (err) {
+                setError('Failed to fetch scenarios');
+                console.error('Error fetching scenarios:', err);
+            } finally {
+                setIsLoading(false);
+            }
+        };
+
+        fetchScenarios();
+    }, []);
+
+    const handleScenarioCreate = async (newScenario) => {
+        try {
+            setIsLoading(true);
+            const response = await fetch('/api/scenarios', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(newScenario),
+            });
+
+            const data = await response.json();
+            
+            if (data.status === 201) {
+                setScenarios([...scenarios, data.result]);
+                setIsCreating(false);
+            } else {
+                setError(data.error || 'Failed to create scenario');
+            }
+        } catch (err) {
+            setError('Failed to create scenario');
+            console.error('Error creating scenario:', err);
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    const handleScenarioEdit = async (updatedScenario) => {
+        try {
+            setIsLoading(true);
+            const response = await fetch(`/api/scenarios`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(updatedScenario),
+            });
+
+            const data = await response.json();
+            
+            if (data.status === 200) {
+                setScenarios(scenarios.map(s => 
+                    s.id === updatedScenario.id ? data.result : s
+                ));
+                setEditingScenario(null);
+                setIsCreating(false);
+            } else {
+                setError(data.error || 'Failed to update scenario');
+            }
+        } catch (err) {
+            setError('Failed to update scenario');
+            console.error('Error updating scenario:', err);
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    const handleEdit = (scenario) => {
+        setEditingScenario(scenario);
+        setIsCreating(true);
     };
 
     return (
@@ -2218,11 +2323,14 @@ const ScenarioPage = () => {
         >
             <div className="flex justify-between items-center mb-8">
                 <h1 className="text-black text-3xl font-bold">
-                    {isCreating ? 'Create New Scenario' : 'Your Scenarios'}
+                    {isCreating ? (editingScenario ? 'Edit Scenario' : 'Create New Scenario') : 'Your Scenarios'}
                 </h1>
                 {!isCreating && (
                     <button
-                        onClick={() => setIsCreating(true)}
+                        onClick={() => {
+                            setEditingScenario(null);
+                            setIsCreating(true);
+                        }}
                         className="px-6 py-2 rounded-md bg-black text-white hover:bg-gray-800"
                     >
                         Create New Scenario
@@ -2230,20 +2338,42 @@ const ScenarioPage = () => {
                 )}
             </div>
 
-            {isCreating && (
-                <CreateScenarioForm
-                    onScenarioCreate={handleScenarioCreate}
-                    onCancel={() => setIsCreating(false)}
-                />
+            {error && (
+                <div className="bg-red-50 border border-red-200 text-red-600 p-4 rounded-md mb-4">
+                    {error}
+                    <button 
+                        onClick={() => setError(null)}
+                        className="ml-2 text-sm underline"
+                    >
+                        Dismiss
+                    </button>
+                </div>
             )}
 
-            {scenarios.length > 0 ? (
+            {isCreating ? (
+                <CreateScenarioForm
+                    onScenarioCreate={editingScenario ? handleScenarioEdit : handleScenarioCreate}
+                    onCancel={() => {
+                        setIsCreating(false);
+                        setEditingScenario(null);
+                    }}
+                    initialData={editingScenario}
+                />
+            ) : isLoading ? (
+                <div className="flex items-center justify-center h-[60vh]">
+                    <p className="text-gray-500 text-lg">Loading scenarios...</p>
+                </div>
+            ) : scenarios.length > 0 ? (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                     {scenarios.map((scenario, index) => (
-                        <ScenarioCard key={index} scenario={scenario} />
+                        <ScenarioCard 
+                            key={index} 
+                            scenario={scenario} 
+                            onEdit={handleEdit}
+                        />
                     ))}
                 </div>
-            ) : !isCreating && (
+            ) : (
                 <div className="flex items-center justify-center h-[60vh]">
                     <p className="text-gray-500 text-lg">
                         You haven't created any scenarios yet. Create your first scenario

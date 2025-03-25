@@ -1,0 +1,144 @@
+head-of-household:
+  capital_gains:
+    brackets:
+      - max: 63000
+        min: 0
+        rate: 0
+      - max: 551350
+        min: 63000
+        rate: 15
+      - max: no_limit
+        min: 551350
+        rate: 20
+  income_tax:
+    brackets:
+      - max: 16550
+        min: 0
+        rate: 10
+      - max: 63100
+        min: 16551
+        rate: 12
+      - max: 100500
+        min: 63101
+        rate: 22
+      - max: 191950
+        min: 100501
+        rate: 24
+      - max: 243700
+        min: 191951
+        rate: 32
+      - max: 609350
+        min: 243701
+        rate: 35
+      - max: no_limit
+        min: 609351
+        rate: 37
+  standard_deduction: 21900
+married-joint:
+  capital_gains:
+    brackets:
+      - max: 94050
+        min: 0
+        rate: 0
+      - max: 583750
+        min: 94050
+        rate: 15
+      - max: no_limit
+        min: 583750
+        rate: 20
+  income_tax:
+    brackets:
+      - max: 23200
+        min: 0
+        rate: 10
+      - max: 94300
+        min: 23201
+        rate: 12
+      - max: 201050
+        min: 94301
+        rate: 22
+      - max: 383900
+        min: 201051
+        rate: 24
+      - max: 487450
+        min: 383901
+        rate: 32
+      - max: 731200
+        min: 487451
+        rate: 35
+      - max: no_limit
+        min: 731201
+        rate: 37
+  standard_deduction: 29200
+married-separate:
+  capital_gains:
+    brackets:
+      - max: 47025
+        min: 0
+        rate: 0
+      - max: 291850
+        min: 47025
+        rate: 15
+      - max: no_limit
+        min: 291850
+        rate: 20
+  income_tax:
+    brackets:
+      - max: 11600
+        min: 0
+        rate: 10
+      - max: 47150
+        min: 11601
+        rate: 12
+      - max: 100525
+        min: 47151
+        rate: 22
+      - max: 191950
+        min: 100526
+        rate: 24
+      - max: 243725
+        min: 191951
+        rate: 32
+      - max: 365600
+        min: 243726
+        rate: 35
+      - max: no_limit
+        min: 365601
+        rate: 37
+  standard_deduction: 14600
+single:
+  capital_gains:
+    brackets:
+      - max: 47025
+        min: 0
+        rate: 0
+      - max: 518900
+        min: 47025
+        rate: 15
+      - max: no_limit
+        min: 518900
+        rate: 20
+  income_tax:
+    brackets:
+      - max: 11600
+        min: 0
+        rate: 10
+      - max: 47150
+        min: 11601
+        rate: 12
+      - max: 100525
+        min: 47151
+        rate: 22
+      - max: 191950
+        min: 100526
+        rate: 24
+      - max: 243725
+        min: 191951
+        rate: 32
+      - max: 609350
+        min: 243726
+        rate: 35
+      - max: no_limit
+        min: 609351
+        rate: 37
+  standard_deduction: 14600
