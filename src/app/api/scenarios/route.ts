@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/app/lib/prisma';
 import { DistributionType, EventType, StartYearType, State, TaxStatus, Investment, AssetType, ReturnType, Taxability } from '@prisma/client';
-import getLoggedInUser from '../temp';
 
 const yesNoToBoolean = (arg: string) => {
   if (arg == 'Yes') {
@@ -571,7 +570,11 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const ownerId = getLoggedInUser();
+    const ownerId = body.userEmail;
+
+    if (!ownerId) {
+      return NextResponse.json({ status: 400, error: 'User email is required' });
+    }
 
     const {
       name,
@@ -641,7 +644,7 @@ export async function POST(request: NextRequest) {
         inflationMax: processedInflationMax,
         inflationMean: processedInflationMean,
         inflationStd: processedInflationStd,
-        ownerPrivilege: { connect: { id: ownerId } },
+        ownerId: ownerId,
         initialAfterTaxRetirementContributionLimit,
         rothOptimizationStartYear,
         rothOptimizationEndYear,
@@ -711,9 +714,26 @@ export async function PUT(request: NextRequest) {
   try {
     const body = await request.json();
     const scenarioId = body.id;
+    const ownerId = body.userEmail;
 
     if (!scenarioId) {
       return NextResponse.json({ status: 400, error: 'Scenario ID is required' });
+    }
+
+    if (!ownerId) {
+      return NextResponse.json({ status: 400, error: 'User email is required' });
+    }
+
+    // Verify ownership before proceeding
+    const existingScenario = await prisma.scenario.findFirst({
+      where: {
+        id: scenarioId,
+        ownerId: ownerId
+      }
+    });
+
+    if (!existingScenario) {
+      return NextResponse.json({ status: 403, error: 'Not authorized to modify this scenario' });
     }
 
     // Delete existing scenario relationships

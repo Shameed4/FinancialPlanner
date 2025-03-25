@@ -2232,6 +2232,19 @@ const ScenarioPage = () => {
     useEffect(() => {
         const fetchScenarios = async () => {
             try {
+                // First, ensure the user exists in the database
+                const createUserResponse = await fetch('/api/user', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        email: userEmail,
+                        googleId: session?.user?.id || userEmail // fallback to email if no Google ID
+                    }),
+                });
+
+                // Now fetch scenarios
                 const response = await fetch(`/api/scenarios?ownerId=${userEmail}`);
                 const data = await response.json();
                 
@@ -2248,8 +2261,10 @@ const ScenarioPage = () => {
             }
         };
 
-        fetchScenarios();
-    }, []);
+        if (userEmail) {
+            fetchScenarios();
+        }
+    }, [userEmail, session?.user?.id]);
 
     const handleScenarioCreate = async (newScenario) => {
         try {
@@ -2259,7 +2274,10 @@ const ScenarioPage = () => {
                 headers: {
                     'Content-Type': 'application/json',
                 },
-                body: JSON.stringify(newScenario),
+                body: JSON.stringify({
+                    ...newScenario,
+                    userEmail
+                }),
             });
 
             const data = await response.json();
@@ -2286,7 +2304,10 @@ const ScenarioPage = () => {
                 headers: {
                     'Content-Type': 'application/json',
                 },
-                body: JSON.stringify(updatedScenario),
+                body: JSON.stringify({
+                    ...updatedScenario,
+                    userEmail
+                }),
             });
 
             const data = await response.json();
