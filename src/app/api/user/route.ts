@@ -1,3 +1,5 @@
+// Implemented with the help of Cursor AI. Prompt: Add a new user to the database when they don't already exist and a scenario is being created.
+
 import { NextResponse } from 'next/server';
 import prisma from '@/app/lib/prisma';
 

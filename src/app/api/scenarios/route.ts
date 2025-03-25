@@ -248,24 +248,30 @@ async function createAssetTypes(assetTypes: any[]) {
       : (assetType.expectedAnnualIncomeType || ReturnType.FIXED);
 
     // Create asset type
-    const createdAssetType = await prisma.assetType.create({
-      data: {
-        name: assetType.name,
-        description: assetType.description,
-        returnType: returnType,
-        fixedReturn: returnType === ReturnType.FIXED ? parseFloat(assetType.fixedReturn) : null,
-        normalReturnMean: returnType === ReturnType.NORMAL ? parseFloat(assetType.normalReturnMean) : null,
-        normalReturnStd: returnType === ReturnType.NORMAL ? parseFloat(assetType.normalReturnStd) : null,
-        expectedAnnualIncomeType: expectedAnnualIncomeType,
-        fixedIncome: assetType.fixedIncome,
-        normalIncomeMean: assetType.normalIncomeMean,
-        normalIncomeStd: assetType.normalIncomeStd,
-        gbmIncomeDrift: assetType.gbmIncomeDrift,
-        gbmIncomeVolatility: assetType.gbmIncomeVolatility,
-        expenseRatio: assetType.expenseRatio || 0,
-        taxability: taxability,
-      }
-    });
+    let createdAssetType;
+    try {
+      createdAssetType = await prisma.assetType.create({
+        data: {
+          name: assetType.name,
+          description: assetType.description,
+          returnType: returnType,
+          fixedReturn: returnType === ReturnType.FIXED ? parseFloat(assetType.fixedReturn) : null,
+          normalReturnMean: returnType === ReturnType.NORMAL ? parseFloat(assetType.normalReturnMean) : null,
+          normalReturnStd: returnType === ReturnType.NORMAL ? parseFloat(assetType.normalReturnStd) : null,
+          expectedAnnualIncomeType: expectedAnnualIncomeType,
+          fixedIncome: assetType.fixedIncome,
+          normalIncomeMean: assetType.normalIncomeMean,
+          normalIncomeStd: assetType.normalIncomeStd,
+          gbmIncomeDrift: assetType.gbmIncomeDrift,
+          gbmIncomeVolatility: assetType.gbmIncomeVolatility,
+          expenseRatio: assetType.expenseRatio || 0,
+          taxability: taxability,
+        }
+      });
+    } catch (error) {
+      console.error(`Error creating asset type ${assetType.name}:`, error);
+      throw error;
+    }
 
     createdAssetTypes.push(createdAssetType);
   }
@@ -406,27 +412,41 @@ const transformScenarioForFrontend = (scenario: any) => {
     return baseEvent;
   });
 
-  // Transform investments and asset types
-  const transformedAssetTypes = scenario.investmentScenario.map((is: any) => ({
-    name: is.investment.assetType.name,
-    description: is.investment.assetType.description,
-    returnType: is.investment.assetType.returnType.toLowerCase(),
-    fixedReturn: is.investment.assetType.fixedReturn,
-    normalReturnMean: is.investment.assetType.normalReturnMean,
-    normalReturnStd: is.investment.assetType.normalReturnStd,
-    expenseRatio: is.investment.assetType.expenseRatio,
-    incomeMean: is.investment.assetType.normalIncomeMean,
-    incomeStd: is.investment.assetType.normalIncomeStd,
-    taxable: is.investment.assetType.taxability === 'TAXABLE'
-  }));
+  // Create a map to track unique asset types by name to avoid duplicates
+  const assetTypeMap = new Map();
 
-  const transformedInvestments = scenario.investmentScenario.map((is: any) => ({
+  // We'll only extract asset types from investments since there's no direct relationship
+  // between Scenario and AssetType in the schema
+  if (scenario.investmentScenario && Array.isArray(scenario.investmentScenario)) {
+    scenario.investmentScenario.forEach((is: any) => {
+      const assetType = is.investment.assetType;
+      if (assetType && !assetTypeMap.has(assetType.name)) {
+        assetTypeMap.set(assetType.name, {
+          name: assetType.name,
+          description: assetType.description,
+          returnType: assetType.returnType.toLowerCase(),
+          fixedReturn: assetType.fixedReturn,
+          normalReturnMean: assetType.normalReturnMean,
+          normalReturnStd: assetType.normalReturnStd,
+          expenseRatio: assetType.expenseRatio,
+          incomeMean: assetType.normalIncomeMean,
+          incomeStd: assetType.normalIncomeStd,
+          taxable: assetType.taxability === 'TAXABLE'
+        });
+      }
+    });
+  }
+
+  // Convert map values to array
+  const transformedAssetTypes = Array.from(assetTypeMap.values());
+
+  const transformedInvestments = scenario.investmentScenario?.map((is: any) => ({
     assetType: is.investment.assetType.name,
     value: is.investment.value,
     taxStatus: is.investment.taxStatus.toLowerCase().replace(/_/g, '-'),
     withdrawalOrder: is.investment.withdrawalOrder,
     rothConversionOrder: is.investment.rothConversionOrder
-  }));
+  })) || [];
 
   return {
     id: scenario.id,
@@ -701,8 +721,9 @@ export async function POST(request: NextRequest) {
 
     // Create asset types first if provided
     let assetTypeMap = new Map();
+    let createdAssetTypes: any[] = [];
     if (assetTypes && assetTypes.length > 0) {
-      const createdAssetTypes = await createAssetTypes(assetTypes);
+      createdAssetTypes = await createAssetTypes(assetTypes);
       // Create a map of asset type names to IDs for reference
       assetTypeMap = new Map(createdAssetTypes.map(asset => [asset.name, asset.id]));
     }
@@ -752,8 +773,28 @@ export async function POST(request: NextRequest) {
 
     // Apply the transformation and add permissions
     const transformedScenario = transformScenarioForFrontend(completeScenario);
+    
+    // If the transformed scenario doesn't have all the asset types (because they might not be linked to investments yet),
+    // add them manually 
+    const transformedAssetTypeNames = transformedScenario.assetTypes.map(at => at.name);
+    const additionalAssetTypes = createdAssetTypes
+      .filter(at => !transformedAssetTypeNames.includes(at.name))
+      .map(at => ({
+        name: at.name,
+        description: at.description,
+        returnType: at.returnType.toLowerCase(),
+        fixedReturn: at.fixedReturn,
+        normalReturnMean: at.normalReturnMean,
+        normalReturnStd: at.normalReturnStd,
+        expenseRatio: at.expenseRatio,
+        incomeMean: at.normalIncomeMean,
+        incomeStd: at.normalIncomeStd,
+        taxable: at.taxability === 'TAXABLE'
+      }));
+    
     const responseData = {
       ...transformedScenario,
+      assetTypes: [...transformedScenario.assetTypes, ...additionalAssetTypes],
       permissions: {
         isOwner: true, // User who created it is always the owner
         canWrite: true,
@@ -970,8 +1011,9 @@ export async function PUT(request: NextRequest) {
 
     // Create asset types first if provided
     let assetTypeMap = new Map();
+    let createdAssetTypes: any[] = [];
     if (assetTypes && assetTypes.length > 0) {
-      const createdAssetTypes = await createAssetTypes(assetTypes);
+      createdAssetTypes = await createAssetTypes(assetTypes);
       // Create a map of asset type names to IDs for reference
       assetTypeMap = new Map(createdAssetTypes.map(asset => [asset.name, asset.id]));
     }
@@ -1037,9 +1079,28 @@ export async function PUT(request: NextRequest) {
 
     const transformedScenario = transformScenarioForFrontend(completeScenario);
     
+    // If the transformed scenario doesn't have all the asset types (because they might not be linked to investments yet),
+    // add them manually 
+    const transformedAssetTypeNames = transformedScenario.assetTypes.map(at => at.name);
+    const additionalAssetTypes = createdAssetTypes
+      .filter(at => !transformedAssetTypeNames.includes(at.name))
+      .map(at => ({
+        name: at.name,
+        description: at.description,
+        returnType: at.returnType.toLowerCase(),
+        fixedReturn: at.fixedReturn,
+        normalReturnMean: at.normalReturnMean,
+        normalReturnStd: at.normalReturnStd,
+        expenseRatio: at.expenseRatio,
+        incomeMean: at.normalIncomeMean,
+        incomeStd: at.normalIncomeStd,
+        taxable: at.taxability === 'TAXABLE'
+      }));
+    
     // Add permissions to the response
     const responseData = {
       ...transformedScenario,
+      assetTypes: [...transformedScenario.assetTypes, ...additionalAssetTypes],
       permissions: {
         isOwner: completeScenario?.ownerId === ownerId,
         canWrite: completeScenario?.ownerId === ownerId || 

@@ -17,6 +17,8 @@
 import { useSession } from 'next-auth/react';
 import { motion } from 'framer-motion';
 import { useState, useEffect, useRef } from 'react';
+import Link from 'next/link';
+import { jsonToYaml, yamlToJson, validateScenario } from '@/utils/scenarioConverter';
 
 const pageVariants = {
     initial: { opacity: 0, y: 20 },
@@ -92,7 +94,7 @@ const ShareScenarioModal = ({ scenario, isOpen, onClose, userEmail }) => {
             setLoading(true);
             const response = await fetch(`/api/scenarios/share?scenarioId=${scenario.id}`);
             const data = await response.json();
-            
+
             if (data.status === 200) {
                 setReadUsers(data.result.readonly || []);
                 setWriteUsers(data.result.readwrite || []);
@@ -121,11 +123,11 @@ const ShareScenarioModal = ({ scenario, isOpen, onClose, userEmail }) => {
             setLoading(true);
             const response = await fetch(`/api/user?query=${encodeURIComponent(searchQuery)}`);
             const data = await response.json();
-            
+
             if (data.status === 200) {
                 // Filter out current user and already shared users
-                const filteredResults = data.result.filter(user => 
-                    user.email !== userEmail && 
+                const filteredResults = data.result.filter(user =>
+                    user.email !== userEmail &&
                     !readUsers.some(readUser => readUser.email === user.email) &&
                     !writeUsers.some(writeUser => writeUser.email === user.email)
                 );
@@ -158,7 +160,7 @@ const ShareScenarioModal = ({ scenario, isOpen, onClose, userEmail }) => {
             });
 
             const data = await response.json();
-            
+
             if (data.status === 200) {
                 setSearchQuery('');
                 setSearchResults([]);
@@ -182,7 +184,7 @@ const ShareScenarioModal = ({ scenario, isOpen, onClose, userEmail }) => {
             });
 
             const data = await response.json();
-            
+
             if (data.status === 200) {
                 setRefreshSharing(prev => prev + 1);
             } else {
@@ -203,7 +205,7 @@ const ShareScenarioModal = ({ scenario, isOpen, onClose, userEmail }) => {
             <div className="bg-white p-6 rounded-lg w-full max-w-md">
                 <div className="flex justify-between items-center mb-4">
                     <h3 className="text-xl font-semibold text-black">Share "{scenario.name}"</h3>
-                    <button 
+                    <button
                         onClick={onClose}
                         className="text-gray-500 hover:text-gray-700"
                     >
@@ -214,7 +216,7 @@ const ShareScenarioModal = ({ scenario, isOpen, onClose, userEmail }) => {
                 {error && (
                     <div className="bg-red-50 border border-red-200 text-red-600 p-4 rounded-md mb-4">
                         {error}
-                        <button 
+                        <button
                             onClick={() => setError(null)}
                             className="ml-2 text-sm underline"
                         >
@@ -239,8 +241,8 @@ const ShareScenarioModal = ({ scenario, isOpen, onClose, userEmail }) => {
                     {searchResults.length > 0 && (
                         <div className="mt-2 border border-gray-200 rounded-md overflow-hidden">
                             {searchResults.map((user, index) => (
-                                <div 
-                                    key={index} 
+                                <div
+                                    key={index}
                                     className="p-3 border-b border-gray-200 last:border-b-0 flex justify-between items-center"
                                 >
                                     <span>{user.email}</span>
@@ -266,7 +268,7 @@ const ShareScenarioModal = ({ scenario, isOpen, onClose, userEmail }) => {
 
                 <div className="mb-4">
                     <h4 className="font-medium text-gray-700 mb-2">People with access</h4>
-                    
+
                     <div className="mb-3">
                         <div className="flex items-center justify-between py-2 border-b border-gray-200">
                             <div className="flex items-center">
@@ -328,7 +330,7 @@ const ScenarioCard = ({ scenario, onEdit }) => {
     const [isShareModalOpen, setIsShareModalOpen] = useState(false);
     const { data: session } = useSession();
     const userEmail = session?.user?.email || "john.doe@email.com";
-    
+
     // Helper function to format investment data
     const formatInvestments = () => {
         if (!scenario.investmentScenario) return [];
@@ -337,6 +339,12 @@ const ScenarioCard = ({ scenario, onEdit }) => {
 
     // Helper function to get asset types from investments
     const getAssetTypes = () => {
+        // First check if scenario has an assetTypes array directly
+        if (scenario.assetTypes && Array.isArray(scenario.assetTypes) && scenario.assetTypes.length > 0) {
+            return scenario.assetTypes;
+        }
+
+        // Fall back to extracting asset types from investments
         if (!scenario.investmentScenario) return [];
         return Array.from(new Set(scenario.investmentScenario.map(is => is.investment.assetType)));
     };
@@ -344,11 +352,49 @@ const ScenarioCard = ({ scenario, onEdit }) => {
     // Determine user's permission level for this scenario
     const isOwner = scenario.permissions?.isOwner || false;
     const canEdit = scenario.permissions?.canWrite || false;
-    const permissionBadge = isOwner 
+    const permissionBadge = isOwner
         ? <span className="ml-2 px-2 py-0.5 bg-blue-100 text-blue-600 text-xs rounded-full">Owner</span>
-        : canEdit 
+        : canEdit
             ? <span className="ml-2 px-2 py-0.5 bg-green-100 text-green-600 text-xs rounded-full">Editor</span>
             : <span className="ml-2 px-2 py-0.5 bg-gray-100 text-gray-600 text-xs rounded-full">Viewer</span>;
+
+    // Handle download scenario as YAML
+    const handleDownload = async () => {
+        try {
+            // Call the YAML API endpoint
+            const response = await fetch(`/api/scenarios/yaml?id=${scenario.id}&userEmail=${userEmail}`);
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.error || 'Failed to download scenario');
+            }
+
+            // Get the YAML content
+            const yamlContent = await response.text();
+
+            // Create a blob with the YAML content
+            const blob = new Blob([yamlContent], { type: 'text/yaml' });
+
+            // Create a temporary URL for the blob
+            const url = URL.createObjectURL(blob);
+
+            // Create a temporary anchor element
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `${scenario.name}-scenario.yaml`;
+
+            // Trigger the download
+            document.body.appendChild(a);
+            a.click();
+
+            // Clean up
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        } catch (error) {
+            console.error('Error downloading scenario:', error);
+            alert('Failed to download scenario: ' + error.message);
+        }
+    };
 
     return (
         <div className="bg-white p-6 rounded-lg shadow-md hover:shadow-lg transition-shadow">
@@ -358,6 +404,12 @@ const ScenarioCard = ({ scenario, onEdit }) => {
                     {permissionBadge}
                 </div>
                 <div className="flex space-x-2">
+                    <button
+                        onClick={handleDownload}
+                        className="px-4 py-2 text-sm bg-green-100 hover:bg-green-200 text-green-700 rounded-md transition-colors"
+                    >
+                        Export YAML
+                    </button>
                     {isOwner && (
                         <button
                             onClick={() => setIsShareModalOpen(true)}
@@ -376,7 +428,7 @@ const ScenarioCard = ({ scenario, onEdit }) => {
                     )}
                 </div>
             </div>
-            
+
             {/* Rest of the card content remains the same */}
             <div className="space-y-4 text-gray-600">
                 <div>
@@ -402,7 +454,7 @@ const ScenarioCard = ({ scenario, onEdit }) => {
                         <div key={index} className="ml-4 mb-2">
                             <p className="font-medium">{asset.name}</p>
                             <p className="text-sm">Description: {asset.description}</p>
-                            {asset.returnType === 'FIXED' ? (
+                            {asset.returnType && asset.returnType.toLowerCase() === 'fixed' ? (
                                 <p className="text-sm">Fixed Return: {asset.fixedReturn}%</p>
                             ) : (
                                 <>
@@ -410,14 +462,18 @@ const ScenarioCard = ({ scenario, onEdit }) => {
                                 </>
                             )}
                             <p className="text-sm">Expense Ratio: {asset.expenseRatio}%</p>
-                            {asset.expectedAnnualIncomeType === 'FIXED' ? (
+                            {/* Display income details based on available fields */}
+                            {asset.fixedIncome ? (
                                 <p className="text-sm">Fixed Income: {asset.fixedIncome}%</p>
                             ) : (
                                 <>
-                                    <p className="text-sm">Income: {asset.normalIncomeMean}% (std dev: {asset.normalIncomeStd}%)</p>
+                                    <p className="text-sm">Income: {asset.incomeMean || asset.normalIncomeMean}%
+                                        {(asset.incomeStd || asset.normalIncomeStd) &&
+                                            ` (std dev: ${asset.incomeStd || asset.normalIncomeStd}%)`}</p>
                                 </>
                             )}
-                            <p className="text-sm">Taxable: {asset.taxability === 'TAXABLE' ? 'Yes' : 'No'}</p>
+                            <p className="text-sm">Taxable: {asset.taxable !== undefined ? (asset.taxable ? 'Yes' : 'No') :
+                                (asset.taxability === 'TAXABLE' ? 'Yes' : 'No')}</p>
                         </div>
                     ))}
                 </div>
@@ -541,7 +597,7 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel, initialData = null }) 
                 spouseLifeExpectancyMean: initialData.spouseLifeExpectancyMean?.toString() || '',
                 spouseLifeExpectancyStd: initialData.spouseLifeExpectancyStd?.toString() || '',
                 financialGoal: initialData.financialGoal?.toString() || '',
-                initialAfterTaxRetirementContributionLimit: 
+                initialAfterTaxRetirementContributionLimit:
                     initialData.initialAfterTaxRetirementContributionLimit?.toString() || '',
                 // Ensure inflation values are properly set
                 inflationAssumption: initialData.inflationAssumption || 'fixed',
@@ -604,15 +660,15 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel, initialData = null }) 
                             }
                             break;
                         case 'uniform':
-                            if (!formData.inflationMin || !formData.inflationMax || 
-                                isNaN(formData.inflationMin) || isNaN(formData.inflationMax) || 
+                            if (!formData.inflationMin || !formData.inflationMax ||
+                                isNaN(formData.inflationMin) || isNaN(formData.inflationMax) ||
                                 parseFloat(formData.inflationMin) < 0 || parseFloat(formData.inflationMax) < parseFloat(formData.inflationMin)) {
                                 newErrors.inflationMin = 'Valid uniform distribution range is required';
                             }
                             break;
                         case 'normal':
-                            if (!formData.inflationMean || !formData.inflationStd || 
-                                isNaN(formData.inflationMean) || isNaN(formData.inflationStd) || 
+                            if (!formData.inflationMean || !formData.inflationStd ||
+                                isNaN(formData.inflationMean) || isNaN(formData.inflationStd) ||
                                 parseFloat(formData.inflationMean) < 0 || parseFloat(formData.inflationStd) <= 0) {
                                 newErrors.inflationMean = 'Valid normal distribution parameters are required';
                             }
@@ -631,7 +687,7 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel, initialData = null }) 
                     if (!asset.name) newErrors[`assetTypes.${index}.name`] = 'Asset name is required';
                     if (!asset.description) newErrors[`assetTypes.${index}.description`] = 'Description is required';
                     if (!asset.returnType) newErrors[`assetTypes.${index}.returnType`] = 'Return type is required';
-                    
+
                     // Validate return fields based on return type
                     if (asset.returnType === 'fixed') {
                         if (!asset.fixedReturn) newErrors[`assetTypes.${index}.fixedReturn`] = 'Fixed return is required';
@@ -648,7 +704,7 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel, initialData = null }) 
                             newErrors[`assetTypes.${index}.normalReturnStd`] = 'Return standard deviation must be a positive number';
                         }
                     }
-                    
+
                     if (!asset.expenseRatio) newErrors[`assetTypes.${index}.expenseRatio`] = 'Expense ratio is required';
                     if (!asset.incomeMean) newErrors[`assetTypes.${index}.incomeMean`] = 'Income mean is required';
                 });
@@ -658,12 +714,12 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel, initialData = null }) 
                     if (!investment.assetType) newErrors[`investments.${index}.assetType`] = 'Asset type is required';
                     if (!investment.value) newErrors[`investments.${index}.value`] = 'Value is required';
                     if (!investment.taxStatus) newErrors[`investments.${index}.taxStatus`] = 'Tax status is required';
-                    
+
                     // Validate that the selected asset type exists
                     if (investment.assetType && !formData.assetTypes?.some(asset => asset.name === investment.assetType)) {
                         newErrors[`investments.${index}.assetType`] = 'Selected asset type does not exist';
                     }
-                    
+
                     // Validate that value is a positive number
                     if (investment.value && (isNaN(investment.value) || parseFloat(investment.value) <= 0)) {
                         newErrors[`investments.${index}.value`] = 'Value must be a positive number';
@@ -675,14 +731,14 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel, initialData = null }) 
                     if (!event.name) newErrors[`eventSeries.${index}.name`] = 'Event name is required';
                     if (!event.type) newErrors[`eventSeries.${index}.type`] = 'Event type is required';
                     if (!event.startYearType) newErrors[`eventSeries.${index}.startYearType`] = 'Start year type is required';
-                    
+
                     // Validate start year based on type
                     if (event.startYearType === 'fixed' && (!event.startYear || isNaN(event.startYear))) {
                         newErrors[`eventSeries.${index}.startYear`] = 'Start year is required';
                     } else if (event.startYearType === 'relative' && (!event.relativeStartYear || isNaN(event.relativeStartYear))) {
                         newErrors[`eventSeries.${index}.relativeStartYear`] = 'Relative start year is required';
                     }
-                    
+
                     // Validate duration
                     if (!event.durationType) {
                         newErrors[`eventSeries.${index}.durationType`] = 'Duration type is required';
@@ -694,35 +750,35 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel, initialData = null }) 
                                 }
                                 break;
                             case 'uniform':
-                                if (!event.durationMin || !event.durationMax || 
-                                    isNaN(event.durationMin) || isNaN(event.durationMax) || 
+                                if (!event.durationMin || !event.durationMax ||
+                                    isNaN(event.durationMin) || isNaN(event.durationMax) ||
                                     parseFloat(event.durationMin) <= 0 || parseFloat(event.durationMax) < parseFloat(event.durationMin)) {
                                     newErrors[`eventSeries.${index}.durationMin`] = 'Invalid uniform duration range';
                                 }
                                 break;
                             case 'normal':
-                                if (!event.durationMean || !event.durationStd || 
-                                    isNaN(event.durationMean) || isNaN(event.durationStd) || 
+                                if (!event.durationMean || !event.durationStd ||
+                                    isNaN(event.durationMean) || isNaN(event.durationStd) ||
                                     parseFloat(event.durationMean) <= 0 || parseFloat(event.durationStd) < 0) {
                                     newErrors[`eventSeries.${index}.durationMean`] = 'Invalid normal duration parameters';
                                 }
                                 break;
                         }
                     }
-                    
+
                     // Validate event-specific fields
                     if (event.type === 'income' || event.type === 'expense') {
                         if (!event.amount || isNaN(event.amount) || parseFloat(event.amount) <= 0) {
                             newErrors[`eventSeries.${index}.amount`] = 'Amount must be a positive number';
                         }
-                        
+
                         // Validate user percentage for married couples
-                        if (formData.forIndividual === false && (!event.userPercentage || isNaN(event.userPercentage) || 
+                        if (formData.forIndividual === false && (!event.userPercentage || isNaN(event.userPercentage) ||
                             parseFloat(event.userPercentage) < 0 || parseFloat(event.userPercentage) > 100)) {
                             newErrors[`eventSeries.${index}.userPercentage`] = 'User percentage must be between 0 and 100';
                         }
                     }
-                    
+
                     // Validate allocation fields for invest/rebalance events
                     if (event.type === 'invest' || event.type === 'rebalance') {
                         if (!event.allocationType) {
@@ -743,7 +799,7 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel, initialData = null }) 
                                         filteredAllocations[assetName] = percentage;
                                     }
                                 });
-                                
+
                                 // Check if allocations sum to 100%
                                 const sum = Object.values(filteredAllocations)
                                     .reduce((acc, val) => acc + parseFloat(val || 0), 0);
@@ -767,14 +823,14 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel, initialData = null }) 
                                         filteredInitialAllocations[assetName] = percentage;
                                     }
                                 });
-                                
+
                                 const initialSum = Object.values(filteredInitialAllocations)
                                     .reduce((acc, val) => acc + parseFloat(val || 0), 0);
                                 if (Math.abs(initialSum - 100) > 0.1) {
                                     newErrors[`eventSeries.${index}.initialAllocations`] = 'Initial allocations must sum to 100%';
                                 }
                             }
-                            
+
                             if (!event.finalAllocations || Object.keys(event.finalAllocations).length === 0) {
                                 newErrors[`eventSeries.${index}.finalAllocations`] = 'Final allocations are required';
                             } else {
@@ -789,7 +845,7 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel, initialData = null }) 
                                         filteredFinalAllocations[assetName] = percentage;
                                     }
                                 });
-                                
+
                                 const finalSum = Object.values(filteredFinalAllocations)
                                     .reduce((acc, val) => acc + parseFloat(val || 0), 0);
                                 if (Math.abs(finalSum - 100) > 0.1) {
@@ -797,9 +853,9 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel, initialData = null }) 
                                 }
                             }
                         }
-                        
+
                         // Validate maxCashValue for invest events if provided
-                        if (event.type === 'invest' && event.maxCashValue && 
+                        if (event.type === 'invest' && event.maxCashValue &&
                             (isNaN(event.maxCashValue) || parseFloat(event.maxCashValue) <= 0)) {
                             newErrors[`eventSeries.${index}.maxCashValue`] = 'Maximum cash value must be a positive number';
                         }
@@ -809,8 +865,8 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel, initialData = null }) 
             case 5:
                 // Validate tax optimization if enabled
                 if (formData.enableTaxOptimization) {
-                    if (!formData.rothOptimizationStartYear || !formData.rothOptimizationEndYear || 
-                        isNaN(formData.rothOptimizationStartYear) || isNaN(formData.rothOptimizationEndYear) || 
+                    if (!formData.rothOptimizationStartYear || !formData.rothOptimizationEndYear ||
+                        isNaN(formData.rothOptimizationStartYear) || isNaN(formData.rothOptimizationEndYear) ||
                         parseInt(formData.rothOptimizationStartYear) < 0 || parseInt(formData.rothOptimizationEndYear) < parseInt(formData.rothOptimizationStartYear)) {
                         newErrors.rothOptimizationStartYear = 'Valid tax optimization year range is required';
                     }
@@ -821,7 +877,7 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel, initialData = null }) 
                     const withdrawalOrders = formData.investments
                         .map(inv => inv.withdrawalOrder)
                         .filter(order => order !== undefined && order !== null);
-                    
+
                     if (withdrawalOrders.length > 0) {
                         const uniqueOrders = new Set(withdrawalOrders);
                         if (withdrawalOrders.length !== uniqueOrders.size) {
@@ -836,7 +892,7 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel, initialData = null }) 
                     const conversionOrders = preTaxInvestments
                         .map(inv => inv.rothConversionOrder)
                         .filter(order => order !== undefined && order !== null);
-                    
+
                     if (conversionOrders.length > 0) {
                         const uniqueOrders = new Set(conversionOrders);
                         if (conversionOrders.length !== uniqueOrders.size) {
@@ -855,6 +911,43 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel, initialData = null }) 
             if (currentStep < 5) {
                 setCurrentStep(currentStep + 1);
             } else {
+                // Ensure withdrawalOrder and rothConversionOrder are properly assigned
+                const processedFormData = { ...formData };
+
+                // Normalize withdrawal orders (ensure consecutive 1-n)
+                if (processedFormData.investments?.length > 0) {
+                    // Create a copy with parsed integer values
+                    const sortedInvestments = [...processedFormData.investments]
+                        .map((inv, idx) => ({
+                            ...inv,
+                            originalIndex: idx,
+                            withdrawalOrder: parseInt(inv.withdrawalOrder || idx + 1)
+                        }))
+                        .sort((a, b) => a.withdrawalOrder - b.withdrawalOrder);
+
+                    // Reassign sequential orders (1, 2, 3, ...)
+                    sortedInvestments.forEach((inv, idx) => {
+                        processedFormData.investments[inv.originalIndex].withdrawalOrder = idx + 1;
+                    });
+
+                    // Normalize Roth conversion orders for pre-tax investments
+                    const preTaxInvestments = processedFormData.investments
+                        .filter(inv => inv.taxStatus === 'pre-tax')
+                        .map((inv, idx) => ({
+                            ...inv,
+                            originalIndex: processedFormData.investments.findIndex(
+                                item => item.assetType === inv.assetType
+                            ),
+                            rothConversionOrder: parseInt(inv.rothConversionOrder || idx + 1)
+                        }))
+                        .sort((a, b) => a.rothConversionOrder - b.rothConversionOrder);
+
+                    // Reassign sequential orders (1, 2, 3, ...)
+                    preTaxInvestments.forEach((inv, idx) => {
+                        processedFormData.investments[inv.originalIndex].rothConversionOrder = idx + 1;
+                    });
+                }
+
                 // Convert specific numeric fields to numbers, preserving string fields
                 const prepareFormDataForSubmission = (data) => {
                     // List of field paths that should be converted to numbers
@@ -868,57 +961,75 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel, initialData = null }) 
                         // Tax optimization
                         'rothOptimizationStartYear', 'rothOptimizationEndYear'
                     ];
-                    
+
                     // List of field paths that should be converted to boolean values
                     const booleanFields = [
                         'hasSpouse', 'selfEmployed', 'forIndividual'
                     ];
-                    
+
                     // Helper to check if a path should be numeric
                     const shouldBeNumeric = (path) => {
                         // Direct match for top-level fields
                         if (numericFields.includes(path)) return true;
-                        
+
                         // Check for array item fields
-                        // Asset types
-                        if (path.match(/^assetTypes\.\d+\.(returnMean|returnStd|expenseRatio|incomeMean|incomeStd)$/)) return true;
-                        
+                        // Asset types - ensure all numeric fields are properly converted
+                        if (path.match(/^assetTypes\.\d+\.(fixedReturn|normalReturnMean|normalReturnStd|expenseRatio|fixedIncome|normalIncomeMean|normalIncomeStd|percentage|value|fee|minAllocation|maxAllocation|targetAllocation)$/)) return true;
+
                         // Investments
                         if (path.match(/^investments\.\d+\.(value|withdrawalOrder|rothConversionOrder)$/)) return true;
-                        
+
                         // Event series
                         if (path.match(/^eventSeries\.\d+\.(startYear|startYearMin|startYearMax|startYearMean|startYearStd|durationFixed|durationMin|durationMax|durationMean|durationStd|amount|annualChange|userPercentage|maxCashValue)$/)) return true;
-                        
+
                         // Allocations percentages
                         if (path.match(/^eventSeries\.\d+\.(allocations|initialAllocations|finalAllocations)\.[^.]+$/)) return true;
-                        
+
                         return false;
                     };
-                    
+
                     // Recursive function to process the object
                     const processObject = (obj, path = '') => {
                         const result = {};
-                        
+
                         Object.entries(obj).forEach(([key, value]) => {
                             const currentPath = path ? `${path}.${key}` : key;
-                            
+
                             // Process arrays
                             if (Array.isArray(value)) {
                                 result[key] = value.map((item, index) => {
+                                    // For nested objects in arrays (like assetTypes)
                                     if (item !== null && typeof item === 'object') {
+                                        // Special handling for assetTypes array items
+                                        if (currentPath === 'assetTypes') {
+                                            const processedItem = {};
+                                            Object.entries(item).forEach(([itemKey, itemValue]) => {
+                                                // Convert all numeric fields in assetTypes to numbers
+                                                if (['fixedReturn', 'normalReturnMean', 'normalReturnStd',
+                                                    'expenseRatio', 'fixedIncome', 'normalIncomeMean',
+                                                    'normalIncomeStd', 'percentage', 'value', 'fee',
+                                                    'minAllocation', 'maxAllocation', 'targetAllocation'].includes(itemKey) &&
+                                                    typeof itemValue === 'string' && itemValue !== '' && !isNaN(Number(itemValue))) {
+                                                    processedItem[itemKey] = Number(itemValue);
+                                                } else {
+                                                    processedItem[itemKey] = itemValue;
+                                                }
+                                            });
+                                            return processedItem;
+                                        }
                                         return processObject(item, `${currentPath}.${index}`);
                                     }
-                                    
+
                                     const itemPath = `${currentPath}.${index}`;
                                     if (shouldBeNumeric(itemPath) && typeof item === 'string' && !isNaN(Number(item))) {
                                         return Number(item);
                                     }
                                     // Process boolean values in arrays
-                                    if ((itemPath.includes('.taxable') || 
-                                         itemPath.includes('.isSocialSecurity') || 
-                                         itemPath.includes('.isDiscretionary') ||
-                                         booleanFields.includes(itemPath)) && 
-                                         typeof item === 'string') {
+                                    if ((itemPath.includes('.taxability') ||
+                                        itemPath.includes('.isSocialSecurity') ||
+                                        itemPath.includes('.isDiscretionary') ||
+                                        booleanFields.includes(itemPath)) &&
+                                        typeof item === 'string') {
                                         if (item.toLowerCase() === 'yes' || item === 'true') {
                                             return true;
                                         } else if (item.toLowerCase() === 'no' || item === 'false') {
@@ -935,16 +1046,16 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel, initialData = null }) 
                             else if (value !== null && typeof value === 'object') {
                                 result[key] = processObject(value, currentPath);
                             }
-                            // Process primitive values
-                            else if (shouldBeNumeric(currentPath) && typeof value === 'string' && !isNaN(Number(value))) {
+                            // Process primitive values - Convert numeric fields
+                            else if (shouldBeNumeric(currentPath) && typeof value === 'string' && value !== '' && !isNaN(Number(value))) {
                                 result[key] = Number(value);
                             }
                             // Process boolean values - only convert specific fields to avoid affecting text descriptions
-                            else if ((currentPath.includes('.taxable') || 
-                                    currentPath.includes('.isSocialSecurity') || 
-                                    currentPath.includes('.isDiscretionary') ||
-                                    booleanFields.includes(currentPath)) && 
-                                    typeof value === 'string') {
+                            else if ((currentPath.includes('.taxability') ||
+                                currentPath.includes('.isSocialSecurity') ||
+                                currentPath.includes('.isDiscretionary') ||
+                                booleanFields.includes(currentPath)) &&
+                                typeof value === 'string') {
                                 // Convert only checkbox-related fields
                                 if (value.toLowerCase() === 'yes' || value === 'true') {
                                     result[key] = true;
@@ -959,14 +1070,14 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel, initialData = null }) 
                                 result[key] = value;
                             }
                         });
-                        
+
                         return result;
                     };
-                    
+
                     return processObject(data);
                 };
 
-                const numericFormData = prepareFormDataForSubmission(formData);
+                const numericFormData = prepareFormDataForSubmission(processedFormData);
                 console.log('Prepared data with numeric values:', numericFormData);
                 onScenarioCreate(numericFormData);
             }
@@ -1040,9 +1151,9 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel, initialData = null }) 
                                 id="hasSpouse"
                                 checked={!formData.forIndividual}
                                 onChange={(e) => {
-                                    setFormData({ 
-                                        ...formData, 
-                                        forIndividual: !e.target.checked 
+                                    setFormData({
+                                        ...formData,
+                                        forIndividual: !e.target.checked
                                     });
                                 }}
                                 className="form-checkbox h-5 w-5 text-black"
@@ -1165,7 +1276,7 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel, initialData = null }) 
                             />
                         </div>
                     </>)}
-                    
+
                     <div className="mt-8">
                         <label className="block text-sm font-medium text-gray-700 mb-1">Inflation Assumption</label>
                         <div className="space-y-4">
@@ -1498,13 +1609,16 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel, initialData = null }) 
                                     assetTypes: [...assetTypes, {
                                         name: '',
                                         description: '',
-                                        returnType: '',
-                                        returnMean: '',
-                                        returnStd: '',
+                                        returnType: 'normal',
+                                        fixedReturn: '',
+                                        normalReturnMean: '',
+                                        normalReturnStd: '',
                                         expenseRatio: '',
-                                        incomeMean: '',
-                                        incomeStd: '',
-                                        taxable: false
+                                        expectedAnnualIncomeType: 'FIXED',
+                                        fixedIncome: '',
+                                        normalIncomeMean: '',
+                                        normalIncomeStd: '',
+                                        taxability: 'TAXABLE'
                                     }]
                                 });
                             }}
@@ -2102,10 +2216,10 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel, initialData = null }) 
                                                 event.allocationType === 'fixed' ? (
                                                     <div>
                                                         <label className="block text-sm font-medium text-gray-700 mb-1">Asset Allocations (%)</label>
-                                                        {formData.assetTypes?.filter(asset => 
+                                                        {formData.assetTypes?.filter(asset =>
                                                             // Only show non-pre-tax assets
-                                                            !formData.investments?.some(inv => 
-                                                                inv.assetType === asset.name && 
+                                                            !formData.investments?.some(inv =>
+                                                                inv.assetType === asset.name &&
                                                                 inv.taxStatus === 'pre-tax'
                                                             )
                                                         ).map((asset, assetIndex) => (
@@ -2139,10 +2253,10 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel, initialData = null }) 
                                                     <>
                                                         <div>
                                                             <label className="block text-sm font-medium text-gray-700 mb-1">Initial Allocations (%)</label>
-                                                            {formData.assetTypes?.filter(asset => 
+                                                            {formData.assetTypes?.filter(asset =>
                                                                 // Only show non-pre-tax assets
-                                                                !formData.investments?.some(inv => 
-                                                                    inv.assetType === asset.name && 
+                                                                !formData.investments?.some(inv =>
+                                                                    inv.assetType === asset.name &&
                                                                     inv.taxStatus === 'pre-tax'
                                                                 )
                                                             ).map((asset, assetIndex) => (
@@ -2174,10 +2288,10 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel, initialData = null }) 
                                                         </div>
                                                         <div>
                                                             <label className="block text-sm font-medium text-gray-700 mb-1">Final Allocations (%)</label>
-                                                            {formData.assetTypes?.filter(asset => 
+                                                            {formData.assetTypes?.filter(asset =>
                                                                 // Only show non-pre-tax assets
-                                                                !formData.investments?.some(inv => 
-                                                                    inv.assetType === asset.name && 
+                                                                !formData.investments?.some(inv =>
+                                                                    inv.assetType === asset.name &&
                                                                     inv.taxStatus === 'pre-tax'
                                                                 )
                                                             ).map((asset, assetIndex) => (
@@ -2438,19 +2552,37 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel, initialData = null }) 
 
                     <div className="mb-4">
                         <label className="block text-sm font-medium text-gray-700 mb-1">Expense Withdrawal Strategy</label>
-                        <p className="text-sm text-gray-500 mb-2">Order your investments for withdrawal (drag to reorder)</p>
+                        <p className="text-sm text-gray-500 mb-2">Order your investments for withdrawal (1 = first, 2 = second, etc.)</p>
                         <div className="space-y-2">
                             {formData.investments?.map((investment, index) => (
                                 <div key={index} className="flex items-center gap-2 bg-gray-50 p-2 rounded">
-                                    <span className="text-gray-500">⋮⋮</span>
                                     <span className="flex-1 text-gray-500">{investment.assetType} ({investment.taxStatus})</span>
                                     <input
                                         type="number"
                                         min="1"
+                                        max={formData.investments?.length || 1}
                                         value={investment.withdrawalOrder || index + 1}
                                         onChange={(e) => {
                                             const newInvestments = [...formData.investments];
-                                            newInvestments[index].withdrawalOrder = parseInt(e.target.value);
+                                            const newOrder = parseInt(e.target.value);
+
+                                            // Ensure the order is a valid number in range
+                                            if (isNaN(newOrder) || newOrder < 1 || newOrder > newInvestments.length) {
+                                                return;
+                                            }
+
+                                            // Check if another investment already has this order number
+                                            const existingIndex = newInvestments.findIndex(
+                                                (inv, idx) => idx !== index && parseInt(inv.withdrawalOrder) === newOrder
+                                            );
+
+                                            // If there's a conflict, swap the order numbers
+                                            if (existingIndex !== -1) {
+                                                newInvestments[existingIndex].withdrawalOrder = parseInt(investment.withdrawalOrder);
+                                            }
+
+                                            // Set the new order
+                                            newInvestments[index].withdrawalOrder = newOrder;
                                             setFormData({ ...formData, investments: newInvestments });
                                         }}
                                         className="w-20 p-1 border rounded"
@@ -2463,22 +2595,45 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel, initialData = null }) 
 
                     <div className="mb-4">
                         <label className="block text-sm font-medium text-gray-700 mb-1">Roth Conversion Strategy</label>
-                        <p className="text-sm text-gray-500 mb-2">Order your pre-tax investments for Roth conversion (drag to reorder)</p>
+                        <p className="text-sm text-gray-500 mb-2">Order your pre-tax investments for Roth conversion (1 = first, 2 = second, etc.)</p>
                         <div className="space-y-2">
                             {formData.investments
                                 ?.filter(inv => inv.taxStatus === 'pre-tax')
                                 .map((investment, index) => (
                                     <div key={index} className="flex items-center gap-2 bg-gray-50 p-2 rounded">
-                                        <span className="text-gray-500">⋮⋮</span>
                                         <span className="flex-1 text-gray-500">{investment.assetType}</span>
                                         <input
                                             type="number"
                                             min="1"
+                                            max={formData.investments?.filter(inv => inv.taxStatus === 'pre-tax').length || 1}
                                             value={investment.rothConversionOrder || index + 1}
                                             onChange={(e) => {
                                                 const newInvestments = [...formData.investments];
                                                 const investmentIndex = newInvestments.findIndex(inv => inv.assetType === investment.assetType);
-                                                newInvestments[investmentIndex].rothConversionOrder = parseInt(e.target.value);
+                                                const newOrder = parseInt(e.target.value);
+
+                                                // Get all pre-tax investments
+                                                const preTaxInvestments = newInvestments.filter(inv => inv.taxStatus === 'pre-tax');
+
+                                                // Ensure the order is a valid number in range
+                                                if (isNaN(newOrder) || newOrder < 1 || newOrder > preTaxInvestments.length) {
+                                                    return;
+                                                }
+
+                                                // Check if another pre-tax investment already has this order number
+                                                const existingIndex = newInvestments.findIndex(
+                                                    (inv, idx) => idx !== investmentIndex &&
+                                                        inv.taxStatus === 'pre-tax' &&
+                                                        parseInt(inv.rothConversionOrder) === newOrder
+                                                );
+
+                                                // If there's a conflict, swap the order numbers
+                                                if (existingIndex !== -1) {
+                                                    newInvestments[existingIndex].rothConversionOrder = parseInt(newInvestments[investmentIndex].rothConversionOrder);
+                                                }
+
+                                                // Set the new order
+                                                newInvestments[investmentIndex].rothConversionOrder = newOrder;
                                                 setFormData({ ...formData, investments: newInvestments });
                                             }}
                                             className="w-20 p-1 border rounded"
@@ -2519,6 +2674,7 @@ const ScenarioPage = () => {
     const [editingScenario, setEditingScenario] = useState(null);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState(null);
+    const fileInputRef = useRef(null);
 
     const { data: session, status } = useSession();
     const userEmail = session?.user?.email || "john.doe@email.com";
@@ -2541,7 +2697,7 @@ const ScenarioPage = () => {
             // Now fetch scenarios
             const response = await fetch(`/api/scenarios?ownerId=${userEmail}`);
             const data = await response.json();
-            
+
             if (data.status === 200) {
                 setScenarios(data.result);
             } else {
@@ -2564,22 +2720,27 @@ const ScenarioPage = () => {
     const handleScenarioCreate = async (newScenario) => {
         try {
             setIsLoading(true);
+            const scenarioData = {
+                ...newScenario,
+                userEmail,
+                spouseBirthYear: newScenario.spouseBirthYear || null,
+                spouseLifeExpectancyMean: newScenario.spouseLifeExpectancyMean || null,
+                spouseLifeExpectancyStd: newScenario.spouseLifeExpectancyStd || null,
+                rothOptimizationStartYear: newScenario.rothOptimizationStartYear || null,
+                rothOptimizationEndYear: newScenario.rothOptimizationEndYear || null
+            };
+
             const response = await fetch('/api/scenarios', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                 },
-                body: JSON.stringify({
-                    ...newScenario,
-                    userEmail
-                }),
+                body: JSON.stringify(scenarioData),
             });
 
             const data = await response.json();
-            
+
             if (data.status === 201) {
-                // Instead of just adding the new scenario, fetch all scenarios again
-                // to ensure we have the latest permission data
                 await fetchScenarios();
                 setIsCreating(false);
             } else {
@@ -2608,7 +2769,7 @@ const ScenarioPage = () => {
             });
 
             const data = await response.json();
-            
+
             if (data.status === 200) {
                 // Instead of manually updating the scenario in the state,
                 // fetch all scenarios again to ensure correct permissions
@@ -2631,6 +2792,66 @@ const ScenarioPage = () => {
         setIsCreating(true);
     };
 
+    // Handle YAML file import
+    const handleFileUpload = (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = async (event) => {
+            try {
+                const yamlContent = event.target.result;
+                setIsLoading(true);
+
+                // Create form data to send the YAML content
+                const formData = new FormData();
+                formData.append('yamlFile', file);
+
+                // Call the YAML API endpoint to import the scenario
+                const response = await fetch(`/api/scenarios/yaml?userEmail=${userEmail}`, {
+                    method: 'POST',
+                    body: yamlContent,
+                    headers: {
+                        'Content-Type': 'text/yaml',
+                    },
+                });
+
+                const data = await response.json();
+
+                if (data.status === 201) {
+                    await fetchScenarios();
+                    setError(null);
+                } else {
+                    setError(data.error || 'Failed to import scenario');
+                }
+            } catch (error) {
+                console.error('Error importing scenario:', error);
+                setError(`Failed to import scenario: ${error.message || 'Unknown error'}`);
+            } finally {
+                setIsLoading(false);
+                // Reset the file input
+                if (fileInputRef.current) {
+                    fileInputRef.current.value = '';
+                }
+            }
+        };
+
+        reader.onerror = (error) => {
+            console.error('Error reading file:', error);
+            setError('Failed to read the YAML file');
+            setIsLoading(false);
+        };
+
+        reader.readAsText(file);
+    };
+
+    // Trigger file input click
+    const handleImportClick = () => {
+        if (fileInputRef.current) {
+            fileInputRef.current.click();
+        }
+    };
+
     return (
         <motion.div
             variants={pageVariants}
@@ -2644,22 +2865,37 @@ const ScenarioPage = () => {
                     {isCreating ? (editingScenario ? 'Edit Scenario' : 'Create New Scenario') : 'Your Scenarios'}
                 </h1>
                 {!isCreating && (
-                    <button
-                        onClick={() => {
-                            setEditingScenario(null);
-                            setIsCreating(true);
-                        }}
-                        className="px-6 py-2 rounded-md bg-black text-white hover:bg-gray-800"
-                    >
-                        Create New Scenario
-                    </button>
+                    <div className="flex space-x-4">
+                        <input
+                            type="file"
+                            accept=".yaml,.yml"
+                            ref={fileInputRef}
+                            onChange={handleFileUpload}
+                            className="hidden"
+                        />
+                        <button
+                            onClick={handleImportClick}
+                            className="px-6 py-2 rounded-md bg-blue-600 text-white hover:bg-blue-700"
+                        >
+                            Import YAML
+                        </button>
+                        <button
+                            onClick={() => {
+                                setEditingScenario(null);
+                                setIsCreating(true);
+                            }}
+                            className="px-6 py-2 rounded-md bg-black text-white hover:bg-gray-800"
+                        >
+                            Create New Scenario
+                        </button>
+                    </div>
                 )}
             </div>
 
             {error && (
                 <div className="bg-red-50 border border-red-200 text-red-600 p-4 rounded-md mb-4">
                     {error}
-                    <button 
+                    <button
                         onClick={() => setError(null)}
                         className="ml-2 text-sm underline"
                     >
@@ -2684,9 +2920,9 @@ const ScenarioPage = () => {
             ) : scenarios.length > 0 ? (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                     {scenarios.map((scenario, index) => (
-                        <ScenarioCard 
-                            key={index} 
-                            scenario={scenario} 
+                        <ScenarioCard
+                            key={index}
+                            scenario={scenario}
                             onEdit={handleEdit}
                         />
                     ))}
