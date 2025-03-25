@@ -397,40 +397,16 @@ const ScenarioCard = ({ scenario, onEdit }) => {
     };
 
     return (
-        <div className="bg-white p-6 rounded-lg shadow-md hover:shadow-lg transition-shadow">
+        <div className="bg-white p-6 rounded-lg shadow-md hover:shadow-lg transition-shadow flex flex-col h-full">
             <div className="flex justify-between items-start mb-4">
                 <div className="flex items-center">
                     <h3 className="text-xl font-semibold text-black">{scenario.name}'s Scenario</h3>
                     {permissionBadge}
                 </div>
-                <div className="flex space-x-2">
-                    <button
-                        onClick={handleDownload}
-                        className="px-4 py-2 text-sm bg-green-100 hover:bg-green-200 text-green-700 rounded-md transition-colors"
-                    >
-                        Export YAML
-                    </button>
-                    {isOwner && (
-                        <button
-                            onClick={() => setIsShareModalOpen(true)}
-                            className="px-4 py-2 text-sm bg-blue-100 hover:bg-blue-200 text-blue-700 rounded-md transition-colors"
-                        >
-                            Share
-                        </button>
-                    )}
-                    {canEdit && (
-                        <button
-                            onClick={() => onEdit(scenario)}
-                            className="px-4 py-2 text-sm bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-md transition-colors"
-                        >
-                            Edit
-                        </button>
-                    )}
-                </div>
             </div>
 
             {/* Rest of the card content remains the same */}
-            <div className="space-y-4 text-gray-600">
+            <div className="space-y-4 text-gray-600 flex-grow">
                 <div>
                     <p className="font-medium mb-2">Basic Information</p>
                     <p>Type: {scenario.forIndividual ? 'Individual' : 'Married Couple'}</p>
@@ -564,6 +540,32 @@ const ScenarioCard = ({ scenario, onEdit }) => {
                         )}
                     </div>
                 </div>
+            </div>
+
+            {/* Move buttons to bottom */}
+            <div className="flex justify-end space-x-2 mt-4 pt-3 border-t border-gray-100">
+                <button
+                    onClick={handleDownload}
+                    className="px-4 py-2 text-sm bg-green-100 hover:bg-green-200 text-green-700 rounded-md transition-colors"
+                >
+                    Export YAML
+                </button>
+                {isOwner && (
+                    <button
+                        onClick={() => setIsShareModalOpen(true)}
+                        className="px-4 py-2 text-sm bg-blue-100 hover:bg-blue-200 text-blue-700 rounded-md transition-colors"
+                    >
+                        Share
+                    </button>
+                )}
+                {canEdit && (
+                    <button
+                        onClick={() => onEdit(scenario)}
+                        className="px-4 py-2 text-sm bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-md transition-colors"
+                    >
+                        Edit
+                    </button>
+                )}
             </div>
 
             {/* Share Modal */}
@@ -995,7 +997,7 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel, initialData = null }) 
                         Object.entries(obj).forEach(([key, value]) => {
                             // Skip empty strings
                             if (value === '') return;
-                            
+
                             const currentPath = path ? `${path}.${key}` : key;
 
                             // Process arrays
@@ -1009,7 +1011,7 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel, initialData = null }) 
                                             Object.entries(item).forEach(([itemKey, itemValue]) => {
                                                 // Skip empty strings
                                                 if (itemValue === '') return;
-                                                
+
                                                 // Convert all numeric fields in assetTypes to numbers
                                                 if (['fixedReturn', 'normalReturnMean', 'normalReturnStd',
                                                     'expenseRatio', 'normalIncomeMean',
@@ -1028,7 +1030,7 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel, initialData = null }) 
 
                                     // Skip empty strings
                                     if (item === '') return null;
-                                    
+
                                     const itemPath = `${currentPath}.${index}`;
                                     if (shouldBeNumeric(itemPath) && typeof item === 'string' && !isNaN(Number(item))) {
                                         return Number(item);
@@ -1545,7 +1547,7 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel, initialData = null }) 
                                         <input
                                             type="number"
                                             step="0.01"
-                                            value={asset.normalIncomeMean}
+                                            value={asset.normalIncomeMean || ''}
                                             onChange={(e) => {
                                                 const newAssetTypes = [...formData.assetTypes];
                                                 newAssetTypes[index].normalIncomeMean = e.target.value;
@@ -1563,7 +1565,7 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel, initialData = null }) 
                                         <input
                                             type="number"
                                             step="0.01"
-                                            value={asset.normalIncomeStd}
+                                            value={asset.normalIncomeStd || ''}
                                             onChange={(e) => {
                                                 const newAssetTypes = [...formData.assetTypes];
                                                 newAssetTypes[index].normalIncomeStd = e.target.value;
