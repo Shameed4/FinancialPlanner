@@ -467,9 +467,9 @@ const ScenarioCard = ({ scenario, onEdit }) => {
                                 <p className="text-sm">Fixed Income: {asset.fixedIncome}%</p>
                             ) : (
                                 <>
-                                    <p className="text-sm">Income: {asset.incomeMean || asset.normalIncomeMean}%
-                                        {(asset.incomeStd || asset.normalIncomeStd) &&
-                                            ` (std dev: ${asset.incomeStd || asset.normalIncomeStd}%)`}</p>
+                                    <p className="text-sm">Income: {asset.normalIncomeMean || asset.normalIncomeMean}%
+                                        {(asset.normalIncomeStd || asset.normalIncomeStd) &&
+                                            ` (std dev: ${asset.normalIncomeStd || asset.normalIncomeStd}%)`}</p>
                                 </>
                             )}
                             <p className="text-sm">Taxable: {asset.taxable !== undefined ? (asset.taxable ? 'Yes' : 'No') :
@@ -706,7 +706,7 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel, initialData = null }) 
                     }
 
                     if (!asset.expenseRatio) newErrors[`assetTypes.${index}.expenseRatio`] = 'Expense ratio is required';
-                    if (!asset.incomeMean) newErrors[`assetTypes.${index}.incomeMean`] = 'Income mean is required';
+                    if (!asset.normalIncomeMean) newErrors[`assetTypes.${index}.normalIncomeMean`] = 'Income mean is required';
                 });
                 break;
             case 3:
@@ -993,6 +993,9 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel, initialData = null }) 
                         const result = {};
 
                         Object.entries(obj).forEach(([key, value]) => {
+                            // Skip empty strings
+                            if (value === '') return;
+                            
                             const currentPath = path ? `${path}.${key}` : key;
 
                             // Process arrays
@@ -1004,12 +1007,15 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel, initialData = null }) 
                                         if (currentPath === 'assetTypes') {
                                             const processedItem = {};
                                             Object.entries(item).forEach(([itemKey, itemValue]) => {
+                                                // Skip empty strings
+                                                if (itemValue === '') return;
+                                                
                                                 // Convert all numeric fields in assetTypes to numbers
                                                 if (['fixedReturn', 'normalReturnMean', 'normalReturnStd',
-                                                    'expenseRatio', 'fixedIncome', 'normalIncomeMean',
+                                                    'expenseRatio', 'normalIncomeMean',
                                                     'normalIncomeStd', 'percentage', 'value', 'fee',
                                                     'minAllocation', 'maxAllocation', 'targetAllocation'].includes(itemKey) &&
-                                                    typeof itemValue === 'string' && itemValue !== '' && !isNaN(Number(itemValue))) {
+                                                    typeof itemValue === 'string' && !isNaN(Number(itemValue))) {
                                                     processedItem[itemKey] = Number(itemValue);
                                                 } else {
                                                     processedItem[itemKey] = itemValue;
@@ -1020,6 +1026,9 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel, initialData = null }) 
                                         return processObject(item, `${currentPath}.${index}`);
                                     }
 
+                                    // Skip empty strings
+                                    if (item === '') return null;
+                                    
                                     const itemPath = `${currentPath}.${index}`;
                                     if (shouldBeNumeric(itemPath) && typeof item === 'string' && !isNaN(Number(item))) {
                                         return Number(item);
@@ -1035,19 +1044,18 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel, initialData = null }) 
                                         } else if (item.toLowerCase() === 'no' || item === 'false') {
                                             return false;
                                         } else {
-                                            // If it's not explicitly "yes"/"no" or "true"/"false", keep as is
                                             return item;
                                         }
                                     }
                                     return item;
-                                });
+                                }).filter(item => item !== null);
                             }
                             // Process nested objects
                             else if (value !== null && typeof value === 'object') {
                                 result[key] = processObject(value, currentPath);
                             }
                             // Process primitive values - Convert numeric fields
-                            else if (shouldBeNumeric(currentPath) && typeof value === 'string' && value !== '' && !isNaN(Number(value))) {
+                            else if (shouldBeNumeric(currentPath) && typeof value === 'string' && !isNaN(Number(value))) {
                                 result[key] = Number(value);
                             }
                             // Process boolean values - only convert specific fields to avoid affecting text descriptions
@@ -1062,7 +1070,6 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel, initialData = null }) 
                                 } else if (value.toLowerCase() === 'no' || value === 'false') {
                                     result[key] = false;
                                 } else {
-                                    // If it's not explicitly "yes"/"no" or "true"/"false", keep as is
                                     result[key] = value;
                                 }
                             }
@@ -1538,17 +1545,17 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel, initialData = null }) 
                                         <input
                                             type="number"
                                             step="0.01"
-                                            value={asset.incomeMean}
+                                            value={asset.normalIncomeMean}
                                             onChange={(e) => {
                                                 const newAssetTypes = [...formData.assetTypes];
-                                                newAssetTypes[index].incomeMean = e.target.value;
+                                                newAssetTypes[index].normalIncomeMean = e.target.value;
                                                 setFormData({ ...formData, assetTypes: newAssetTypes });
                                             }}
-                                            className={`${getInputClassName(`assetTypes.${index}.incomeMean`)} text-black`}
+                                            className={`${getInputClassName(`assetTypes.${index}.normalIncomeMean`)} text-black`}
                                             placeholder="Ex: 2.0"
                                         />
-                                        {errors[`assetTypes.${index}.incomeMean`] && (
-                                            <p className="mt-1 text-sm text-red-600">{errors[`assetTypes.${index}.incomeMean`]}</p>
+                                        {errors[`assetTypes.${index}.normalIncomeMean`] && (
+                                            <p className="mt-1 text-sm text-red-600">{errors[`assetTypes.${index}.normalIncomeMean`]}</p>
                                         )}
                                     </div>
                                     <div>
@@ -1556,17 +1563,17 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel, initialData = null }) 
                                         <input
                                             type="number"
                                             step="0.01"
-                                            value={asset.incomeStd}
+                                            value={asset.normalIncomeStd}
                                             onChange={(e) => {
                                                 const newAssetTypes = [...formData.assetTypes];
-                                                newAssetTypes[index].incomeStd = e.target.value;
+                                                newAssetTypes[index].normalIncomeStd = e.target.value;
                                                 setFormData({ ...formData, assetTypes: newAssetTypes });
                                             }}
-                                            className={`${getInputClassName(`assetTypes.${index}.incomeStd`)} text-black`}
+                                            className={`${getInputClassName(`assetTypes.${index}.normalIncomeStd`)} text-black`}
                                             placeholder="Ex: 0.5"
                                         />
-                                        {errors[`assetTypes.${index}.incomeStd`] && (
-                                            <p className="mt-1 text-sm text-red-600">{errors[`assetTypes.${index}.incomeStd`]}</p>
+                                        {errors[`assetTypes.${index}.normalIncomeStd`] && (
+                                            <p className="mt-1 text-sm text-red-600">{errors[`assetTypes.${index}.normalIncomeStd`]}</p>
                                         )}
                                     </div>
                                     <div className="flex items-center">
@@ -1614,10 +1621,12 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel, initialData = null }) 
                                         normalReturnMean: '',
                                         normalReturnStd: '',
                                         expenseRatio: '',
+                                        incomeType: 'fixed',
                                         expectedAnnualIncomeType: 'FIXED',
                                         fixedIncome: '',
                                         normalIncomeMean: '',
                                         normalIncomeStd: '',
+                                        taxable: false,
                                         taxability: 'TAXABLE'
                                     }]
                                 });
