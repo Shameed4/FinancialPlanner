@@ -5,35 +5,41 @@ import { signIn, signOut, useSession } from 'next-auth/react';
 import { useEffect, useState } from 'react';
 
 const LoginPage = () => {
+    // Retrieve session data and authentication status from next-auth
     const { data: session, status } = useSession();
+    // Local state to manage loading indicator
     const [loading, setLoading] = useState(true);
 
+    // Monitor authentication status and update loading state once determined
     useEffect(() => {
         if (status !== 'loading') {
             setLoading(false);
         }
     }, [status]);
 
+    // Function to handle Google sign-in process
     const handleGoogleLogin = async () => {
         try {
-            setLoading(true);
+            setLoading(true); // Set loading state while signing in
             await signIn("google", { callbackUrl: '/login' });
         } catch (error) {
             console.error("Sign-in error:", error);
-            setLoading(false);
+            setLoading(false); // Reset loading state if an error occurs
         }
     }
     
+    // Function to handle user logout process
     const handleLogout = async () => {
         try {
-            setLoading(true);
+            setLoading(true); // Set loading state while signing out
             await signOut({ callbackUrl: '/login' });
         } catch (error) {
             console.error("Sign-out error:", error);
-            setLoading(false);
+            setLoading(false); // Reset loading state if an error occurs
         }
     }
     
+    // Render a loading indicator while authentication status is being determined
     if (loading) {
         return (
             <div className="min-h-screen bg-gray-100 flex items-center justify-center">
@@ -44,11 +50,13 @@ const LoginPage = () => {
         );
     }
 
+    // Render authenticated view if session exists
     if (session && session.user) {
         return (
             <div className="min-h-screen bg-gray-100 flex items-center justify-center">
                 <div className="bg-white p-8 rounded-lg shadow-2xl w-full max-w-md backdrop-blur-lg bg-opacity-50">
                     <div className="text-center mb-8">
+                        {/* Greet the user by their email */}
                         <h1 className="text-3xl font-bold text-gray-800 mb-2">Welcome {session.user.email}</h1>
                         <p className="text-gray-600">You are now signed in to LFP</p>
                     </div>
@@ -64,6 +72,7 @@ const LoginPage = () => {
         );
     }
     
+    // Render sign-in view if no active session is found
     return (
         <div className="min-h-screen bg-gray-100 flex items-center justify-center">
             <div className="bg-white p-8 rounded-lg shadow-2xl w-full max-w-md backdrop-blur-lg bg-opacity-50">

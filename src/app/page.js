@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import { useState } from 'react';
 
+// Define page transition animation variants
 const pageVariants = {
     initial: { opacity: 0, y: 20 },
     animate: {
@@ -25,6 +26,7 @@ const pageVariants = {
     }
 };
 
+// Card component for displaying a tool with image, title, description and action button
 const ToolCard = ({ image, title, description, onClick }) => {
     const [imageLoading, setImageLoading] = useState(true);
 
@@ -35,6 +37,7 @@ const ToolCard = ({ image, title, description, onClick }) => {
         >
             <div className="h-48 relative">
                 {imageLoading && (
+                    // Display a placeholder while the image is loading
                     <div className="absolute inset-0 bg-gray-800 animate-pulse" />
                 )}
                 <Image
@@ -65,6 +68,7 @@ const HomePage = () => {
     const router = useRouter();
     const [heroLoading, setHeroLoading] = useState(true);
 
+    // Navigation functions for routing to different pages
     const navigateToSimulation = () => {
         router.push('/simulation');
     };
@@ -83,6 +87,7 @@ const HomePage = () => {
         >
             <div className="relative h-[300px] mb-12 rounded-xl overflow-hidden">
                 {heroLoading && (
+                    // Display a loading placeholder over the hero image
                     <div className="absolute inset-0 z-10 bg-gray-800 animate-pulse" />
                 )}
                 <Image
