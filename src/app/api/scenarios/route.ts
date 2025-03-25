@@ -469,7 +469,11 @@ export async function GET(request: NextRequest) {
   if (ownerId) {
     const results = await prisma.scenario.findMany({
       where: {
-        ownerId: ownerId
+        OR: [
+          { ownerId: ownerId },
+          { readonlyPrivilege: { some: { id: ownerId } } },
+          { readwritePrivilege: { some: { id: ownerId } } }
+        ]
       },
       include: {
         investmentScenario: {
@@ -512,11 +516,43 @@ export async function GET(request: NextRequest) {
               }
             }
           }
+        },
+        ownerPrivilege: {
+          select: {
+            id: true
+          }
+        },
+        readonlyPrivilege: {
+          select: {
+            id: true
+          }
+        },
+        readwritePrivilege: {
+          select: {
+            id: true
+          }
         }
       }
     });
 
-    const transformedResults = results.map(transformScenarioForFrontend);
+    // Enhance the transformed results with permission info
+    const transformedResults = results.map(scenario => {
+      const transformed = transformScenarioForFrontend(scenario);
+      return {
+        ...transformed,
+        permissions: {
+          isOwner: scenario.ownerId === ownerId,
+          canWrite: scenario.ownerId === ownerId || scenario.readwritePrivilege.some(user => user.id === ownerId),
+          canRead: scenario.ownerId === ownerId || 
+                   scenario.readonlyPrivilege.some(user => user.id === ownerId) ||
+                   scenario.readwritePrivilege.some(user => user.id === ownerId),
+          owner: {
+            email: scenario.ownerId
+          }
+        }
+      };
+    });
+    
     return NextResponse.json({ status: 200, result: transformedResults });
   }
 
@@ -553,6 +589,21 @@ export async function GET(request: NextRequest) {
                 AssetAllocation: true
               }
             }
+          }
+        },
+        ownerPrivilege: {
+          select: {
+            id: true
+          }
+        },
+        readonlyPrivilege: {
+          select: {
+            id: true
+          }
+        },
+        readwritePrivilege: {
+          select: {
+            id: true
           }
         }
       }
@@ -699,7 +750,21 @@ export async function POST(request: NextRequest) {
       }
     });
 
-    return NextResponse.json({ status: 201, result: completeScenario });
+    // Apply the transformation and add permissions
+    const transformedScenario = transformScenarioForFrontend(completeScenario);
+    const responseData = {
+      ...transformedScenario,
+      permissions: {
+        isOwner: true, // User who created it is always the owner
+        canWrite: true,
+        canRead: true,
+        owner: {
+          email: ownerId
+        }
+      }
+    };
+
+    return NextResponse.json({ status: 201, result: responseData });
   } catch (error) {
     console.error('Error creating scenario:', error);
     return NextResponse.json({ status: 500, error: 'Failed to create scenario' });
@@ -720,11 +785,17 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ status: 400, error: 'User email is required' });
     }
 
-    // Verify ownership before proceeding
+    // Verify ownership or write permission before proceeding
     const existingScenario = await prisma.scenario.findFirst({
       where: {
         id: scenarioId,
-        ownerId: ownerId
+        OR: [
+          { ownerId: ownerId },
+          { readwritePrivilege: { some: { id: ownerId } } }
+        ]
+      },
+      include: {
+        readwritePrivilege: true
       }
     });
 
@@ -965,7 +1036,22 @@ export async function PUT(request: NextRequest) {
     });
 
     const transformedScenario = transformScenarioForFrontend(completeScenario);
-    return NextResponse.json({ status: 200, result: transformedScenario });
+    
+    // Add permissions to the response
+    const responseData = {
+      ...transformedScenario,
+      permissions: {
+        isOwner: completeScenario?.ownerId === ownerId,
+        canWrite: completeScenario?.ownerId === ownerId || 
+                 existingScenario.readwritePrivilege.some(user => user.id === ownerId),
+        canRead: true, // If they can update, they can definitely read
+        owner: {
+          email: completeScenario?.ownerId || ownerId
+        }
+      }
+    };
+    
+    return NextResponse.json({ status: 200, result: responseData });
   } catch (error) {
     console.error('Error updating scenario:', error);
     return NextResponse.json({ status: 500, error: 'Failed to update scenario' });
