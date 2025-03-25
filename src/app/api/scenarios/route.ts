@@ -516,10 +516,6 @@ export async function GET(request: NextRequest) {
       }
     });
 
-    if (results.length === 0) {
-      return NextResponse.json({ status: 404, error: 'No scenarios found for the provided ownerId.' });
-    }
-
     const transformedResults = results.map(transformScenarioForFrontend);
     return NextResponse.json({ status: 200, result: transformedResults });
   }

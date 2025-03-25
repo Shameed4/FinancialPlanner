@@ -6,22 +6,19 @@ export async function POST(request: Request) {
         const body = await request.json();
         const { email, googleId } = body;
 
-        // Try to find existing user
-        let user = await prisma.user.findUnique({
+        // Use upsert to handle both creation and update cases
+        const user = await prisma.user.upsert({
             where: {
                 id: email
+            },
+            update: {
+                googleId: googleId
+            },
+            create: {
+                id: email,
+                googleId: googleId
             }
         });
-
-        // If user doesn't exist, create them
-        if (!user) {
-            user = await prisma.user.create({
-                data: {
-                    id: email,
-                    googleId: googleId
-                }
-            });
-        }
 
         return NextResponse.json({ status: 200, result: user });
     } catch (error) {
