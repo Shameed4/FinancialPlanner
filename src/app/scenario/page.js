@@ -14,6 +14,7 @@
 
 'use client';
 
+import { useSession } from 'next-auth/react';
 import { motion } from 'framer-motion';
 import { useState, useEffect } from 'react';
 
@@ -2225,10 +2226,13 @@ const ScenarioPage = () => {
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState(null);
 
+    const { data: session, status } = useSession();
+    const userEmail = session?.user?.email || "john.doe@email.com";
+
     useEffect(() => {
         const fetchScenarios = async () => {
             try {
-                const response = await fetch('/api/scenarios?ownerId=sean.erfan@stonybrook.edu');
+                const response = await fetch(`/api/scenarios?ownerId=${userEmail}`);
                 const data = await response.json();
                 
                 if (data.status === 200) {
