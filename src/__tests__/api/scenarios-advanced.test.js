@@ -45,12 +45,6 @@ jest.mock('@/app/api/scenarios/route', () => ({
     POST: jest.fn()
 }));
 
-// Mock the getLoggedInUser function
-jest.mock('@/app/api/temp', () => ({
-    __esModule: true,
-    default: jest.fn(() => ({ id: 1, name: 'Test User' }))
-}));
-
 describe('Scenarios API - Advanced Features', () => {
     let mockScenarioData;
 

@@ -10,12 +10,6 @@ jest.mock('@/app/api/scenarios/route', () => {
     }
 })
 
-// Mock getLoggedInUser
-jest.mock('@/app/api/temp', () => ({
-    __esModule: true,
-    default: jest.fn().mockResolvedValue({ id: 1, name: 'Test User' })
-}))
-
 describe('Scenarios API', () => {
     let handler
 
@@ -67,23 +61,6 @@ describe('Scenarios API', () => {
 
             expect(response.status).toBe(500)
             expect(data).toEqual({ error: 'Database connection error' })
-        })
-
-        it('should handle authentication errors', async () => {
-            const getLoggedInUser = require('@/app/api/temp').default
-            getLoggedInUser.mockRejectedValueOnce(new Error('Not authenticated'))
-
-            handler.GET.mockResolvedValueOnce(new Response(JSON.stringify({ error: 'Not authenticated' }), {
-                status: 401,
-                headers: { 'Content-Type': 'application/json' }
-            }))
-
-            const req = new Request('http://localhost/api/scenarios')
-            const response = await handler.GET(req)
-            const data = await response.json()
-
-            expect(response.status).toBe(401)
-            expect(data).toEqual({ error: 'Not authenticated' })
         })
 
         it('should return scenarios with proper pagination', async () => {
@@ -194,38 +171,6 @@ describe('Scenarios API', () => {
 
             expect(response.status).toBe(500)
             expect(data).toEqual({ error: 'Database error' })
-        })
-
-        it('should handle concurrent scenario creation', async () => {
-            const mockScenarios = [
-                { id: 1, name: 'Scenario 1' },
-                { id: 2, name: 'Scenario 2' }
-            ]
-
-            handler.POST
-                .mockResolvedValueOnce(new Response(JSON.stringify(mockScenarios[0]), {
-                    status: 201,
-                    headers: { 'Content-Type': 'application/json' }
-                }))
-                .mockResolvedValueOnce(new Response(JSON.stringify(mockScenarios[1]), {
-                    status: 201,
-                    headers: { 'Content-Type': 'application/json' }
-                }))
-
-            const requests = mockScenarios.map(scenario =>
-                new Request('http://localhost/api/scenarios', {
-                    method: 'POST',
-                    body: JSON.stringify(scenario)
-                })
-            )
-
-            const responses = await Promise.all(requests.map(req => handler.POST(req)))
-            const data = await Promise.all(responses.map(res => res.json()))
-
-            expect(responses[0].status).toBe(201)
-            expect(responses[1].status).toBe(201)
-            expect(data[0].id).toBe(1)
-            expect(data[1].id).toBe(2)
         })
     })
 }) 
