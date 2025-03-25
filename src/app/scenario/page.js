@@ -17,6 +17,8 @@
 import { useSession } from 'next-auth/react';
 import { motion } from 'framer-motion';
 import { useState, useEffect, useRef } from 'react';
+import Link from 'next/link';
+import { jsonToYaml, yamlToJson, validateScenario } from '@/utils/scenarioConverter';
 
 const pageVariants = {
     initial: { opacity: 0, y: 20 },
@@ -337,6 +339,12 @@ const ScenarioCard = ({ scenario, onEdit }) => {
 
     // Helper function to get asset types from investments
     const getAssetTypes = () => {
+        // First check if scenario has an assetTypes array directly
+        if (scenario.assetTypes && Array.isArray(scenario.assetTypes) && scenario.assetTypes.length > 0) {
+            return scenario.assetTypes;
+        }
+        
+        // Fall back to extracting asset types from investments
         if (!scenario.investmentScenario) return [];
         return Array.from(new Set(scenario.investmentScenario.map(is => is.investment.assetType)));
     };
@@ -350,6 +358,44 @@ const ScenarioCard = ({ scenario, onEdit }) => {
             ? <span className="ml-2 px-2 py-0.5 bg-green-100 text-green-600 text-xs rounded-full">Editor</span>
             : <span className="ml-2 px-2 py-0.5 bg-gray-100 text-gray-600 text-xs rounded-full">Viewer</span>;
 
+    // Handle download scenario as YAML
+    const handleDownload = async () => {
+        try {
+            // Call the YAML API endpoint
+            const response = await fetch(`/api/scenarios/yaml?id=${scenario.id}&userEmail=${userEmail}`);
+            
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.error || 'Failed to download scenario');
+            }
+            
+            // Get the YAML content
+            const yamlContent = await response.text();
+            
+            // Create a blob with the YAML content
+            const blob = new Blob([yamlContent], { type: 'text/yaml' });
+            
+            // Create a temporary URL for the blob
+            const url = URL.createObjectURL(blob);
+            
+            // Create a temporary anchor element
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `${scenario.name}-scenario.yaml`;
+            
+            // Trigger the download
+            document.body.appendChild(a);
+            a.click();
+            
+            // Clean up
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        } catch (error) {
+            console.error('Error downloading scenario:', error);
+            alert('Failed to download scenario: ' + error.message);
+        }
+    };
+
     return (
         <div className="bg-white p-6 rounded-lg shadow-md hover:shadow-lg transition-shadow">
             <div className="flex justify-between items-start mb-4">
@@ -358,6 +404,12 @@ const ScenarioCard = ({ scenario, onEdit }) => {
                     {permissionBadge}
                 </div>
                 <div className="flex space-x-2">
+                    <button
+                        onClick={handleDownload}
+                        className="px-4 py-2 text-sm bg-green-100 hover:bg-green-200 text-green-700 rounded-md transition-colors"
+                    >
+                        Export YAML
+                    </button>
                     {isOwner && (
                         <button
                             onClick={() => setIsShareModalOpen(true)}
@@ -402,7 +454,7 @@ const ScenarioCard = ({ scenario, onEdit }) => {
                         <div key={index} className="ml-4 mb-2">
                             <p className="font-medium">{asset.name}</p>
                             <p className="text-sm">Description: {asset.description}</p>
-                            {asset.returnType === 'FIXED' ? (
+                            {asset.returnType && asset.returnType.toLowerCase() === 'fixed' ? (
                                 <p className="text-sm">Fixed Return: {asset.fixedReturn}%</p>
                             ) : (
                                 <>
@@ -410,14 +462,18 @@ const ScenarioCard = ({ scenario, onEdit }) => {
                                 </>
                             )}
                             <p className="text-sm">Expense Ratio: {asset.expenseRatio}%</p>
-                            {asset.expectedAnnualIncomeType === 'FIXED' ? (
+                            {/* Display income details based on available fields */}
+                            {asset.fixedIncome ? (
                                 <p className="text-sm">Fixed Income: {asset.fixedIncome}%</p>
                             ) : (
                                 <>
-                                    <p className="text-sm">Income: {asset.normalIncomeMean}% (std dev: {asset.normalIncomeStd}%)</p>
+                                    <p className="text-sm">Income: {asset.incomeMean || asset.normalIncomeMean}% 
+                                    {(asset.incomeStd || asset.normalIncomeStd) && 
+                                        ` (std dev: ${asset.incomeStd || asset.normalIncomeStd}%)`}</p>
                                 </>
                             )}
-                            <p className="text-sm">Taxable: {asset.taxability === 'TAXABLE' ? 'Yes' : 'No'}</p>
+                            <p className="text-sm">Taxable: {asset.taxable !== undefined ? (asset.taxable ? 'Yes' : 'No') : 
+                                (asset.taxability === 'TAXABLE' ? 'Yes' : 'No')}</p>
                         </div>
                     ))}
                 </div>
@@ -855,6 +911,43 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel, initialData = null }) 
             if (currentStep < 5) {
                 setCurrentStep(currentStep + 1);
             } else {
+                // Ensure withdrawalOrder and rothConversionOrder are properly assigned
+                const processedFormData = { ...formData };
+                
+                // Normalize withdrawal orders (ensure consecutive 1-n)
+                if (processedFormData.investments?.length > 0) {
+                    // Create a copy with parsed integer values
+                    const sortedInvestments = [...processedFormData.investments]
+                        .map((inv, idx) => ({ 
+                            ...inv, 
+                            originalIndex: idx,
+                            withdrawalOrder: parseInt(inv.withdrawalOrder || idx + 1) 
+                        }))
+                        .sort((a, b) => a.withdrawalOrder - b.withdrawalOrder);
+                    
+                    // Reassign sequential orders (1, 2, 3, ...)
+                    sortedInvestments.forEach((inv, idx) => {
+                        processedFormData.investments[inv.originalIndex].withdrawalOrder = idx + 1;
+                    });
+                    
+                    // Normalize Roth conversion orders for pre-tax investments
+                    const preTaxInvestments = processedFormData.investments
+                        .filter(inv => inv.taxStatus === 'pre-tax')
+                        .map((inv, idx) => ({ 
+                            ...inv, 
+                            originalIndex: processedFormData.investments.findIndex(
+                                item => item.assetType === inv.assetType
+                            ),
+                            rothConversionOrder: parseInt(inv.rothConversionOrder || idx + 1) 
+                        }))
+                        .sort((a, b) => a.rothConversionOrder - b.rothConversionOrder);
+                    
+                    // Reassign sequential orders (1, 2, 3, ...)
+                    preTaxInvestments.forEach((inv, idx) => {
+                        processedFormData.investments[inv.originalIndex].rothConversionOrder = idx + 1;
+                    });
+                }
+                
                 // Convert specific numeric fields to numbers, preserving string fields
                 const prepareFormDataForSubmission = (data) => {
                     // List of field paths that should be converted to numbers
@@ -880,8 +973,8 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel, initialData = null }) 
                         if (numericFields.includes(path)) return true;
                         
                         // Check for array item fields
-                        // Asset types
-                        if (path.match(/^assetTypes\.\d+\.(returnMean|returnStd|expenseRatio|incomeMean|incomeStd)$/)) return true;
+                        // Asset types - ensure all numeric fields are properly converted
+                        if (path.match(/^assetTypes\.\d+\.(fixedReturn|normalReturnMean|normalReturnStd|expenseRatio|fixedIncome|normalIncomeMean|normalIncomeStd|percentage|value|fee|minAllocation|maxAllocation|targetAllocation)$/)) return true;
                         
                         // Investments
                         if (path.match(/^investments\.\d+\.(value|withdrawalOrder|rothConversionOrder)$/)) return true;
@@ -905,7 +998,25 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel, initialData = null }) 
                             // Process arrays
                             if (Array.isArray(value)) {
                                 result[key] = value.map((item, index) => {
+                                    // For nested objects in arrays (like assetTypes)
                                     if (item !== null && typeof item === 'object') {
+                                        // Special handling for assetTypes array items
+                                        if (currentPath === 'assetTypes') {
+                                            const processedItem = {};
+                                            Object.entries(item).forEach(([itemKey, itemValue]) => {
+                                                // Convert all numeric fields in assetTypes to numbers
+                                                if (['fixedReturn', 'normalReturnMean', 'normalReturnStd', 
+                                                    'expenseRatio', 'fixedIncome', 'normalIncomeMean', 
+                                                    'normalIncomeStd', 'percentage', 'value', 'fee', 
+                                                    'minAllocation', 'maxAllocation', 'targetAllocation'].includes(itemKey) && 
+                                                    typeof itemValue === 'string' && itemValue !== '' && !isNaN(Number(itemValue))) {
+                                                    processedItem[itemKey] = Number(itemValue);
+                                                } else {
+                                                    processedItem[itemKey] = itemValue;
+                                                }
+                                            });
+                                            return processedItem;
+                                        }
                                         return processObject(item, `${currentPath}.${index}`);
                                     }
                                     
@@ -914,7 +1025,7 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel, initialData = null }) 
                                         return Number(item);
                                     }
                                     // Process boolean values in arrays
-                                    if ((itemPath.includes('.taxable') || 
+                                    if ((itemPath.includes('.taxability') || 
                                          itemPath.includes('.isSocialSecurity') || 
                                          itemPath.includes('.isDiscretionary') ||
                                          booleanFields.includes(itemPath)) && 
@@ -935,12 +1046,12 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel, initialData = null }) 
                             else if (value !== null && typeof value === 'object') {
                                 result[key] = processObject(value, currentPath);
                             }
-                            // Process primitive values
-                            else if (shouldBeNumeric(currentPath) && typeof value === 'string' && !isNaN(Number(value))) {
+                            // Process primitive values - Convert numeric fields
+                            else if (shouldBeNumeric(currentPath) && typeof value === 'string' && value !== '' && !isNaN(Number(value))) {
                                 result[key] = Number(value);
                             }
                             // Process boolean values - only convert specific fields to avoid affecting text descriptions
-                            else if ((currentPath.includes('.taxable') || 
+                            else if ((currentPath.includes('.taxability') || 
                                     currentPath.includes('.isSocialSecurity') || 
                                     currentPath.includes('.isDiscretionary') ||
                                     booleanFields.includes(currentPath)) && 
@@ -966,7 +1077,7 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel, initialData = null }) 
                     return processObject(data);
                 };
 
-                const numericFormData = prepareFormDataForSubmission(formData);
+                const numericFormData = prepareFormDataForSubmission(processedFormData);
                 console.log('Prepared data with numeric values:', numericFormData);
                 onScenarioCreate(numericFormData);
             }
@@ -1498,13 +1609,16 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel, initialData = null }) 
                                     assetTypes: [...assetTypes, {
                                         name: '',
                                         description: '',
-                                        returnType: '',
-                                        returnMean: '',
-                                        returnStd: '',
+                                        returnType: 'normal',
+                                        fixedReturn: '',
+                                        normalReturnMean: '',
+                                        normalReturnStd: '',
                                         expenseRatio: '',
-                                        incomeMean: '',
-                                        incomeStd: '',
-                                        taxable: false
+                                        expectedAnnualIncomeType: 'FIXED',
+                                        fixedIncome: '',
+                                        normalIncomeMean: '',
+                                        normalIncomeStd: '',
+                                        taxability: 'TAXABLE'
                                     }]
                                 });
                             }}
@@ -2438,19 +2552,37 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel, initialData = null }) 
 
                     <div className="mb-4">
                         <label className="block text-sm font-medium text-gray-700 mb-1">Expense Withdrawal Strategy</label>
-                        <p className="text-sm text-gray-500 mb-2">Order your investments for withdrawal (drag to reorder)</p>
+                        <p className="text-sm text-gray-500 mb-2">Order your investments for withdrawal (1 = first, 2 = second, etc.)</p>
                         <div className="space-y-2">
                             {formData.investments?.map((investment, index) => (
                                 <div key={index} className="flex items-center gap-2 bg-gray-50 p-2 rounded">
-                                    <span className="text-gray-500">⋮⋮</span>
                                     <span className="flex-1 text-gray-500">{investment.assetType} ({investment.taxStatus})</span>
                                     <input
                                         type="number"
                                         min="1"
+                                        max={formData.investments?.length || 1}
                                         value={investment.withdrawalOrder || index + 1}
                                         onChange={(e) => {
                                             const newInvestments = [...formData.investments];
-                                            newInvestments[index].withdrawalOrder = parseInt(e.target.value);
+                                            const newOrder = parseInt(e.target.value);
+                                            
+                                            // Ensure the order is a valid number in range
+                                            if (isNaN(newOrder) || newOrder < 1 || newOrder > newInvestments.length) {
+                                                return;
+                                            }
+                                            
+                                            // Check if another investment already has this order number
+                                            const existingIndex = newInvestments.findIndex(
+                                                (inv, idx) => idx !== index && parseInt(inv.withdrawalOrder) === newOrder
+                                            );
+                                            
+                                            // If there's a conflict, swap the order numbers
+                                            if (existingIndex !== -1) {
+                                                newInvestments[existingIndex].withdrawalOrder = parseInt(investment.withdrawalOrder);
+                                            }
+                                            
+                                            // Set the new order
+                                            newInvestments[index].withdrawalOrder = newOrder;
                                             setFormData({ ...formData, investments: newInvestments });
                                         }}
                                         className="w-20 p-1 border rounded"
@@ -2463,22 +2595,45 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel, initialData = null }) 
 
                     <div className="mb-4">
                         <label className="block text-sm font-medium text-gray-700 mb-1">Roth Conversion Strategy</label>
-                        <p className="text-sm text-gray-500 mb-2">Order your pre-tax investments for Roth conversion (drag to reorder)</p>
+                        <p className="text-sm text-gray-500 mb-2">Order your pre-tax investments for Roth conversion (1 = first, 2 = second, etc.)</p>
                         <div className="space-y-2">
                             {formData.investments
                                 ?.filter(inv => inv.taxStatus === 'pre-tax')
                                 .map((investment, index) => (
                                     <div key={index} className="flex items-center gap-2 bg-gray-50 p-2 rounded">
-                                        <span className="text-gray-500">⋮⋮</span>
                                         <span className="flex-1 text-gray-500">{investment.assetType}</span>
                                         <input
                                             type="number"
                                             min="1"
+                                            max={formData.investments?.filter(inv => inv.taxStatus === 'pre-tax').length || 1}
                                             value={investment.rothConversionOrder || index + 1}
                                             onChange={(e) => {
                                                 const newInvestments = [...formData.investments];
                                                 const investmentIndex = newInvestments.findIndex(inv => inv.assetType === investment.assetType);
-                                                newInvestments[investmentIndex].rothConversionOrder = parseInt(e.target.value);
+                                                const newOrder = parseInt(e.target.value);
+                                                
+                                                // Get all pre-tax investments
+                                                const preTaxInvestments = newInvestments.filter(inv => inv.taxStatus === 'pre-tax');
+                                                
+                                                // Ensure the order is a valid number in range
+                                                if (isNaN(newOrder) || newOrder < 1 || newOrder > preTaxInvestments.length) {
+                                                    return;
+                                                }
+                                                
+                                                // Check if another pre-tax investment already has this order number
+                                                const existingIndex = newInvestments.findIndex(
+                                                    (inv, idx) => idx !== investmentIndex && 
+                                                    inv.taxStatus === 'pre-tax' && 
+                                                    parseInt(inv.rothConversionOrder) === newOrder
+                                                );
+                                                
+                                                // If there's a conflict, swap the order numbers
+                                                if (existingIndex !== -1) {
+                                                    newInvestments[existingIndex].rothConversionOrder = parseInt(newInvestments[investmentIndex].rothConversionOrder);
+                                                }
+                                                
+                                                // Set the new order
+                                                newInvestments[investmentIndex].rothConversionOrder = newOrder;
                                                 setFormData({ ...formData, investments: newInvestments });
                                             }}
                                             className="w-20 p-1 border rounded"
@@ -2519,6 +2674,7 @@ const ScenarioPage = () => {
     const [editingScenario, setEditingScenario] = useState(null);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState(null);
+    const fileInputRef = useRef(null);
 
     const { data: session, status } = useSession();
     const userEmail = session?.user?.email || "john.doe@email.com";
@@ -2631,6 +2787,66 @@ const ScenarioPage = () => {
         setIsCreating(true);
     };
 
+    // Handle YAML file import
+    const handleFileUpload = (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = async (event) => {
+            try {
+                const yamlContent = event.target.result;
+                setIsLoading(true);
+                
+                // Create form data to send the YAML content
+                const formData = new FormData();
+                formData.append('yamlFile', file);
+                
+                // Call the YAML API endpoint to import the scenario
+                const response = await fetch(`/api/scenarios/yaml?userEmail=${userEmail}`, {
+                    method: 'POST',
+                    body: yamlContent,
+                    headers: {
+                        'Content-Type': 'text/yaml',
+                    },
+                });
+
+                const data = await response.json();
+                
+                if (data.status === 201) {
+                    await fetchScenarios();
+                    setError(null);
+                } else {
+                    setError(data.error || 'Failed to import scenario');
+                }
+            } catch (error) {
+                console.error('Error importing scenario:', error);
+                setError(`Failed to import scenario: ${error.message || 'Unknown error'}`);
+            } finally {
+                setIsLoading(false);
+                // Reset the file input
+                if (fileInputRef.current) {
+                    fileInputRef.current.value = '';
+                }
+            }
+        };
+        
+        reader.onerror = (error) => {
+            console.error('Error reading file:', error);
+            setError('Failed to read the YAML file');
+            setIsLoading(false);
+        };
+        
+        reader.readAsText(file);
+    };
+
+    // Trigger file input click
+    const handleImportClick = () => {
+        if (fileInputRef.current) {
+            fileInputRef.current.click();
+        }
+    };
+
     return (
         <motion.div
             variants={pageVariants}
@@ -2644,15 +2860,30 @@ const ScenarioPage = () => {
                     {isCreating ? (editingScenario ? 'Edit Scenario' : 'Create New Scenario') : 'Your Scenarios'}
                 </h1>
                 {!isCreating && (
-                    <button
-                        onClick={() => {
-                            setEditingScenario(null);
-                            setIsCreating(true);
-                        }}
-                        className="px-6 py-2 rounded-md bg-black text-white hover:bg-gray-800"
-                    >
-                        Create New Scenario
-                    </button>
+                    <div className="flex space-x-4">
+                        <input
+                            type="file"
+                            accept=".yaml,.yml"
+                            ref={fileInputRef}
+                            onChange={handleFileUpload}
+                            className="hidden"
+                        />
+                        <button
+                            onClick={handleImportClick}
+                            className="px-6 py-2 rounded-md bg-blue-600 text-white hover:bg-blue-700"
+                        >
+                            Import YAML
+                        </button>
+                        <button
+                            onClick={() => {
+                                setEditingScenario(null);
+                                setIsCreating(true);
+                            }}
+                            className="px-6 py-2 rounded-md bg-black text-white hover:bg-gray-800"
+                        >
+                            Create New Scenario
+                        </button>
+                    </div>
                 )}
             </div>
 
