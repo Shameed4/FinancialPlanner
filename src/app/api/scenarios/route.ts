@@ -84,23 +84,22 @@ async function createEventSeries(scenarioId: number, eventSeries: any[], investm
     // Create type-specific details
     switch (event.type) {
       case EventType.income:
-        console.log(event);
         await prisma.incomeEventDetails.create({
           data: {
             eventSeriesId: createdEvent.id,
-            initialAmount: event.amount,
+            initialAmount: parseFloat(event.amount || event.initialAmount || '0'),
             annualChangeType: typeof (event.annualChangeType || event.changeType) === 'string' ?
               mapDistributionType(event.annualChangeType || event.changeType) :
               (event.annualChangeType || event.changeType),
-            annualChangeAmount: (event.annualChangeType || event.changeType) === DistributionType.fixed ? event.annualChange : null,
-            annualChangePercentage: (event.annualChangeType || event.changeType) === 'percentage' ? event.annualChange : null,
-            annualChangeMin: event.annualChangeMin,
-            annualChangeMax: event.annualChangeMax,
-            annualChangeMean: event.annualChangeMean,
-            annualChangeStd: event.annualChangeStd,
+            annualChangeAmount: (event.annualChangeType || event.changeType) === DistributionType.fixed ? parseFloat(event.annualChange || '0') : null,
+            annualChangePercentage: (event.annualChangeType || event.changeType) === 'percentage' ? parseFloat(event.annualChange || '0') : null,
+            annualChangeMin: event.annualChangeMin ? parseFloat(event.annualChangeMin) : null,
+            annualChangeMax: event.annualChangeMax ? parseFloat(event.annualChangeMax) : null,
+            annualChangeMean: event.annualChangeMean ? parseFloat(event.annualChangeMean) : null,
+            annualChangeStd: event.annualChangeStd ? parseFloat(event.annualChangeStd) : null,
             inflationAdjustment: event.inflationAdjusted,
-            userPercentage: event.userPercentage,
-            isSocialSecurity: event.isSocialSecurity
+            userPercentage: event.userPercentage ? parseFloat(event.userPercentage) : null,
+            isSocialSecurity: event.isSocialSecurity || false
           }
         });
         break;
@@ -109,19 +108,19 @@ async function createEventSeries(scenarioId: number, eventSeries: any[], investm
         await prisma.expenseEventDetails.create({
           data: {
             eventSeriesId: createdEvent.id,
-            initialAmount: event.amount,
+            initialAmount: parseFloat(event.amount || event.initialAmount || '0'),
             annualChangeType: typeof (event.annualChangeType || event.changeType) === 'string' ?
               mapDistributionType(event.annualChangeType || event.changeType) :
               (event.annualChangeType || event.changeType),
-            annualChangeAmount: (event.annualChangeType || event.changeType) === DistributionType.fixed ? event.annualChange : null,
-            annualChangePercentage: (event.annualChangeType || event.changeType) === 'percentage' ? event.annualChange : null,
-            annualChangeMin: event.annualChangeMin,
-            annualChangeMax: event.annualChangeMax,
-            annualChangeMean: event.annualChangeMean,
-            annualChangeStd: event.annualChangeStd,
+            annualChangeAmount: (event.annualChangeType || event.changeType) === DistributionType.fixed ? parseFloat(event.annualChange || '0') : null,
+            annualChangePercentage: (event.annualChangeType || event.changeType) === 'percentage' ? parseFloat(event.annualChange || '0') : null,
+            annualChangeMin: event.annualChangeMin ? parseFloat(event.annualChangeMin) : null,
+            annualChangeMax: event.annualChangeMax ? parseFloat(event.annualChangeMax) : null,
+            annualChangeMean: event.annualChangeMean ? parseFloat(event.annualChangeMean) : null,
+            annualChangeStd: event.annualChangeStd ? parseFloat(event.annualChangeStd) : null,
             inflationAdjustment: event.inflationAdjusted,
-            userPercentage: event.userPercentage,
-            isDiscretionary: event.isDiscretionary,
+            userPercentage: event.userPercentage ? parseFloat(event.userPercentage) : null,
+            isDiscretionary: event.isDiscretionary || false,
             order: event.order
           }
         });
@@ -320,6 +319,144 @@ async function createInvestments(scenarioId: number, investments: any[], assetTy
   return createdInvestments;
 }
 
+// Add this function before the GET endpoint
+const transformScenarioForFrontend = (scenario: any) => {
+  // Transform event series
+  const transformedEventSeries = scenario.eventSeries.map((es: any) => {
+    const baseEvent = {
+      name: es.name,
+      description: es.description,
+      type: es.type.toLowerCase(),
+      startYearType: es.startYearType.toLowerCase(),
+      startYear: es.startYear,
+      startYearMin: es.startMin,
+      startYearMax: es.startMax,
+      startYearMean: es.startMean,
+      startYearStd: es.startStd,
+      durationType: es.durationType.toLowerCase(),
+      durationFixed: es.duration,
+      durationMin: es.durationMin,
+      durationMax: es.durationMax,
+      durationMean: es.durationMean,
+      durationStd: es.durationStd
+    };
+
+    if (es.investEventDetails) {
+      // Transform invest event allocations
+      const allocations = es.investEventDetails.AssetAllocation.reduce((acc: any, alloc: any) => {
+        acc[alloc.investment.assetType.name] = alloc.initialAllocation * 100;
+        return acc;
+      }, {});
+
+      return {
+        ...baseEvent,
+        allocationType: 'fixed',
+        allocations,
+        maxCashValue: es.investEventDetails.maxCash
+      };
+    }
+
+    if (es.rebalanceEventDetails) {
+      // Transform rebalance event allocations
+      const allocations = es.rebalanceEventDetails.AssetAllocation.reduce((acc: any, alloc: any) => {
+        acc[alloc.investment.assetType.name] = alloc.initialAllocation * 100;
+        return acc;
+      }, {});
+
+      return {
+        ...baseEvent,
+        allocationType: 'fixed',
+        allocations
+      };
+    }
+
+    if (es.incomeEventDetails) {
+      return {
+        ...baseEvent,
+        initialAmount: es.incomeEventDetails.initialAmount,
+        amount: es.incomeEventDetails.initialAmount,
+        changeType: es.incomeEventDetails.annualChangeType.toLowerCase(),
+        annualChange: es.incomeEventDetails.annualChangeAmount || es.incomeEventDetails.annualChangePercentage || 0,
+        annualChangeMin: es.incomeEventDetails.annualChangeMin,
+        annualChangeMax: es.incomeEventDetails.annualChangeMax,
+        annualChangeMean: es.incomeEventDetails.annualChangeMean,
+        annualChangeStd: es.incomeEventDetails.annualChangeStd,
+        inflationAdjusted: es.incomeEventDetails.inflationAdjustment,
+        userPercentage: es.incomeEventDetails.userPercentage,
+        isSocialSecurity: es.incomeEventDetails.isSocialSecurity
+      };
+    }
+
+    if (es.expenseEventDetails) {
+      return {
+        ...baseEvent,
+        initialAmount: es.expenseEventDetails.initialAmount,
+        amount: es.expenseEventDetails.initialAmount,
+        changeType: es.expenseEventDetails.annualChangeType.toLowerCase(),
+        annualChange: es.expenseEventDetails.annualChangeAmount || es.expenseEventDetails.annualChangePercentage || 0,
+        annualChangeMin: es.expenseEventDetails.annualChangeMin,
+        annualChangeMax: es.expenseEventDetails.annualChangeMax,
+        annualChangeMean: es.expenseEventDetails.annualChangeMean,
+        annualChangeStd: es.expenseEventDetails.annualChangeStd,
+        inflationAdjusted: es.expenseEventDetails.inflationAdjustment,
+        userPercentage: es.expenseEventDetails.userPercentage,
+        isDiscretionary: es.expenseEventDetails.isDiscretionary
+      };
+    }
+
+    return baseEvent;
+  });
+
+  // Transform investments and asset types
+  const transformedAssetTypes = scenario.investmentScenario.map((is: any) => ({
+    name: is.investment.assetType.name,
+    description: is.investment.assetType.description,
+    returnType: is.investment.assetType.returnType.toLowerCase(),
+    fixedReturn: is.investment.assetType.fixedReturn,
+    normalReturnMean: is.investment.assetType.normalReturnMean,
+    normalReturnStd: is.investment.assetType.normalReturnStd,
+    expenseRatio: is.investment.assetType.expenseRatio,
+    incomeMean: is.investment.assetType.normalIncomeMean,
+    incomeStd: is.investment.assetType.normalIncomeStd,
+    taxable: is.investment.assetType.taxability === 'TAXABLE'
+  }));
+
+  const transformedInvestments = scenario.investmentScenario.map((is: any) => ({
+    assetType: is.investment.assetType.name,
+    value: is.investment.value,
+    taxStatus: is.investment.taxStatus.toLowerCase().replace(/_/g, '-'),
+    withdrawalOrder: is.investment.withdrawalOrder,
+    rothConversionOrder: is.investment.rothConversionOrder
+  }));
+
+  return {
+    id: scenario.id,
+    name: scenario.name,
+    forIndividual: scenario.forIndividual,
+    userBirthYear: scenario.userBirthYear,
+    userLifeExpectancyMean: scenario.userLifeExpectancyMean,
+    userLifeExpectancyStd: scenario.userLifeExpectancyStd,
+    spouseBirthYear: scenario.spouseBirthYear,
+    spouseLifeExpectancyMean: scenario.spouseLifeExpectancyMean,
+    spouseLifeExpectancyStd: scenario.spouseLifeExpectancyStd,
+    inflationAssumption: scenario.inflationAssumption.toLowerCase(),
+    inflation: scenario.inflation,
+    inflationMin: scenario.inflationMin,
+    inflationMax: scenario.inflationMax,
+    inflationMean: scenario.inflationMean,
+    inflationStd: scenario.inflationStd,
+    initialAfterTaxRetirementContributionLimit: scenario.initialAfterTaxRetirementContributionLimit,
+    rothOptimizationStartYear: scenario.rothOptimizationStartYear,
+    rothOptimizationEndYear: scenario.rothOptimizationEndYear,
+    residenceState: scenario.residenceState,
+    financialGoal: scenario.financialGoal,
+    assetTypes: transformedAssetTypes,
+    investments: transformedInvestments,
+    eventSeries: transformedEventSeries
+  };
+};
+
+// Update the GET endpoint to use the transform function
 export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams;
   const ownerId = searchParams.get('ownerId');
@@ -351,22 +488,41 @@ export async function GET(request: NextRequest) {
             expenseEventDetails: true,
             investEventDetails: {
               include: {
-                AssetAllocation: true
+                AssetAllocation: {
+                  include: {
+                    investment: {
+                      include: {
+                        assetType: true
+                      }
+                    }
+                  }
+                }
               }
             },
             rebalanceEventDetails: {
               include: {
-                AssetAllocation: true
+                AssetAllocation: {
+                  include: {
+                    investment: {
+                      include: {
+                        assetType: true
+                      }
+                    }
+                  }
+                }
               }
             }
           }
         }
       }
     });
+
     if (results.length === 0) {
       return NextResponse.json({ status: 404, error: 'No scenarios found for the provided ownerId.' });
     }
-    return NextResponse.json({ status: 200, result: results });
+
+    const transformedResults = results.map(transformScenarioForFrontend);
+    return NextResponse.json({ status: 200, result: transformedResults });
   }
 
   if (id) {
@@ -548,5 +704,254 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     console.error('Error creating scenario:', error);
     return NextResponse.json({ status: 500, error: 'Failed to create scenario' });
+  }
+}
+
+export async function PUT(request: NextRequest) {
+  try {
+    const body = await request.json();
+    const scenarioId = body.id;
+
+    if (!scenarioId) {
+      return NextResponse.json({ status: 400, error: 'Scenario ID is required' });
+    }
+
+    // Delete existing scenario relationships
+    await prisma.$transaction([
+      // Delete asset allocations first (they reference invest/rebalance details)
+      prisma.assetAllocation.deleteMany({
+        where: {
+          OR: [
+            {
+              investEventDetails: {
+                eventSeries: {
+                  scenarioId: scenarioId
+                }
+              }
+            },
+            {
+              rebalanceEventDetails: {
+                eventSeries: {
+                  scenarioId: scenarioId
+                }
+              }
+            }
+          ]
+        }
+      }),
+      // Delete event details
+      prisma.incomeEventDetails.deleteMany({
+        where: {
+          eventSeries: {
+            scenarioId: scenarioId
+          }
+        }
+      }),
+      prisma.expenseEventDetails.deleteMany({
+        where: {
+          eventSeries: {
+            scenarioId: scenarioId
+          }
+        }
+      }),
+      prisma.investEventDetails.deleteMany({
+        where: {
+          eventSeries: {
+            scenarioId: scenarioId
+          }
+        }
+      }),
+      prisma.rebalanceEventDetails.deleteMany({
+        where: {
+          eventSeries: {
+            scenarioId: scenarioId
+          }
+        }
+      }),
+      // Delete event series
+      prisma.eventSeries.deleteMany({
+        where: {
+          scenarioId: scenarioId
+        }
+      }),
+      // Delete investment scenarios and investments
+      prisma.investmentScenario.deleteMany({
+        where: {
+          scenarioId: scenarioId
+        }
+      }),
+      prisma.investment.deleteMany({
+        where: {
+          investmentScenario: {
+            some: {
+              scenarioId: scenarioId
+            }
+          }
+        }
+      }),
+      // Delete asset types
+      prisma.assetType.deleteMany({
+        where: {
+          investments: {
+            some: {
+              investmentScenario: {
+                some: {
+                  scenarioId: scenarioId
+                }
+              }
+            }
+          }
+        }
+      })
+    ]);
+
+    const {
+      name,
+      financialGoal,
+      forIndividual,
+      userBirthYear,
+      userLifeExpectancyMean,
+      userLifeExpectancyStd,
+      spouseBirthYear,
+      spouseLifeExpectancyMean,
+      spouseLifeExpectancyStd,
+      inflationAssumption,
+      inflation,
+      inflationMin,
+      inflationMax,
+      inflationMean,
+      inflationStd,
+      initialAfterTaxRetirementContributionLimit,
+      rothOptimizationStartYear,
+      rothOptimizationEndYear,
+      residenceState,
+      assetTypes,
+      investments,
+      eventSeries
+    } = body;
+
+    // Process inflation fields
+    const processedInflationAssumption = typeof inflationAssumption === 'string'
+      ? mapDistributionType(inflationAssumption)
+      : inflationAssumption;
+
+    const processedInflation = processedInflationAssumption === DistributionType.fixed
+      ? inflation
+      : null;
+
+    const processedInflationMin = processedInflationAssumption === DistributionType.random_uniform
+      ? inflationMin
+      : null;
+
+    const processedInflationMax = processedInflationAssumption === DistributionType.random_uniform
+      ? inflationMax
+      : null;
+
+    const processedInflationMean = processedInflationAssumption === DistributionType.random_normal
+      ? inflationMean
+      : null;
+
+    const processedInflationStd = processedInflationAssumption === DistributionType.random_normal
+      ? inflationStd
+      : null;
+
+    // Update the base scenario
+    const scenario = await prisma.scenario.update({
+      where: { id: scenarioId },
+      data: {
+        name,
+        financialGoal,
+        forIndividual,
+        userBirthYear,
+        userLifeExpectancyMean,
+        userLifeExpectancyStd,
+        spouseBirthYear,
+        spouseLifeExpectancyMean,
+        spouseLifeExpectancyStd,
+        inflationAssumption: processedInflationAssumption,
+        inflation: processedInflation,
+        inflationMin: processedInflationMin,
+        inflationMax: processedInflationMax,
+        inflationMean: processedInflationMean,
+        inflationStd: processedInflationStd,
+        initialAfterTaxRetirementContributionLimit,
+        rothOptimizationStartYear,
+        rothOptimizationEndYear,
+        residenceState
+      }
+    });
+
+    // Create asset types first if provided
+    let assetTypeMap = new Map();
+    if (assetTypes && assetTypes.length > 0) {
+      const createdAssetTypes = await createAssetTypes(assetTypes);
+      // Create a map of asset type names to IDs for reference
+      assetTypeMap = new Map(createdAssetTypes.map(asset => [asset.name, asset.id]));
+    }
+
+    // Create investments and link them to scenario using the asset type map
+    let createdInvestments: (Investment & { assetType: AssetType })[] = [];
+    if (investments && investments.length > 0) {
+      createdInvestments = await createInvestments(scenario.id, investments, assetTypeMap);
+    }
+
+    // Create event series and their details
+    if (eventSeries && eventSeries.length > 0) {
+      await createEventSeries(scenario.id, eventSeries, createdInvestments);
+    }
+
+    // Fetch the complete updated scenario with all relations
+    const completeScenario = await prisma.scenario.findUnique({
+      where: { id: scenario.id },
+      include: {
+        investmentScenario: {
+          include: {
+            investment: {
+              include: {
+                assetType: true
+              }
+            }
+          }
+        },
+        eventSeries: {
+          include: {
+            incomeEventDetails: true,
+            expenseEventDetails: true,
+            investEventDetails: {
+              include: {
+                AssetAllocation: {
+                  include: {
+                    investment: {
+                      include: {
+                        assetType: true
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            rebalanceEventDetails: {
+              include: {
+                AssetAllocation: {
+                  include: {
+                    investment: {
+                      include: {
+                        assetType: true
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    });
+
+    const transformedScenario = transformScenarioForFrontend(completeScenario);
+    return NextResponse.json({ status: 200, result: transformedScenario });
+  } catch (error) {
+    console.error('Error updating scenario:', error);
+    return NextResponse.json({ status: 500, error: 'Failed to update scenario' });
   }
 }
