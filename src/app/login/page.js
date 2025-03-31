@@ -1,6 +1,7 @@
 'use client'
 
 import Image from 'next/image';
+import { motion } from 'framer-motion';
 import { signIn, signOut, useSession } from 'next-auth/react';
 import { useEffect, useState } from 'react';
 import pageVariants from "../components/PageAnimation";
