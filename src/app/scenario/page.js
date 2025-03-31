@@ -19,26 +19,7 @@ import { motion } from 'framer-motion';
 import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { jsonToYaml, yamlToJson, validateScenario } from '@/utils/scenarioConverter';
-
-const pageVariants = {
-    initial: { opacity: 0, y: 20 },
-    animate: {
-        opacity: 1,
-        y: 0,
-        transition: {
-            duration: 0.3,
-            ease: "easeOut"
-        }
-    },
-    exit: {
-        opacity: 0,
-        y: -20,
-        transition: {
-            duration: 0.2,
-            ease: "easeIn"
-        }
-    }
-};
+import pageVariants from "../components/PageAnimation";
 
 const FormSection = ({ title, children, isActive, errors = {} }) => {
     if (!isActive) return null;

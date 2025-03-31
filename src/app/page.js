@@ -4,27 +4,7 @@ import { motion } from 'framer-motion';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import { useState } from 'react';
-
-// Define page transition animation variants
-const pageVariants = {
-    initial: { opacity: 0, y: 20 },
-    animate: {
-        opacity: 1,
-        y: 0,
-        transition: {
-            duration: 0.3,
-            ease: "easeOut"
-        }
-    },
-    exit: {
-        opacity: 0,
-        y: -20,
-        transition: {
-            duration: 0.2,
-            ease: "easeIn"
-        }
-    }
-};
+import pageVariants from "./components/PageAnimation";
 
 // Card component for displaying a tool with image, title, description and action button
 const ToolCard = ({ image, title, description, onClick }) => {
@@ -35,7 +15,7 @@ const ToolCard = ({ image, title, description, onClick }) => {
             whileHover={{ y: -4 }}
             className="bg-black text-white rounded-lg overflow-hidden shadow-lg"
         >
-            <div className="h-48 relative">
+            <div className="h-40 relative">
                 {imageLoading && (
                     // Display a placeholder while the image is loading
                     <div className="absolute inset-0 bg-gray-800 animate-pulse" />

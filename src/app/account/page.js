@@ -10,26 +10,7 @@ import { useSession } from 'next-auth/react'; // Using NextAuth for session mana
 import { motion } from 'framer-motion'; // Framer Motion provides performant and smooth animations
 import { useState } from 'react';
 import Image from 'next/image'; // Next.js Image optimizes image loading and performance
-
-const pageVariants = {
-    initial: { opacity: 0, y: 20 }, // Initial state for animation: slightly offset for a smooth entrance
-    animate: {
-        opacity: 1,
-        y: 0,
-        transition: {
-            duration: 0.3,
-            ease: "easeOut" // Easing function for a natural deceleration
-        }
-    },
-    exit: {
-        opacity: 0,
-        y: -20,
-        transition: {
-            duration: 0.2,
-            ease: "easeIn" // Easing function for a swift exit
-        }
-    }
-};
+import pageVariants from "../components/PageAnimation";
 
 const ScenarioPreview = ({ date, createdBy, imageUrl }) => (
     // The ScenarioPreview component is optimized for reusability and leverages Next.js Image for optimized media rendering
