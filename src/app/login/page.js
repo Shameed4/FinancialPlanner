@@ -11,6 +11,8 @@ const LoginPage = () => {
     const { data: session, status } = useSession();
     // Local state to manage loading indicator
     const [loading, setLoading] = useState(true);
+    // State to ensure we only call the user upsert API once per session
+    const [userUpserted, setUserUpserted] = useState(false);
 
     // Monitor authentication status and update loading state once determined
     useEffect(() => {
@@ -18,6 +20,34 @@ const LoginPage = () => {
             setLoading(false);
         }
     }, [status]);
+
+    // Upsert a new user via the POST request once session is available
+    useEffect(() => {
+        const createUser = async () => {
+            if (session && session.user && !userUpserted) {
+                try {
+                    // Using session.user.email for both email and googleId in this example
+                    const email = session.user.email;
+                    const googleId = session.user.email; // Replace with the actual googleId if available
+
+                    const response = await fetch('/api/user', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({ email, googleId })
+                    });
+                    const data = await response.json();
+                    // console.log('User upserted:', data);
+                    setUserUpserted(true);
+                } catch (error) {
+                    console.error('Error upserting user:', error);
+                }
+            }
+        };
+
+        createUser();
+    }, [session, userUpserted]);
 
     // Function to handle Google sign-in process
     const handleGoogleLogin = async () => {
