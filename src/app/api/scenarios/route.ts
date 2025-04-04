@@ -2,15 +2,16 @@ import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/app/lib/prisma';
 import { DistributionType, EventType, StartYearType, State, TaxStatus, Investment, AssetType, ReturnType, Taxability } from '@prisma/client';
 
+// Utility function to convert Yes/No string values to booleans.
 const yesNoToBoolean = (arg: string) => {
-  if (arg == 'Yes') {
+  if (arg === 'Yes') {
     return true;
-  } else if (arg == 'No') {
+  } else if (arg === 'No') {
     return false;
   } else {
     throw new Error('Invalid yes/no value');
   }
-}
+};
 
 // Helper function to map string startYearType to StartYearType enum
 function mapStartYearType(startYearTypeString: string): StartYearType {
@@ -36,6 +37,8 @@ function mapDistributionType(distributionTypeString: string): DistributionType {
   switch (distributionTypeString.toLowerCase()) {
     case 'fixed':
       return DistributionType.fixed;
+    case 'percentage':
+      return DistributionType.percentage;
     case 'uniform':
       return DistributionType.random_uniform;
     case 'normal':
@@ -87,9 +90,9 @@ async function createEventSeries(scenarioId: number, eventSeries: any[], investm
           data: {
             eventSeriesId: createdEvent.id,
             initialAmount: parseFloat(event.amount || event.initialAmount || '0'),
-            annualChangeType: typeof (event.annualChangeType || event.changeType) === 'string' ?
-              mapDistributionType(event.annualChangeType || event.changeType) :
-              (event.annualChangeType || event.changeType),
+            annualChangeType: typeof (event.annualChangeType || event.changeType) === 'string'
+              ? mapDistributionType(event.annualChangeType || event.changeType)
+              : (event.annualChangeType || event.changeType),
             annualChangeAmount: (event.annualChangeType || event.changeType) === DistributionType.fixed ? parseFloat(event.annualChange || '0') : null,
             annualChangePercentage: (event.annualChangeType || event.changeType) === 'percentage' ? parseFloat(event.annualChange || '0') : null,
             annualChangeMin: event.annualChangeMin ? parseFloat(event.annualChangeMin) : null,
@@ -108,9 +111,9 @@ async function createEventSeries(scenarioId: number, eventSeries: any[], investm
           data: {
             eventSeriesId: createdEvent.id,
             initialAmount: parseFloat(event.amount || event.initialAmount || '0'),
-            annualChangeType: typeof (event.annualChangeType || event.changeType) === 'string' ?
-              mapDistributionType(event.annualChangeType || event.changeType) :
-              (event.annualChangeType || event.changeType),
+            annualChangeType: typeof (event.annualChangeType || event.changeType) === 'string'
+              ? mapDistributionType(event.annualChangeType || event.changeType)
+              : (event.annualChangeType || event.changeType),
             annualChangeAmount: (event.annualChangeType || event.changeType) === DistributionType.fixed ? parseFloat(event.annualChange || '0') : null,
             annualChangePercentage: (event.annualChangeType || event.changeType) === 'percentage' ? parseFloat(event.annualChange || '0') : null,
             annualChangeMin: event.annualChangeMin ? parseFloat(event.annualChangeMin) : null,
@@ -129,27 +132,57 @@ async function createEventSeries(scenarioId: number, eventSeries: any[], investm
         const investDetails = await prisma.investEventDetails.create({
           data: {
             eventSeriesId: createdEvent.id,
-            maxCash: event.maxCashValue,
+            maxCash: event.maxCashValue ? event.maxCashValue : null,
             order: event.order,
-            initialAllocation: 0 // Default value, will be updated by asset allocations
+            initialAllocation: 0 // Default value; detailed allocations follow below.
           }
         });
 
-        // Create asset allocations for invest event
-        if (event.allocations) {
-          for (const [assetName, percentage] of Object.entries(event.allocations)) {
-            const numericPercentage = typeof percentage === 'number' ? percentage : parseFloat(percentage as string);
-            const investmentId = assetToInvestmentMap.get(assetName);
-
-            if (investmentId) {
-              await prisma.assetAllocation.create({
-                data: {
-                  investEventDetailsId: investDetails.id,
-                  initialAllocation: numericPercentage / 100,
-                  finalAllocation: numericPercentage / 100,
-                  investmentId
+        if (event.allocationType === 'glide') {
+          // For glide path events, expect separate initialAllocations and finalAllocations objects.
+          if (event.initialAllocations && event.finalAllocations) {
+            for (const assetName in event.initialAllocations) {
+              if (event.initialAllocations.hasOwnProperty(assetName)) {
+                const initialPercentage = event.initialAllocations[assetName];
+                const finalPercentage = event.finalAllocations[assetName];
+                const numericInitial = typeof initialPercentage === 'number'
+                  ? initialPercentage
+                  : parseFloat(initialPercentage);
+                const numericFinal = typeof finalPercentage === 'number'
+                  ? finalPercentage
+                  : parseFloat(finalPercentage);
+                const investmentId = assetToInvestmentMap.get(assetName);
+                if (investmentId) {
+                  await prisma.assetAllocation.create({
+                    data: {
+                      investEventDetailsId: investDetails.id,
+                      initialAllocation: numericInitial / 100,
+                      finalAllocation: numericFinal / 100,
+                      investmentId
+                    }
+                  });
                 }
-              });
+              }
+            }
+          }
+        } else {
+          // Fixed allocation: use the same value for both initial and final allocations.
+          if (event.allocations) {
+            for (const [assetName, percentage] of Object.entries(event.allocations)) {
+              const numericPercentage = typeof percentage === 'number'
+                ? percentage
+                : parseFloat(percentage as string);
+              const investmentId = assetToInvestmentMap.get(assetName);
+              if (investmentId) {
+                await prisma.assetAllocation.create({
+                  data: {
+                    investEventDetailsId: investDetails.id,
+                    initialAllocation: numericPercentage / 100,
+                    finalAllocation: numericPercentage / 100,
+                    investmentId
+                  }
+                });
+              }
             }
           }
         }
@@ -162,20 +195,50 @@ async function createEventSeries(scenarioId: number, eventSeries: any[], investm
           }
         });
 
-        // Create asset allocations for rebalance event
-        if (event.allocations) {
-          for (const [assetName, percentage] of Object.entries(event.allocations)) {
-            const numericPercentage = typeof percentage === 'number' ? percentage : parseFloat(percentage as string);
-            const investmentId = assetToInvestmentMap.get(assetName);
-
-            if (investmentId) {
-              await prisma.assetAllocation.create({
-                data: {
-                  rebalanceEventDetailsId: rebalanceDetails.id,
-                  initialAllocation: numericPercentage / 100,
-                  investmentId
+        if (event.allocationType === 'glide') {
+          // For glide path events, use separate initialAllocations and finalAllocations.
+          if (event.initialAllocations && event.finalAllocations) {
+            for (const assetName in event.initialAllocations) {
+              if (event.initialAllocations.hasOwnProperty(assetName)) {
+                const initialPercentage = event.initialAllocations[assetName];
+                const finalPercentage = event.finalAllocations[assetName];
+                const numericInitial = typeof initialPercentage === 'number'
+                  ? initialPercentage
+                  : parseFloat(initialPercentage);
+                const numericFinal = typeof finalPercentage === 'number'
+                  ? finalPercentage
+                  : parseFloat(finalPercentage);
+                const investmentId = assetToInvestmentMap.get(assetName);
+                if (investmentId) {
+                  await prisma.assetAllocation.create({
+                    data: {
+                      rebalanceEventDetailsId: rebalanceDetails.id,
+                      initialAllocation: numericInitial / 100,
+                      finalAllocation: numericFinal / 100,
+                      investmentId
+                    }
+                  });
                 }
-              });
+              }
+            }
+          }
+        } else {
+          // Fixed allocation: use the same percentage for both initial and final allocations.
+          if (event.allocations) {
+            for (const [assetName, percentage] of Object.entries(event.allocations)) {
+              const numericPercentage = typeof percentage === 'number'
+                ? percentage
+                : parseFloat(percentage as string);
+              const investmentId = assetToInvestmentMap.get(assetName);
+              if (investmentId) {
+                await prisma.assetAllocation.create({
+                  data: {
+                    rebalanceEventDetailsId: rebalanceDetails.id,
+                    initialAllocation: numericPercentage / 100,
+                    investmentId
+                  }
+                });
+              }
             }
           }
         }
@@ -203,14 +266,16 @@ function mapTaxStatus(taxStatusString: string): TaxStatus {
   }
 }
 
-// Helper function to map string taxability to Taxability enum
+// Updated helper function to map string taxability to Taxability enum (case-insensitive)
 function mapTaxability(taxabilityString: string): Taxability {
-  if (taxabilityString === 'tax-exempt') {
-    return Taxability.TAX_EXEMPT;
-  }
-  else {
-    console.warn(`Unknown taxability: ${taxabilityString}, defaulting to TAXABLE`);
-    return Taxability.TAXABLE;
+  switch (taxabilityString.toLowerCase()) {
+    case 'tax-exempt':
+      return Taxability.TAX_EXEMPT;
+    case 'taxable':
+      return Taxability.TAXABLE;
+    default:
+      console.warn(`Unknown taxability: ${taxabilityString}, defaulting to TAXABLE`);
+      return Taxability.TAXABLE;
   }
 }
 
@@ -247,7 +312,6 @@ async function createAssetTypes(assetTypes: any[]) {
       ? mapReturnType(assetType.expectedAnnualIncomeType)
       : (assetType.expectedAnnualIncomeType || ReturnType.FIXED);
 
-    // Create asset type
     let createdAssetType;
     try {
       createdAssetType = await prisma.assetType.create({
@@ -324,7 +388,7 @@ async function createInvestments(scenarioId: number, investments: any[], assetTy
   return createdInvestments;
 }
 
-// Add this function before the GET endpoint
+// Transformation function to shape the scenario for the frontend with defensive checks.
 const transformScenarioForFrontend = (scenario: any) => {
   // Transform event series
   const transformedEventSeries = scenario.eventSeries.map((es: any) => {
@@ -347,32 +411,87 @@ const transformScenarioForFrontend = (scenario: any) => {
     };
 
     if (es.investEventDetails) {
-      // Transform invest event allocations
-      const allocations = es.investEventDetails.AssetAllocation.reduce((acc: any, alloc: any) => {
-        acc[alloc.investment.assetType.name] = alloc.initialAllocation * 100;
-        return acc;
-      }, {});
+      let isGlide = false;
+      const fixedAllocations: { [assetName: string]: number } = {};
+      const initialAllocations: { [assetName: string]: number } = {};
+      const finalAllocations: { [assetName: string]: number } = {};
 
-      return {
-        ...baseEvent,
-        allocationType: 'fixed',
-        allocations,
-        maxCashValue: es.investEventDetails.maxCash
-      };
+      es.investEventDetails.AssetAllocation.forEach((alloc: any) => {
+        // Defensive check: ensure that allocation has investment and assetType data.
+        if (!alloc.investment || !alloc.investment.assetType) {
+          console.warn("Missing investment or assetType in allocation:", alloc);
+          return;
+        }
+        const assetName = alloc.investment.assetType.name;
+        const initPercent = alloc.initialAllocation * 100;
+        const finalPercent = alloc.finalAllocation * 100;
+        fixedAllocations[assetName] = initPercent;
+        initialAllocations[assetName] = initPercent;
+        finalAllocations[assetName] = finalPercent;
+        if (Math.abs(initPercent - finalPercent) > 0.1) {
+          isGlide = true;
+        }
+      });
+
+      if (isGlide) {
+        return {
+          ...baseEvent,
+          allocationType: 'glide',
+          initialAllocations,
+          finalAllocations,
+          maxCashValue: es.investEventDetails.maxCash
+        };
+      } else {
+        return {
+          ...baseEvent,
+          allocationType: 'fixed',
+          allocations: fixedAllocations,
+          maxCashValue: es.investEventDetails.maxCash
+        };
+      }
     }
 
     if (es.rebalanceEventDetails) {
-      // Transform rebalance event allocations
-      const allocations = es.rebalanceEventDetails.AssetAllocation.reduce((acc: any, alloc: any) => {
-        acc[alloc.investment.assetType.name] = alloc.initialAllocation * 100;
-        return acc;
-      }, {});
+      let isGlide = false;
+      const fixedAllocations: { [assetName: string]: number } = {};
+      const initialAllocations: { [assetName: string]: number } = {};
+      const finalAllocations: { [assetName: string]: number } = {};
 
-      return {
-        ...baseEvent,
-        allocationType: 'fixed',
-        allocations
-      };
+      es.rebalanceEventDetails.AssetAllocation.forEach((alloc: any) => {
+        // Defensive check: ensure that allocation has investment and assetType data.
+        if (!alloc.investment || !alloc.investment.assetType) {
+          console.warn("Missing investment or assetType in allocation (rebalance):", alloc);
+          return;
+        }
+        const assetName = alloc.investment.assetType.name;
+        const initPercent = alloc.initialAllocation * 100;
+        const finalPercent = alloc.finalAllocation !== undefined && alloc.finalAllocation !== null
+          ? alloc.finalAllocation * 100
+          : initPercent;
+
+        fixedAllocations[assetName] = initPercent;
+        initialAllocations[assetName] = initPercent;
+        finalAllocations[assetName] = finalPercent;
+
+        if (Math.abs(initPercent - finalPercent) > 0.1) {
+          isGlide = true;
+        }
+      });
+
+      if (isGlide) {
+        return {
+          ...baseEvent,
+          allocationType: 'glide',
+          initialAllocations,
+          finalAllocations
+        };
+      } else {
+        return {
+          ...baseEvent,
+          allocationType: 'fixed',
+          allocations: fixedAllocations
+        };
+      }
     }
 
     if (es.incomeEventDetails) {
@@ -415,8 +534,7 @@ const transformScenarioForFrontend = (scenario: any) => {
   // Create a map to track unique asset types by name to avoid duplicates
   const assetTypeMap = new Map();
 
-  // We'll only extract asset types from investments since there's no direct relationship
-  // between Scenario and AssetType in the schema
+  // Extract asset types from investments (as there's no direct relationship between Scenario and AssetType)
   if (scenario.investmentScenario && Array.isArray(scenario.investmentScenario)) {
     scenario.investmentScenario.forEach((is: any) => {
       const assetType = is.investment.assetType;
@@ -431,7 +549,7 @@ const transformScenarioForFrontend = (scenario: any) => {
           expenseRatio: assetType.expenseRatio,
           normalIncomeMean: assetType.normalIncomeMean,
           normalIncomeStd: assetType.normalIncomeStd,
-          taxable: assetType.taxability === 'TAXABLE'
+          taxable: assetType.taxability.toLowerCase() === 'taxable'
         });
       }
     });
@@ -475,13 +593,13 @@ const transformScenarioForFrontend = (scenario: any) => {
   };
 };
 
-// Update the GET endpoint to use the transform function
+// GET endpoint – fetches scenario(s) by ownerId or id and applies the transformation
 export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams;
   const ownerId = searchParams.get('ownerId');
   const id = searchParams.get('id');
 
-  // cannot have both email and scenario id
+  // Cannot have both ownerId and id provided.
   if (ownerId && id) {
     return NextResponse.json({ status: 400, error: 'Provide either an ownerId or an ID, not both.' });
   }
@@ -537,25 +655,13 @@ export async function GET(request: NextRequest) {
             }
           }
         },
-        ownerPrivilege: {
-          select: {
-            id: true
-          }
-        },
-        readonlyPrivilege: {
-          select: {
-            id: true
-          }
-        },
-        readwritePrivilege: {
-          select: {
-            id: true
-          }
-        }
+        ownerPrivilege: { select: { id: true } },
+        readonlyPrivilege: { select: { id: true } },
+        readwritePrivilege: { select: { id: true } }
       }
     });
 
-    // Enhance the transformed results with permission info
+    // Enhance the transformed results with permission info.
     const transformedResults = results.map(scenario => {
       const transformed = transformScenarioForFrontend(scenario);
       return {
@@ -566,9 +672,7 @@ export async function GET(request: NextRequest) {
           canRead: scenario.ownerId === ownerId ||
             scenario.readonlyPrivilege.some(user => user.id === ownerId) ||
             scenario.readwritePrivilege.some(user => user.id === ownerId),
-          owner: {
-            email: scenario.ownerId
-          }
+          owner: { email: scenario.ownerId }
         }
       };
     });
@@ -582,9 +686,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ status: 400, error: 'Invalid ID. ID must be an integer.' });
     }
     const results = await prisma.scenario.findMany({
-      where: {
-        id: parsedId
-      },
+      where: { id: parsedId },
       include: {
         investmentScenario: {
           include: {
@@ -611,21 +713,9 @@ export async function GET(request: NextRequest) {
             }
           }
         },
-        ownerPrivilege: {
-          select: {
-            id: true
-          }
-        },
-        readonlyPrivilege: {
-          select: {
-            id: true
-          }
-        },
-        readwritePrivilege: {
-          select: {
-            id: true
-          }
-        }
+        ownerPrivilege: { select: { id: true } },
+        readonlyPrivilege: { select: { id: true } },
+        readwritePrivilege: { select: { id: true } }
       }
     });
     return NextResponse.json({ status: 200, result: results });
@@ -634,6 +724,7 @@ export async function GET(request: NextRequest) {
   return NextResponse.json({ status: 400, error: 'Invalid request - must have an ownerId or integer id.' });
 }
 
+// POST endpoint – creates a new scenario along with its asset types, investments, and event series.
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
@@ -668,7 +759,7 @@ export async function POST(request: NextRequest) {
       eventSeries
     } = body;
 
-    // Process inflation fields
+    // Process inflation fields based on the distribution type
     const processedInflationAssumption = typeof inflationAssumption === 'string'
       ? mapDistributionType(inflationAssumption)
       : inflationAssumption;
@@ -789,19 +880,17 @@ export async function POST(request: NextRequest) {
         expenseRatio: at.expenseRatio,
         normalIncomeMean: at.normalIncomeMean,
         normalIncomeStd: at.normalIncomeStd,
-        taxable: at.taxability === 'TAXABLE'
+        taxable: at.taxability.toLowerCase() === 'taxable'
       }));
 
     const responseData = {
       ...transformedScenario,
       assetTypes: [...transformedScenario.assetTypes, ...additionalAssetTypes],
       permissions: {
-        isOwner: true, // User who created it is always the owner
+        isOwner: true, // The creator is always the owner.
         canWrite: true,
         canRead: true,
-        owner: {
-          email: ownerId
-        }
+        owner: { email: ownerId }
       }
     };
 
@@ -812,6 +901,8 @@ export async function POST(request: NextRequest) {
   }
 }
 
+// PUT endpoint – updates an existing scenario. It verifies ownership/permissions,
+// deletes existing related data, and then re-creates asset types, investments, and event series.
 export async function PUT(request: NextRequest) {
   try {
     const body = await request.json();
@@ -844,7 +935,7 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ status: 403, error: 'Not authorized to modify this scenario' });
     }
 
-    // Delete existing scenario relationships
+    // Delete existing scenario relationships in a transaction.
     await prisma.$transaction([
       // Delete asset allocations first (they reference invest/rebalance details)
       prisma.assetAllocation.deleteMany({
@@ -917,7 +1008,7 @@ export async function PUT(request: NextRequest) {
           }
         }
       }),
-      // Delete asset types
+      // Delete asset types (only those linked to investments)
       prisma.assetType.deleteMany({
         where: {
           investments: {
@@ -1014,11 +1105,10 @@ export async function PUT(request: NextRequest) {
     let createdAssetTypes: any[] = [];
     if (assetTypes && assetTypes.length > 0) {
       createdAssetTypes = await createAssetTypes(assetTypes);
-      // Create a map of asset type names to IDs for reference
       assetTypeMap = new Map(createdAssetTypes.map(asset => [asset.name, asset.id]));
     }
 
-    // Create investments and link them to scenario using the asset type map
+    // Create investments and link them to scenario
     let createdInvestments: (Investment & { assetType: AssetType })[] = [];
     if (investments && investments.length > 0) {
       createdInvestments = await createInvestments(scenario.id, investments, assetTypeMap);
@@ -1079,8 +1169,7 @@ export async function PUT(request: NextRequest) {
 
     const transformedScenario = transformScenarioForFrontend(completeScenario);
 
-    // If the transformed scenario doesn't have all the asset types (because they might not be linked to investments yet),
-    // add them manually 
+    // If the transformed scenario doesn't have all the asset types, add them manually.
     const transformedAssetTypeNames = transformedScenario.assetTypes.map(at => at.name);
     const additionalAssetTypes = createdAssetTypes
       .filter(at => !transformedAssetTypeNames.includes(at.name))
@@ -1094,10 +1183,9 @@ export async function PUT(request: NextRequest) {
         expenseRatio: at.expenseRatio,
         normalIncomeMean: at.normalIncomeMean,
         normalIncomeStd: at.normalIncomeStd,
-        taxable: at.taxability === 'TAXABLE'
+        taxable: at.taxability.toLowerCase() === 'taxable'
       }));
 
-    // Add permissions to the response
     const responseData = {
       ...transformedScenario,
       assetTypes: [...transformedScenario.assetTypes, ...additionalAssetTypes],
@@ -1105,7 +1193,7 @@ export async function PUT(request: NextRequest) {
         isOwner: completeScenario?.ownerId === ownerId,
         canWrite: completeScenario?.ownerId === ownerId ||
           existingScenario.readwritePrivilege.some(user => user.id === ownerId),
-        canRead: true, // If they can update, they can definitely read
+        canRead: true,
         owner: {
           email: completeScenario?.ownerId || ownerId
         }

@@ -2254,7 +2254,7 @@ const ScenarioPage = () => {
             });
 
             const data = await response.json();
-
+            console.log(data.status);
             if (data.status === 200) {
                 // Instead of manually updating the scenario in the state,
                 // fetch all scenarios again to ensure correct permissions

@@ -44,6 +44,7 @@ enum StartYearType {
 
 enum DistributionType {
   fixed
+  percentage
   random_uniform
   random_normal
 }
