@@ -1,4 +1,3 @@
-// src/app/charts-results/page.js
 'use client'
 
 import { useState } from 'react';
@@ -7,16 +6,17 @@ import pageVariants from "../components/PageAnimation";
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 
-// Import the specific chart components from MUI X React Charts
-import { LineChart } from '@mui/x-charts/LineChart';
+// Simplified imports - just the components we need
 import { BarChart } from '@mui/x-charts/BarChart';
+import { LineChart } from '@mui/x-charts/LineChart';
 import { PieChart } from '@mui/x-charts/PieChart';
 
+// The rest of your code remains the same...
 // Sample data – replace these with your API calls as needed
 const simulationResults = [
     {
         id: "sim1",
-        title: "Basic Retirement Simulation",
+        title: "Sean's Retirement",
         date: "2023-09-15",
         summary: {
             number_of_runs: 1000,
@@ -154,39 +154,90 @@ const AssetAllocationPieChart = ({ history }) => {
 
 // Detailed View Component including charts
 const DetailedView = ({ result, onBack }) => {
-    // Extract the data series needed for charts
-    const prepareChartData = (historyData) => {
-        return historyData.map(entry => ({
-            year: entry.year,
-            age: entry.age,
-            total_assets: entry.total_assets,
-            taxable: entry.taxable,
-            ira: entry.ira,
-            roth: entry.roth,
-            annual_income: entry.annual_income,
-            annual_expenses: entry.annual_expenses,
-            taxes_paid: entry.taxes_paid
-        }));
+    const [selectedQuantity, setSelectedQuantity] = useState('total_assets');
+    const [barChartQuantity, setBarChartQuantity] = useState('investments');
+
+    // Basic chart data from history
+    const chartData = result.history.map(entry => ({
+        year: entry.year,
+        age: entry.age,
+        total_assets: entry.total_assets,
+        taxable: entry.taxable,
+        ira: entry.ira,
+        roth: entry.roth,
+        annual_income: entry.annual_income,
+        annual_expenses: entry.annual_expenses,
+        taxes_paid: entry.taxes_paid
+    }));
+
+    // For probability of success chart (simulated data)
+    const successProbabilityData = Array.from({ length: 10 }, (_, i) => ({
+        year: i + 1,
+        probability: Math.min(100, 50 + i * 5)  // Starts at 50%, increases by 5% each year
+    }));
+
+    // For the shaded area chart - create upper and lower bounds
+    const createRangeData = () => {
+        return chartData.map(entry => {
+            // Base value for the selected metric
+            const baseValue = entry[selectedQuantity];
+
+            // Create upper/lower bound series for each percentile range
+            return {
+                year: entry.year,
+                median: baseValue,
+                // These are simulated - in reality they would be calculated from simulation data
+                upper60: baseValue * 1.2,  // 60th percentile (20% above median)
+                lower40: baseValue * 0.8,  // 40th percentile (20% below median)
+                upper70: baseValue * 1.4,  // 70th percentile 
+                lower30: baseValue * 0.6,  // 30th percentile
+                upper80: baseValue * 1.6,  // 80th percentile
+                lower20: baseValue * 0.4,  // 20th percentile
+                upper90: baseValue * 1.8,  // 90th percentile
+                lower10: baseValue * 0.2,  // 10th percentile
+            };
+        });
     };
 
-    // Define all the data variables you need
-    const chartData = prepareChartData(result.history);
-    const taxableData = result.history.map(entry => ({ year: entry.year, value: entry.taxable }));
-    const iraData = result.history.map(entry => ({ year: entry.year, value: entry.ira }));
-    const rothData = result.history.map(entry => ({ year: entry.year, value: entry.roth }));
-    const totalAssetsData = result.history.map(entry => ({ year: entry.year, value: entry.total_assets }));
+    const rangeData = createRangeData();
+
+    // Format dollar values
+    const formatDollar = (value) => {
+        if (value >= 1000000) {
+            return `$${(value / 1000000).toFixed(1)}M`;
+        } else if (value >= 1000) {
+            return `$${(value / 1000).toFixed(0)}k`;
+        }
+        return `$${value.toFixed(0)}`;
+    };
+
+    // Get label for the selected quantity
+    const getQuantityLabel = (quantityKey) => {
+        const labels = {
+            'total_assets': 'Total Investments',
+            'annual_income': 'Total Income',
+            'annual_expenses': 'Total Expenses',
+            'taxes_paid': 'Early Withdrawal Tax'
+        };
+        return labels[quantityKey] || quantityKey;
+    };
 
     return (
         <div className="bg-white rounded-xl shadow-md p-6">
+            {/* Header with back button and title */}
             <div className="flex justify-between items-center mb-6">
-                <button onClick={onBack} className="flex items-center text-blue-600 hover:text-blue-800">
+                <button
+                    onClick={onBack}
+                    className="flex items-center text-blue-600 hover:text-blue-800"
+                >
                     <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
                     </svg>
                     Back to Results
                 </button>
-                <h2 className="text-2xl font-bold text-gray-900">{result.title}</h2>
-                <div></div>
+
+                <h2 className="text-2xl font-bold text-gray-900">{result.title || "Simulation Results"}</h2>
+                <div></div> {/* Empty div for spacing */}
             </div>
 
             {/* Summary Section */}
@@ -216,120 +267,311 @@ const DetailedView = ({ result, onBack }) => {
                 </div>
             </div>
 
-            {/* Detailed History Section */}
-            <h3 className="text-lg font-semibold mb-3">Yearly Breakdown</h3>
-            <div className="overflow-x-auto">
-                <table className="min-w-full divide-y divide-gray-200">
-                    <thead>
-                        <tr>
-                            <th className="px-3 py-3 bg-gray-50 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Year</th>
-                            <th className="px-3 py-3 bg-gray-50 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Age</th>
-                            <th className="px-3 py-3 bg-gray-50 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total Assets</th>
-                            <th className="px-3 py-3 bg-gray-50 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Taxable</th>
-                            <th className="px-3 py-3 bg-gray-50 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">IRA</th>
-                            <th className="px-3 py-3 bg-gray-50 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Roth</th>
-                            <th className="px-3 py-3 bg-gray-50 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Income</th>
-                            <th className="px-3 py-3 bg-gray-50 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Expenses</th>
-                            <th className="px-3 py-3 bg-gray-50 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Taxes</th>
-                        </tr>
-                    </thead>
-                    <tbody className="bg-white divide-y divide-gray-200">
-                        {result.history.map((entry, index) => (
-                            <tr key={index} className={index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
-                                <td className="px-3 py-2 whitespace-nowrap">{entry.year}</td>
-                                <td className="px-3 py-2 whitespace-nowrap">{entry.age}</td>
-                                <td className="px-3 py-2 whitespace-nowrap">${entry.total_assets.toLocaleString()}</td>
-                                <td className="px-3 py-2 whitespace-nowrap">${entry.taxable.toLocaleString()}</td>
-                                <td className="px-3 py-2 whitespace-nowrap">${entry.ira.toLocaleString()}</td>
-                                <td className="px-3 py-2 whitespace-nowrap">${entry.roth.toLocaleString()}</td>
-                                <td className="px-3 py-2 whitespace-nowrap">${entry.annual_income.toLocaleString()}</td>
-                                <td className="px-3 py-2 whitespace-nowrap">${entry.annual_expenses.toLocaleString()}</td>
-                                <td className="px-3 py-2 whitespace-nowrap">${entry.taxes_paid.toLocaleString()}</td>
+            {/* Detailed History Section - now above charts */}
+            <div className="mb-8">
+                <h3 className="text-lg font-semibold mb-4">Yearly Breakdown</h3>
+                <div className="overflow-x-auto">
+                    <table className="min-w-full divide-y divide-gray-200">
+                        <thead>
+                            <tr>
+                                <th className="px-3 py-3 bg-gray-50 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Year</th>
+                                <th className="px-3 py-3 bg-gray-50 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Age</th>
+                                <th className="px-3 py-3 bg-gray-50 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total Assets</th>
+                                <th className="px-3 py-3 bg-gray-50 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Taxable</th>
+                                <th className="px-3 py-3 bg-gray-50 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">IRA</th>
+                                <th className="px-3 py-3 bg-gray-50 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Roth</th>
+                                <th className="px-3 py-3 bg-gray-50 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Income</th>
+                                <th className="px-3 py-3 bg-gray-50 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Expenses</th>
+                                <th className="px-3 py-3 bg-gray-50 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Taxes</th>
                             </tr>
-                        ))}
-                    </tbody>
-                </table>
+                        </thead>
+                        <tbody className="bg-white divide-y divide-gray-200">
+                            {result.history.map((entry, index) => (
+                                <tr key={index} className={index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
+                                    <td className="px-3 py-2 whitespace-nowrap">{entry.year}</td>
+                                    <td className="px-3 py-2 whitespace-nowrap">{entry.age}</td>
+                                    <td className="px-3 py-2 whitespace-nowrap">${entry.total_assets.toLocaleString()}</td>
+                                    <td className="px-3 py-2 whitespace-nowrap">${entry.taxable.toLocaleString()}</td>
+                                    <td className="px-3 py-2 whitespace-nowrap">${entry.ira.toLocaleString()}</td>
+                                    <td className="px-3 py-2 whitespace-nowrap">${entry.roth.toLocaleString()}</td>
+                                    <td className="px-3 py-2 whitespace-nowrap">${entry.annual_income.toLocaleString()}</td>
+                                    <td className="px-3 py-2 whitespace-nowrap">${entry.annual_expenses.toLocaleString()}</td>
+                                    <td className="px-3 py-2 whitespace-nowrap">${entry.taxes_paid.toLocaleString()}</td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
             </div>
 
-            {/* Visualization/Charts Section */}
-            <div className="mt-8 space-y-8">
-                <h3 className="text-xl font-semibold mb-2">Asset Growth Visualization</h3>
+            {/* Charts Section */}
+            <div className="mt-8 space-y-12">
+                <h3 className="text-xl font-semibold mb-4">Simulation Results</h3>
 
-                {/* Bar Chart - Asset Allocation */}
-                <div className="p-4 bg-white border border-gray-200 rounded-lg shadow-sm">
-                    <h4 className="text-lg font-medium mb-4">Asset Allocation By Year</h4>
-                    <div className="h-96"> {/* Increased height for larger chart */}
-                        <BarChart
-                            dataset={chartData}
-                            xAxis={[{
-                                scaleType: 'band',
-                                dataKey: 'year',
-                                label: 'Year'
-                            }]}
-                            yAxis={[{
-                                label: 'Value ($)',
-                                tickFormat: (value) => `$${(value / 1000).toFixed(0)}k`
-                            }]}
-                            series={[
-                                { dataKey: 'taxable', label: 'Taxable', stack: 'total' },
-                                { dataKey: 'ira', label: 'IRA', stack: 'total' },
-                                { dataKey: 'roth', label: 'Roth', stack: 'total' }
-                            ]}
-                            height={350}
-                            width={800}
-                            margin={{ top: 20, right: 20, bottom: 70, left: 70 }}
-                        />
-                    </div>
-                </div>
-
-                {/* Line Chart - Total Assets Over Time */}
-                <div className="p-4 bg-white border border-gray-200 rounded-lg shadow-sm">
-                    <h4 className="text-lg font-medium mb-4">Total Assets Over Time</h4>
+                {/* Chart 4.1: Line chart of probability of success over time */}
+                <div className="p-6 bg-white border border-gray-200 rounded-lg shadow-sm">
+                    <h4 className="text-lg font-medium mb-4">4.1 Probability of Success Over Time</h4>
+                    <p className="text-sm text-gray-600 mb-4">
+                        This chart shows the percentage of simulations in which the financial goal is satisfied in each year and all preceding years.
+                    </p>
                     <div className="h-96">
                         <LineChart
-                            dataset={chartData}
                             xAxis={[{
+                                data: successProbabilityData.map(item => item.year),
+                                label: 'Year',
                                 scaleType: 'linear',
-                                dataKey: 'year',
-                                label: 'Year'
                             }]}
                             yAxis={[{
-                                label: 'Value ($)',
-                                tickFormat: (value) => `$${(value / 1000).toFixed(0)}k`
+                                label: 'Probability (%)',
+                                min: 0,
+                                max: 100
                             }]}
                             series={[
-                                { dataKey: 'total_assets', label: 'Total Assets', color: '#2196f3' }
-                            ]}
-                            height={350}
-                            width={800}
-                            margin={{ top: 20, right: 20, bottom: 70, left: 70 }}
-                        />
-                    </div>
-                </div>
-
-                {/* Pie Chart - Current Asset Distribution */}
-                <div className="p-4 bg-white border border-gray-200 rounded-lg shadow-sm">
-                    <h4 className="text-lg font-medium mb-4">Current Asset Distribution</h4>
-                    <div className="h-96 flex justify-center">
-                        <PieChart
-                            series={[
                                 {
-                                    data: [
-                                        { id: 0, value: result.history[result.history.length - 1].taxable, label: 'Taxable' },
-                                        { id: 1, value: result.history[result.history.length - 1].ira, label: 'IRA' },
-                                        { id: 2, value: result.history[result.history.length - 1].roth, label: 'Roth' }
-                                    ],
-                                    highlightScope: { faded: 'global', highlighted: 'item' },
-                                    faded: { innerRadius: 30, additionalRadius: -30, color: 'gray' }
+                                    data: successProbabilityData.map(item => item.probability),
+                                    label: 'Success Probability',
+                                    color: '#4CAF50'
                                 }
                             ]}
                             height={350}
-                            width={500}
-                            margin={{ top: 20, right: 20, bottom: 70, left: 70 }}
-                            slotProps={{
-                                legend: { hidden: false }
-                            }}
+                            width={800}
+                            margin={{ top: 20, right: 40, bottom: 50, left: 70 }}
                         />
+                    </div>
+                </div>
+
+                {/* Chart 4.2: Shaded line chart with probability ranges */}
+                <div className="p-6 bg-white border border-gray-200 rounded-lg shadow-sm">
+                    <div className="flex justify-between items-center mb-4">
+                        <h4 className="text-lg font-medium">4.2 Probability Ranges Over Time</h4>
+                        <select
+                            value={selectedQuantity}
+                            onChange={(e) => setSelectedQuantity(e.target.value)}
+                            className="px-3 py-2 border border-gray-300 rounded-md text-sm"
+                        >
+                            <option value="total_assets">Total Investments</option>
+                            <option value="annual_income">Total Income</option>
+                            <option value="annual_expenses">Total Expenses</option>
+                            <option value="taxes_paid">Early Withdrawal Tax</option>
+                        </select>
+                    </div>
+                    <p className="text-sm text-gray-600 mb-4">
+                        This chart shows the median value of {getQuantityLabel(selectedQuantity)} over time with shaded regions representing probability ranges.
+                    </p>
+                    <div className="h-96">
+                        <LineChart
+                            xAxis={[{
+                                data: rangeData.map(item => item.year),
+                                label: 'Year',
+                                scaleType: 'linear',
+                            }]}
+                            yAxis={[{
+                                label: `${getQuantityLabel(selectedQuantity)} ($)`,
+                                tickFormatter: (value) => formatDollar(value)
+                            }]}
+                            series={[
+                                // Median line
+                                {
+                                    data: rangeData.map(d => d.median),
+                                    label: 'Median (50%)',
+                                    color: '#2196f3',
+                                },
+                                // 40%-60% range
+                                {
+                                    data: rangeData.map(d => d.upper60),
+                                    label: '60% Percentile',
+                                    color: 'rgba(33, 150, 243, 0.3)',
+                                    area: true,
+                                    showMark: false,
+                                },
+                                {
+                                    data: rangeData.map(d => d.lower40),
+                                    label: '40% Percentile',
+                                    color: 'rgba(33, 150, 243, 0.3)',
+                                    area: true,
+                                    showMark: false,
+                                },
+                                // 30%-70% range
+                                {
+                                    data: rangeData.map(d => d.upper70),
+                                    label: '70% Percentile',
+                                    color: 'rgba(33, 150, 243, 0.2)',
+                                    area: true,
+                                    showMark: false,
+                                },
+                                {
+                                    data: rangeData.map(d => d.lower30),
+                                    label: '30% Percentile',
+                                    color: 'rgba(33, 150, 243, 0.2)',
+                                    area: true,
+                                    showMark: false,
+                                },
+                                // 20%-80% range
+                                {
+                                    data: rangeData.map(d => d.upper80),
+                                    label: '80% Percentile',
+                                    color: 'rgba(33, 150, 243, 0.1)',
+                                    area: true,
+                                    showMark: false,
+                                },
+                                {
+                                    data: rangeData.map(d => d.lower20),
+                                    label: '20% Percentile',
+                                    color: 'rgba(33, 150, 243, 0.1)',
+                                    area: true,
+                                    showMark: false,
+                                },
+                                // 10%-90% range
+                                {
+                                    data: rangeData.map(d => d.upper90),
+                                    label: '90% Percentile',
+                                    color: 'rgba(33, 150, 243, 0.05)',
+                                    area: true,
+                                    showMark: false,
+                                },
+                                {
+                                    data: rangeData.map(d => d.lower10),
+                                    label: '10% Percentile',
+                                    color: 'rgba(33, 150, 243, 0.05)',
+                                    area: true,
+                                    showMark: false,
+                                },
+                            ]}
+                            height={350}
+                            width={800}
+                            margin={{ top: 20, right: 40, bottom: 50, left: 70 }}
+                        />
+                    </div>
+                    {selectedQuantity === 'total_assets' && (
+                        <div className="mt-4 text-sm text-gray-600">
+                            <div className="flex items-center">
+                                <div className="w-4 h-1 bg-red-500 mr-2"></div>
+                                <span>Financial Goal Line (would be shown on the chart in a full implementation)</span>
+                            </div>
+                        </div>
+                    )}
+                </div>
+
+                {/* Chart 4.3: Stacked bar chart */}
+                <div className="p-6 bg-white border border-gray-200 rounded-lg shadow-sm">
+                    <div className="flex flex-wrap justify-between items-center mb-4 gap-4">
+                        <h4 className="text-lg font-medium">4.3 Breakdown By Year</h4>
+                        <div className="flex gap-4">
+                            <select
+                                value={barChartQuantity}
+                                onChange={(e) => setBarChartQuantity(e.target.value)}
+                                className="px-3 py-2 border border-gray-300 rounded-md text-sm"
+                            >
+                                <option value="investments">Investments</option>
+                                <option value="income">Income</option>
+                                <option value="expenses">Expenses</option>
+                            </select>
+                        </div>
+                    </div>
+                    <p className="text-sm text-gray-600 mb-4">
+                        This stacked bar chart shows the breakdown of {barChartQuantity} by year.
+                    </p>
+                    <div className="h-96">
+                        {barChartQuantity === 'investments' && (
+                            <BarChart
+                                xAxis={[{
+                                    scaleType: 'band',
+                                    data: chartData.map(d => d.year),
+                                    label: 'Year',
+                                }]}
+                                yAxis={[{
+                                    label: 'Value ($)',
+                                    tickFormatter: (value) => formatDollar(value)
+                                }]}
+                                series={[
+                                    {
+                                        data: chartData.map(d => d.taxable),
+                                        label: 'Taxable',
+                                        stack: 'total',
+                                        color: '#4CAF50',
+                                    },
+                                    {
+                                        data: chartData.map(d => d.ira),
+                                        label: 'IRA',
+                                        stack: 'total',
+                                        color: '#2196F3',
+                                    },
+                                    {
+                                        data: chartData.map(d => d.roth),
+                                        label: 'Roth',
+                                        stack: 'total',
+                                        color: '#FFC107',
+                                    }
+                                ]}
+                                height={350}
+                                width={800}
+                                margin={{ top: 20, right: 40, bottom: 50, left: 70 }}
+                            />
+                        )}
+
+                        {barChartQuantity === 'income' && (
+                            <BarChart
+                                xAxis={[{
+                                    scaleType: 'band',
+                                    data: chartData.map(d => d.year),
+                                    label: 'Year',
+                                }]}
+                                yAxis={[{
+                                    label: 'Value ($)',
+                                    tickFormatter: (value) => formatDollar(value)
+                                }]}
+                                series={[
+                                    {
+                                        data: chartData.map(d => d.annual_income),
+                                        label: 'Income',
+                                        color: '#4CAF50',
+                                    }
+                                ]}
+                                height={350}
+                                width={800}
+                                margin={{ top: 20, right: 40, bottom: 50, left: 70 }}
+                            />
+                        )}
+
+                        {barChartQuantity === 'expenses' && (
+                            <BarChart
+                                xAxis={[{
+                                    scaleType: 'band',
+                                    data: chartData.map(d => d.year),
+                                    label: 'Year',
+                                }]}
+                                yAxis={[{
+                                    label: 'Value ($)',
+                                    tickFormatter: (value) => formatDollar(value)
+                                }]}
+                                series={[
+                                    {
+                                        data: chartData.map(d => d.annual_expenses),
+                                        label: 'Expenses',
+                                        stack: 'total',
+                                        color: '#F44336',
+                                    },
+                                    {
+                                        data: chartData.map(d => d.taxes_paid),
+                                        label: 'Taxes',
+                                        stack: 'total',
+                                        color: '#9C27B0',
+                                    }
+                                ]}
+                                height={350}
+                                width={800}
+                                margin={{ top: 20, right: 40, bottom: 50, left: 70 }}
+                            />
+                        )}
+                    </div>
+                    <div className="mt-4 text-sm text-gray-600">
+                        <p>
+                            {barChartQuantity === 'investments'
+                                ? "Breakdown of total investments by account type."
+                                : barChartQuantity === 'income'
+                                    ? "Breakdown of income by source."
+                                    : "Breakdown of expenses by category, including taxes."}
+                        </p>
                     </div>
                 </div>
             </div>
