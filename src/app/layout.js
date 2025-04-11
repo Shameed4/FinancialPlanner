@@ -20,7 +20,7 @@ export default function RootLayout({ children }) {
       <body className="bg-[#000000]">
         <Providers>
           <PageProvider>
-            <div className="flex min-h-screen">
+            <div className="flex min-h-screen h-screen overflow-hidden">
               <Sidebar />
               <main className="bg-[#f5f5f5] flex-1 overflow-auto">{children}</main>
             </div>

@@ -200,6 +200,15 @@ const SimulationPage = () => {
                             Begin
                         </button>
                     </div>
+
+                    <div className="flex justify-end mt-4">
+                        <button
+                            onClick={() => router.push('/charts-results')}
+                            className="px-6 py-2 rounded-md bg-blue-600 text-white hover:bg-blue-700"
+                        >
+                            View Results
+                        </button>
+                    </div>
                 </div>
             ) : (
                 <div className="flex flex-col items-center justify-center h-[60vh]">

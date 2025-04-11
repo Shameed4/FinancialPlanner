@@ -1,0 +1,64 @@
+name: Example Portfolio
+forIndividual: true
+userBirthYear: 1980
+userLifeExpectancyMean: 90
+userLifeExpectancyStd: 5
+residenceState: CA
+financialGoal: 2000000
+initialAfterTaxRetirementContributionLimit: 10000
+inflationAssumption: fixed
+inflation: 2.5
+
+assetTypes:
+  - name: S&P 500 Index Fund
+    description: Large cap stock index fund
+    returnType: normal
+    normalReturnMean: 8.5
+    normalReturnStd: 15.0
+    expenseRatio: 0.04
+    normalIncomeMean: 2.0
+    normalIncomeStd: 0.5
+    taxable: true
+  
+  - name: US Treasury Bonds
+    description: Government bonds
+    returnType: fixed
+    fixedReturn: 3.5
+    expenseRatio: 0.05
+    normalIncomeMean: 3.0
+    normalIncomeStd: 0.2
+    taxable: false
+
+investments:
+  - assetType: S&P 500 Index Fund
+    value: 150000
+    taxStatus: non-retirement
+  
+  - assetType: US Treasury Bonds
+    value: 50000
+    taxStatus: pre-tax-retirement
+
+eventSeries:
+  - name: Salary Income
+    type: income
+    startYearType: fixed
+    startYear: 2023
+    durationType: fixed
+    durationFixed: 25
+    amount: 100000
+    annualChangeType: fixed
+    annualChange: 2.5
+    inflationAdjusted: true
+    isSocialSecurity: false
+  
+  - name: Living Expenses
+    type: expense
+    startYearType: fixed
+    startYear: 2023
+    durationType: fixed
+    durationFixed: 40
+    amount: 60000
+    annualChangeType: fixed
+    annualChange: 1.0
+    inflationAdjusted: true
+    isDiscretionary: false

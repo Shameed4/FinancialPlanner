@@ -4,7 +4,7 @@ import { useSession, signOut } from 'next-auth/react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { House, Infinity, SquareActivity, CircleUserRound, LogIn, LogOut } from "lucide-react";
+import { House, Infinity, SquareActivity, CircleUserRound, LogIn, LogOut, ChartArea } from "lucide-react";
 
 // Navigation item component with animated label based on sidebar collapse state.
 const NavItem = ({ icon, label, isCollapsed, onClick, isActive }) => (
@@ -38,7 +38,7 @@ const NavItem = ({ icon, label, isCollapsed, onClick, isActive }) => (
 const Sidebar = () => {
     const { data: session, status } = useSession(); // Retrieve user session
     const isAuthenticated = status === 'authenticated';
-    
+
     const userName = session?.user?.name || "John Doe";
     const [isCollapsed, setIsCollapsed] = useState(false); // Manage sidebar collapse state
     const router = useRouter();
@@ -129,6 +129,15 @@ const Sidebar = () => {
                             isActive={router.pathname === '/simulation'}
                         />
                     </li>
+                    <li>
+                        <NavItem
+                            icon={<ChartArea size={20} />}
+                            label="Charts and Results"
+                            isCollapsed={isCollapsed}
+                            onClick={() => navigateTo('/charts-results')}
+                            isActive={router.pathname === '/charts-results'}
+                        />
+                    </li>
                     {isAuthenticated && (
                         <li>
                             <NavItem
@@ -168,7 +177,7 @@ const Sidebar = () => {
                                 )}
                             </AnimatePresence>
                         </motion.button>
-                        
+
                         <motion.button
                             onClick={handleLogout}
                             whileHover={{ backgroundColor: 'rgba(255, 255, 255, 0.1)' }}
