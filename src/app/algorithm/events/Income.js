@@ -1,82 +1,84 @@
+import { generateRandomReturn } from '../GlobalFunctions.js'
+
 // Process income event series
 export function processIncomeEventSeries(state, series, currentYear) {
-    // Skip if deceased and event is only for living person
-    if (state.isDeceased && !series.continueAfterDeath) return;
-  
-    // Check if this series starts after another event series ends
-    if (series.startAfterEventSeriesId) {
-      const dependentSeries = state.eventSeries.find(
-        (s) => s.id === series.startAfterEventSeriesId
-      );
-      if (dependentSeries) {
-        const dependentSeriesEndYear =
-          dependentSeries.startYear + dependentSeries.duration;
-        if (currentYear < dependentSeriesEndYear) {
-          return; // Skip this event as the dependent series hasn't ended yet
-        }
+  // Skip if deceased and event is only for living person
+  if (state.isDeceased && !series.continueAfterDeath) return;
+
+  // Check if this series starts after another event series ends
+  if (series.startAfterEventSeriesId) {
+    const dependentSeries = state.eventSeries.find(
+      (s) => s.id === series.startAfterEventSeriesId
+    );
+    if (dependentSeries) {
+      const dependentSeriesEndYear =
+        dependentSeries.startYear + dependentSeries.duration;
+      if (currentYear < dependentSeriesEndYear) {
+        return; // Skip this event as the dependent series hasn't ended yet
       }
-    }
-  
-    // Calculate years into the series
-    const yearsActive = currentYear - series.startYear;
-  
-    // Calculate base amount with growth if applicable
-    let amount = series.baseAmount;
-  
-    // Apply growth if specified
-    if (series.growthRate && yearsActive > 0) {
-      // Compound growth
-      amount *= Math.pow(1 + series.growthRate, yearsActive);
-    }
-  
-    // Apply inflation adjustment if specified
-    if (series.inflationAdjusted) {
-      amount *= Math.pow(1 + state.inflationRate, yearsActive);
-    }
-  
-    // Apply stochastic variation if specified
-    if (series.stochastic) {
-      if (series.stochasticType === "normal" && series.stochasticParam) {
-        // Normal distribution variation
-        // stochasticParam represents standard deviation as a fraction of the amount
-        const stdDev = series.stochasticParam * amount;
-        const variation = generateRandomReturn(0, stdDev);
-        amount *= 1 + variation;
-      } else if (series.stochasticType === "uniform" && series.stochasticParam) {
-        // Uniform distribution variation
-        // stochasticParam represents the range as a fraction of the amount
-        const range = series.stochasticParam * amount;
-        const variation = (Math.random() * 2 - 1) * range; // Random between -range and +range
-        amount = Math.max(0, amount + variation); // Ensure amount doesn't go negative
-      }
-    }
-  
-    // Track maximum cash values if specified
-    if (series.trackMaxCash) {
-      if (!state.maxCashValues) {
-        state.maxCashValues = {};
-      }
-  
-      if (!state.maxCashValues[series.id]) {
-        state.maxCashValues[series.id] = 0;
-      }
-  
-      state.maxCashValues[series.id] = Math.max(
-        state.maxCashValues[series.id],
-        state.cash + amount
-      );
-    }
-  
-    // Add to cash
-    state.cash += amount;
-  
-    // Update income for tax purposes if not pre-tax
-    if (!series.preTax) {
-      state.curYearIncome += amount;
     }
   }
 
-  // Process Social Security benefits
+  // Calculate years into the series
+  const yearsActive = currentYear - series.startYear;
+
+  // Calculate base amount with growth if applicable
+  let amount = series.baseAmount;
+
+  // Apply growth if specified
+  if (series.growthRate && yearsActive > 0) {
+    // Compound growth
+    amount *= Math.pow(1 + series.growthRate, yearsActive);
+  }
+
+  // Apply inflation adjustment if specified
+  if (series.inflationAdjusted) {
+    amount *= Math.pow(1 + state.inflationRate, yearsActive);
+  }
+
+  // Apply stochastic variation if specified
+  if (series.stochastic) {
+    if (series.stochasticType === "normal" && series.stochasticParam) {
+      // Normal distribution variation
+      // stochasticParam represents standard deviation as a fraction of the amount
+      const stdDev = series.stochasticParam * amount;
+      const variation = generateRandomReturn(0, stdDev);
+      amount *= 1 + variation;
+    } else if (series.stochasticType === "uniform" && series.stochasticParam) {
+      // Uniform distribution variation
+      // stochasticParam represents the range as a fraction of the amount
+      const range = series.stochasticParam * amount;
+      const variation = (Math.random() * 2 - 1) * range; // Random between -range and +range
+      amount = Math.max(0, amount + variation); // Ensure amount doesn't go negative
+    }
+  }
+
+  // Track maximum cash values if specified
+  if (series.trackMaxCash) {
+    if (!state.maxCashValues) {
+      state.maxCashValues = {};
+    }
+
+    if (!state.maxCashValues[series.id]) {
+      state.maxCashValues[series.id] = 0;
+    }
+
+    state.maxCashValues[series.id] = Math.max(
+      state.maxCashValues[series.id],
+      state.cash + amount
+    );
+  }
+
+  // Add to cash
+  state.cash += amount;
+
+  // Update income for tax purposes if not pre-tax
+  if (!series.preTax) {
+    state.curYearIncome += amount;
+  }
+}
+
+// Process Social Security benefits
 export function processSocialSecurity(state) {
   // Skip if deceased
   if (state.isDeceased) return;

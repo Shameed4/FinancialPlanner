@@ -1,105 +1,108 @@
+import { isEventSeriesActive, getCurrentEventFromSeries, calculateGlidePathAllocation} from './EventsFunctions.js'
+import { updateBalances } from '../GlobalFunctions.js'
+
 export function processInvestEventSeries(state, series, currentYear) {
-    // Only process if the series is active for the current year
-    if (!isEventSeriesActive(series, currentYear, state.age)) {
-      return;
-    }
-  
-    // Get the event for the current year
-    const event = getCurrentEventFromSeries(series, currentYear, state.age);
-    if (!event) return;
-  
-    // Skip if we don't have enough cash
-    if (state.cash <= 0) return;
-  
-    const { investAmount, allocation, investments } = event;
-  
-    // Calculate effective investment amount based on trigger type
-    let effectiveAmount = 0;
-  
-    if (event.triggerType === "fixed") {
-      effectiveAmount = Math.min(investAmount, state.cash);
-    } else if (event.triggerType === "percentage") {
-      effectiveAmount = Math.min(state.cash * (investAmount / 100), state.cash);
-    } else if (event.triggerType === "excess") {
-      // Invest any cash over the threshold amount
-      const excessCash = Math.max(0, state.cash - event.thresholdAmount);
-      effectiveAmount = Math.min(excessCash, state.cash);
-    }
-  
-    if (effectiveAmount <= 0) return;
-  
-    // Calculate target allocation based on glide path if applicable
-    const targetAllocation = calculateGlidePathAllocation(
-      event,
-      state.age,
-      currentYear
-    );
-  
-    // Create a map of target amounts for each investment based on allocation
-    const targetAmounts = {};
-    let totalAllocated = 0;
-  
-    // Calculate target amount for each investment
-    Object.entries(targetAllocation).forEach(([investId, percentage]) => {
-      targetAmounts[investId] = (percentage / 100) * effectiveAmount;
-      totalAllocated += targetAmounts[investId];
-    });
-  
-    // Adjust for any rounding errors
-    if (totalAllocated !== effectiveAmount) {
-      // Find the largest allocation to adjust
-      const largestInvestId = Object.entries(targetAmounts).sort(
-        (a, b) => b[1] - a[1]
-      )[0][0];
-  
-      targetAmounts[largestInvestId] += effectiveAmount - totalAllocated;
-    }
-  
-    // Process each investment allocation
-    Object.entries(targetAmounts).forEach(([investId, amount]) => {
-      if (amount <= 0) return;
-  
-      // Find or create the investment
-      let investment = state.investments.find((inv) => inv.id === investId);
-  
-      if (!investment) {
-        // Create new investment based on the definition in the series
-        const invDef = investments.find((i) => i.id === investId);
-  
-        if (!invDef) return; // Skip if definition not found
-  
-        investment = {
-          id: investId,
-          type: invDef.type || "stock",
-          taxStatus: invDef.taxStatus || "non-retirement",
-          balance: 0,
-        };
-  
-        // Add cost basis tracking for taxable investments
-        if (investment.taxStatus === "non-retirement") {
-          investment.costBasis = 0;
-        }
-  
-        state.investments.push(investment);
-      }
-  
-      // Update investment balance
-      investment.balance += amount;
-  
-      // Update cost basis for taxable investments
-      if (investment.taxStatus === "non-retirement") {
-        investment.costBasis += amount;
-      }
-  
-      // Reduce cash by the invested amount
-      state.cash -= amount;
-    });
-  
-    // Update balance totals
-    updateBalances(state);
+  // Only process if the series is active for the current year
+  if (!isEventSeriesActive(series, currentYear, state.age)) {
+    return;
   }
 
-  // Add the missing processInvestEvents function
+  // Get the event for the current year
+  const event = getCurrentEventFromSeries(series, currentYear, state.age);
+  if (!event) return;
+
+  // Skip if we don't have enough cash
+  if (state.cash <= 0) return;
+
+  const { investAmount, allocation, investments } = event;
+
+  // Calculate effective investment amount based on trigger type
+  let effectiveAmount = 0;
+
+  if (event.triggerType === "fixed") {
+    effectiveAmount = Math.min(investAmount, state.cash);
+  } else if (event.triggerType === "percentage") {
+    effectiveAmount = Math.min(state.cash * (investAmount / 100), state.cash);
+  } else if (event.triggerType === "excess") {
+    // Invest any cash over the threshold amount
+    const excessCash = Math.max(0, state.cash - event.thresholdAmount);
+    effectiveAmount = Math.min(excessCash, state.cash);
+  }
+
+  if (effectiveAmount <= 0) return;
+
+  // Calculate target allocation based on glide path if applicable
+  const targetAllocation = calculateGlidePathAllocation(
+    event,
+    state.age,
+    currentYear
+  );
+
+  // Create a map of target amounts for each investment based on allocation
+  const targetAmounts = {};
+  let totalAllocated = 0;
+
+  // Calculate target amount for each investment
+  Object.entries(targetAllocation).forEach(([investId, percentage]) => {
+    targetAmounts[investId] = (percentage / 100) * effectiveAmount;
+    totalAllocated += targetAmounts[investId];
+  });
+
+  // Adjust for any rounding errors
+  if (totalAllocated !== effectiveAmount) {
+    // Find the largest allocation to adjust
+    const largestInvestId = Object.entries(targetAmounts).sort(
+      (a, b) => b[1] - a[1]
+    )[0][0];
+
+    targetAmounts[largestInvestId] += effectiveAmount - totalAllocated;
+  }
+
+  // Process each investment allocation
+  Object.entries(targetAmounts).forEach(([investId, amount]) => {
+    if (amount <= 0) return;
+
+    // Find or create the investment
+    let investment = state.investments.find((inv) => inv.id === investId);
+
+    if (!investment) {
+      // Create new investment based on the definition in the series
+      const invDef = investments.find((i) => i.id === investId);
+
+      if (!invDef) return; // Skip if definition not found
+
+      investment = {
+        id: investId,
+        type: invDef.type || "stock",
+        taxStatus: invDef.taxStatus || "non-retirement",
+        balance: 0,
+      };
+
+      // Add cost basis tracking for taxable investments
+      if (investment.taxStatus === "non-retirement") {
+        investment.costBasis = 0;
+      }
+
+      state.investments.push(investment);
+    }
+
+    // Update investment balance
+    investment.balance += amount;
+
+    // Update cost basis for taxable investments
+    if (investment.taxStatus === "non-retirement") {
+      investment.costBasis += amount;
+    }
+
+    // Reduce cash by the invested amount
+    state.cash -= amount;
+  });
+
+  // Update balance totals
+  updateBalances(state);
+}
+
+// Add the missing processInvestEvents function
 export function processInvestEvents(state, currentYear) {
   // Skip if deceased
   if (state.isDeceased) return;
@@ -125,7 +128,7 @@ export function processInvestEvents(state, currentYear) {
             if (
               state.yearsUntilRetirement > 0 &&
               state.curYearPreTaxContribution + event.amount <=
-                state.inflationAdjustedContributionLimits.preTax
+              state.inflationAdjustedContributionLimits.preTax
             ) {
               state.ira.investments.push({
                 balance: event.amount,
@@ -147,7 +150,7 @@ export function processInvestEvents(state, currentYear) {
             if (
               state.yearsUntilRetirement > 0 &&
               state.curYearAfterTaxContribution + event.amount <=
-                state.inflationAdjustedContributionLimits.afterTax
+              state.inflationAdjustedContributionLimits.afterTax
             ) {
               state.roth.investments.push({
                 balance: event.amount,
