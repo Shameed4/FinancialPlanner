@@ -80,3 +80,62 @@ function handleSpouseDeath(state) {
     // Consolidate investments according to estate plan
     consolidateInvestments(state);
   }
+
+  // Helper function to update tax brackets when filing status changes
+function updateTaxBracketsForFilingStatus(state) {
+    // Clone the existing brackets
+    const oldBrackets = state.inflationAdjustedTaxBrackets;
+  
+    // For single, use values that are approximately half of married brackets
+    // This is a simplification - in a real implementation, you'd use actual IRS tables
+    if (state.filingStatus === "single") {
+      state.inflationAdjustedTaxBrackets = oldBrackets.map((bracket) => {
+        return {
+          lower: Math.round(bracket.lower * 0.5),
+          upper:
+            bracket.upper === Infinity
+              ? Infinity
+              : Math.round(bracket.upper * 0.5),
+          rate: bracket.rate,
+        };
+      });
+  
+      // Also update standard deduction (approximate)
+      state.standardDeduction = Math.round(state.standardDeduction * 0.5);
+  
+      // Update capital gains brackets
+      if (state.federalCapitalGainsBrackets) {
+        state.federalCapitalGainsBrackets = state.federalCapitalGainsBrackets.map(
+          (bracket) => {
+            return {
+              lower: Math.round(bracket.lower * 0.5),
+              upper:
+                bracket.upper === Infinity
+                  ? Infinity
+                  : Math.round(bracket.upper * 0.5),
+              rate: bracket.rate,
+            };
+          }
+        );
+      }
+    }
+  }
+  
+  // Helper function to consolidate investments after spouse's death
+  function consolidateInvestments(state) {
+    // Process investments based on estate plan
+    // This is a simplification - in a real implementation, there would be more complex rules
+  
+    // Mark investments previously owned by spouse
+    state.investments.forEach((inv) => {
+      if (inv.ownerType === "spouse") {
+        // Change ownership to primary user
+        inv.ownerType = "user";
+  
+        // Step up basis for taxable investments (inheritance rule)
+        if (inv.taxStatus === "non-retirement") {
+          inv.costBasis = inv.balance; // Step up basis to current market value
+        }
+      }
+    });
+  }

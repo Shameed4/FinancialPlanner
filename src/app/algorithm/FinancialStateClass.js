@@ -1,4 +1,4 @@
-class FinancialState {
+export default class FinancialState {
     constructor(
       age,
       taxable,

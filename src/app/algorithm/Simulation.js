@@ -1,6 +1,6 @@
 // this file should contain a single function which runs the algorithm
 
-function runSimulation(initialState, params, taxBrackets) {
+export default function runSimulation(initialState, params, taxBrackets) {
     let state = deepCopy(initialState);
     let history = [];
     let error = null;
@@ -27,8 +27,6 @@ function runSimulation(initialState, params, taxBrackets) {
               handleSpouseDeath(state);
             }
           }
-
-          // CHECKPOINT
   
           // Sample inflation rate if using probability distribution
           const currentInflation = generateRandomReturn(
@@ -41,13 +39,13 @@ function runSimulation(initialState, params, taxBrackets) {
   
           // Apply inflation to expenses - FIX #2
           applyInflation(state, currentInflation);
-  
+          
           // Step 1: Run income events
           processEventSeries(state, currentYear);
           processSocialSecurity(state);
   
           state.yearsUntilRetirement > 0;
-  
+        
           // Step 2: Process Roth conversions
           if (!state.isDeceased) {
             processRothConversion(state, params);
@@ -87,10 +85,13 @@ function runSimulation(initialState, params, taxBrackets) {
           state.income = state.curYearIncome;
           // Calculate current year's taxes (to be paid next year)
           calculateTaxes(state, state.inflationAdjustedTaxBrackets);
-  
+          
+
           updateBalances(state);
           validateState(state);
-  
+          
+                    // CHECKPOINT
+                    
           // Step 9: Track year-end balances
           trackYearEndBalances(state);
   

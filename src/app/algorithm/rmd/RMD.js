@@ -96,3 +96,38 @@ function getLatestRMDFactors() {
   
     return rmdAmount;
   }
+
+  function processRMDWithdrawal(state, rmdAmount, params) {
+    if (rmdAmount <= 0) return;
+  
+    // Default strategy: Withdraw proportionally from all pre-tax investments
+    if (!state.rmdStrategy || state.rmdStrategy.length === 0) {
+      // Calculate total pre-tax balance
+      const totalPreTaxBalance = state.investments
+        .filter((inv) => inv.taxStatus === "pre-tax")
+        .reduce((sum, inv) => sum + inv.balance, 0);
+  
+      if (totalPreTaxBalance <= 0) return;
+  
+      // Withdraw proportionally from each pre-tax investment
+      state.investments.forEach((inv) => {
+        if (inv.taxStatus === "pre-tax") {
+          const portion = inv.balance / totalPreTaxBalance;
+          const withdrawalAmount = rmdAmount * portion;
+  
+          // Reduce the investment balance
+          inv.balance -= withdrawalAmount;
+  
+          // Add to cash and income
+          state.cash += withdrawalAmount;
+          state.curYearIncome += withdrawalAmount;
+        }
+      });
+    } else {
+      // Follow the specified RMD withdrawal strategy
+      // ... implement strategy-based withdrawal ...
+    }
+  
+    // Update total balances
+    updateBalances(state);
+  }
