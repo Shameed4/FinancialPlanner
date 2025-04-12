@@ -1,4 +1,4 @@
-function getLatestRMDFactors() {
+export function getLatestRMDFactors() {
     // This would typically fetch from IRS API or database
     // For now, we'll use the 2024 RMD table as an example
     return {
@@ -54,7 +54,7 @@ function getLatestRMDFactors() {
     };
   }
   
-  function getRMDFactor(age, rmdTable) {
+  export function getRMDFactor(age, rmdTable) {
     const ages = Object.keys(rmdTable)
       .map(Number)
       .sort((a, b) => a - b);
@@ -62,7 +62,7 @@ function getLatestRMDFactors() {
     return rmdTable[closestAge];
   }
 
-  function calculateRMD(state, params) {
+  export function calculateRMD(state, params) {
     // First RMD is for age 73, paid in age 74
     if (state.age < 74) return 0;
   

@@ -1,4 +1,4 @@
-function processInvestEventSeries(state, series, currentYear) {
+export function processInvestEventSeries(state, series, currentYear) {
     // Only process if the series is active for the current year
     if (!isEventSeriesActive(series, currentYear, state.age)) {
       return;
@@ -100,7 +100,7 @@ function processInvestEventSeries(state, series, currentYear) {
   }
 
   // Add the missing processInvestEvents function
-function processInvestEvents(state, currentYear) {
+export function processInvestEvents(state, currentYear) {
   // Skip if deceased
   if (state.isDeceased) return;
 
@@ -200,7 +200,7 @@ function processInvestEvents(state, currentYear) {
 }
 
 // Invest excess cash according to target allocation
-function investExcessCash(state, params) {
+export function investExcessCash(state, params) {
   // Define threshold for excess cash - keep 3 months of expenses as buffer
   const expensesPerMonth =
     (state.expenses.nonDiscretionary + state.expenses.discretionary) / 12;

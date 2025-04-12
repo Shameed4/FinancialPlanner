@@ -1,5 +1,6 @@
 // Calculate taxes based on income and capital gains
-function calculateTaxes(state, taxBrackets) {
+import { calculateTaxableSocialSecurity } from '../events/Income.js';
+export function calculateTaxes(state, taxBrackets) {
     // Use inflation adjusted brackets if available
     const brackets = state.inflationAdjustedTaxBrackets || taxBrackets;
   
@@ -130,7 +131,7 @@ function calculateTaxes(state, taxBrackets) {
   }
 
   // Calculate tax using progressive brackets
-function calculateProgressiveTax(amount, brackets) {
+export function calculateProgressiveTax(amount, brackets) {
     if (amount <= 0) return 0;
   
     let tax = 0;
@@ -156,16 +157,16 @@ function calculateProgressiveTax(amount, brackets) {
     return tax;
   }
   
-  // Calculate capital gains tax
-  function calculateCapitalGainsTax(gains, capitalGainsBrackets) {
-    if (gains <= 0) return 0;
-  
-    // Use progressive capital gains brackets
-    return calculateProgressiveTax(gains, capitalGainsBrackets);
-  }
+// Calculate capital gains tax
+export function calculateCapitalGainsTax(gains, capitalGainsBrackets) {
+  if (gains <= 0) return 0;
+
+  // Use progressive capital gains brackets
+  return calculateProgressiveTax(gains, capitalGainsBrackets);
+}
 
   // Tax-efficient asset location
-function getTaxEfficientLocation(state, assetAllocation) {
+export function getTaxEfficientLocation(state, assetAllocation) {
     // Calculate total portfolio value
     const totalValue = state.investments.reduce(
       (sum, inv) => sum + inv.balance,
@@ -229,7 +230,7 @@ function getTaxEfficientLocation(state, assetAllocation) {
   }
 
   // Tax-efficient asset location
-function getTaxEfficientLocation(state, assetAllocation) {
+export function getTaxEfficientLocation(state, assetAllocation) {
     // Calculate total portfolio value
     const totalValue = state.investments.reduce(
       (sum, inv) => sum + inv.balance,

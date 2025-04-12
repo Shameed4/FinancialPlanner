@@ -1,5 +1,5 @@
 // Add a stub function for Roth conversion processing
-function processRothConversion(state, params) {
+export function processRothConversion(state, params) {
     // Skip if deceased
     if (state.isDeceased) return;
   

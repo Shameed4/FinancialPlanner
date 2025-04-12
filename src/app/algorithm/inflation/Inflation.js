@@ -1,5 +1,5 @@
 // Update inflation-adjusted values for tax brackets and contribution limits
-function updateInflationAdjustedValues(state, inflationRate) {
+export function updateInflationAdjustedValues(state, inflationRate) {
     // Store current year's values as previous year's values
     state.previousYearTaxBrackets = deepCopy(state.inflationAdjustedTaxBrackets);
     state.previousYearContributionLimits = deepCopy(
@@ -60,7 +60,7 @@ function updateInflationAdjustedValues(state, inflationRate) {
     state.inflationRate = inflationRate;
   }
 
-  function applyInflation(state, inflationRate) {
+  export function applyInflation(state, inflationRate) {
     // Apply inflation to expenses
     state.expenses.nonDiscretionary *= 1 + inflationRate;
     state.expenses.discretionary *= 1 + inflationRate;

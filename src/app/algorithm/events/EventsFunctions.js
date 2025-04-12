@@ -1,4 +1,4 @@
-function processEventSeries(state, currentYear) {
+export function processEventSeries(state, currentYear) {
     for (const series of state.eventSeries) {
       // Skip if not active this year
       if (
@@ -27,7 +27,7 @@ function processEventSeries(state, currentYear) {
   }
 
   // Helper function to check if an event series is active
-function isEventSeriesActive(series, currentYear, currentAge) {
+export function isEventSeriesActive(series, currentYear, currentAge) {
     // First check year-based constraints
     if (series.startYear && currentYear < series.startYear) {
       return false;
@@ -65,7 +65,7 @@ function isEventSeriesActive(series, currentYear, currentAge) {
   }
   
   // Helper function to get the current event from a series
-  function getCurrentEventFromSeries(series, currentYear, currentAge) {
+  export function getCurrentEventFromSeries(series, currentYear, currentAge) {
     if (!isEventSeriesActive(series, currentYear, currentAge)) {
       return null;
     }
@@ -103,7 +103,7 @@ function isEventSeriesActive(series, currentYear, currentAge) {
   }
 
   // Helper function to calculate allocation based on a glide path
-function calculateGlidePathAllocation(event, currentAge, currentYear) {
+export function calculateGlidePathAllocation(event, currentAge, currentYear) {
     // If no glide path defined, just return the static allocation
     if (
       !event.glidePathEnabled ||

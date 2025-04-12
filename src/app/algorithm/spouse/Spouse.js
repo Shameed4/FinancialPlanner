@@ -1,4 +1,4 @@
-function initializeMarriedStatus(state, params) {
+export function initializeMarriedStatus(state, params) {
     state.isMarried = !!params.isMarried;
     state.filingStatus = state.isMarried ? "married-joint" : "single";
     state.spouseDeceased = false;
@@ -21,7 +21,7 @@ function initializeMarriedStatus(state, params) {
   }
 
   // Helper function to determine if spouse death should be processed this year
-function shouldProcessSpouseDeath(state, params, year) {
+export function shouldProcessSpouseDeath(state, params, year) {
     // Use specified spouse death year if provided
     if (params.spouseDeathYear && year === params.spouseDeathYear) {
       return true;
@@ -37,7 +37,7 @@ function shouldProcessSpouseDeath(state, params, year) {
   }
 
 // Function to handle when a spouse dies - changes tax filing status
-function handleSpouseDeath(state) {
+export function handleSpouseDeath(state) {
     // Skip if already processed or not applicable
     if (!state.isMarried || state.spouseDeceased) return;
   
@@ -82,7 +82,7 @@ function handleSpouseDeath(state) {
   }
 
   // Helper function to update tax brackets when filing status changes
-function updateTaxBracketsForFilingStatus(state) {
+export function updateTaxBracketsForFilingStatus(state) {
     // Clone the existing brackets
     const oldBrackets = state.inflationAdjustedTaxBrackets;
   
@@ -121,21 +121,21 @@ function updateTaxBracketsForFilingStatus(state) {
     }
   }
   
-  // Helper function to consolidate investments after spouse's death
-  function consolidateInvestments(state) {
-    // Process investments based on estate plan
-    // This is a simplification - in a real implementation, there would be more complex rules
-  
-    // Mark investments previously owned by spouse
-    state.investments.forEach((inv) => {
-      if (inv.ownerType === "spouse") {
-        // Change ownership to primary user
-        inv.ownerType = "user";
-  
-        // Step up basis for taxable investments (inheritance rule)
-        if (inv.taxStatus === "non-retirement") {
-          inv.costBasis = inv.balance; // Step up basis to current market value
-        }
+// Helper function to consolidate investments after spouse's death
+export function consolidateInvestments(state) {
+  // Process investments based on estate plan
+  // This is a simplification - in a real implementation, there would be more complex rules
+
+  // Mark investments previously owned by spouse
+  state.investments.forEach((inv) => {
+    if (inv.ownerType === "spouse") {
+      // Change ownership to primary user
+      inv.ownerType = "user";
+
+      // Step up basis for taxable investments (inheritance rule)
+      if (inv.taxStatus === "non-retirement") {
+        inv.costBasis = inv.balance; // Step up basis to current market value
       }
-    });
-  }
+    }
+  });
+}

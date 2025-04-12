@@ -1,5 +1,5 @@
 // Process income event series
-function processIncomeEventSeries(state, series, currentYear) {
+export function processIncomeEventSeries(state, series, currentYear) {
     // Skip if deceased and event is only for living person
     if (state.isDeceased && !series.continueAfterDeath) return;
   
@@ -77,7 +77,7 @@ function processIncomeEventSeries(state, series, currentYear) {
   }
 
   // Process Social Security benefits
-function processSocialSecurity(state) {
+export function processSocialSecurity(state) {
   // Skip if deceased
   if (state.isDeceased) return;
 
@@ -157,7 +157,7 @@ function processSocialSecurity(state) {
   }
 }
 
-function calculateTaxableSocialSecurity(ssIncome, otherIncome) {
+export function calculateTaxableSocialSecurity(ssIncome, otherIncome) {
   // Implement the correct calculation for social security taxation
   // Per IRS rules: https://www.ssa.gov/benefits/retirement/planner/taxes.html
 

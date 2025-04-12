@@ -1,4 +1,4 @@
-function generateRandomReturn(expectedReturn, volatility) {
+export function generateRandomReturn(expectedReturn, volatility) {
   // Box-Muller transform for normal distribution
   const u1 = Math.random();
   const u2 = Math.random();
@@ -7,7 +7,7 @@ function generateRandomReturn(expectedReturn, volatility) {
 }
 
 // Function to sell assets to raise cash
-function sellAssetsForCash(state, amountNeeded, params) {
+export function sellAssetsForCash(state, amountNeeded, params) {
     // Skip if amount needed is zero or negative
     if (amountNeeded <= 0) return;
   
@@ -77,7 +77,7 @@ function sellAssetsForCash(state, amountNeeded, params) {
 }
 
   // Helper function to check if an expense would violate the financial goal
-function wouldViolateFinancialGoal(state, expenseAmount) {
+export function wouldViolateFinancialGoal(state, expenseAmount) {
     // If no financial goal set, then it can't be violated
     if (!state.financialGoal || state.financialGoal <= 0) {
       return false;
@@ -91,7 +91,7 @@ function wouldViolateFinancialGoal(state, expenseAmount) {
 }
 
 // Helper function to calculate maximum expense without violating financial goal
-function getMaxAllowableExpense(state) {
+export function getMaxAllowableExpense(state) {
     if (!state.financialGoal || state.financialGoal <= 0) {
       return Infinity; // No limit if no goal
     }
@@ -100,7 +100,15 @@ function getMaxAllowableExpense(state) {
     return Math.max(0, totalInvestments - state.financialGoal);
 }
 
-function updateBalances(state) {
+  // Helper function to calculate total investments
+  function calculateTotalInvestments(state) {
+    return (
+      state.investments.reduce((total, inv) => total + inv.balance, 0) +
+      state.cash
+    );
+  }
+
+export function updateBalances(state) {
     state.taxable.balance = state.taxable.investments.reduce(
       (sum, inv) => sum + inv.balance,
       0
@@ -116,7 +124,7 @@ function updateBalances(state) {
   }
 
   // Call this at the beginning of each simulation year
-function prepareFiscalYear(state) {
+export function prepareFiscalYear(state) {
     ensureInvestmentIds(state);
   
     // Ensure previousYearInvestmentBalances exists
@@ -131,7 +139,7 @@ function prepareFiscalYear(state) {
   }
 
   // Add this function to ensure all investments have valid IDs
-function ensureInvestmentIds(state) {
+export function ensureInvestmentIds(state) {
     state.investments.forEach((inv, index) => {
       if (!inv.id) {
         // Create ID based on tax status and type if missing
@@ -144,7 +152,7 @@ function ensureInvestmentIds(state) {
 
 
 // Update investment values (returns, reinvestment, expense subtraction)
-function updateInvestmentValues(state, params) {
+export function updateInvestmentValues(state, params) {
     // Skip if deceased
     if (state.isDeceased) return;
   
@@ -217,7 +225,7 @@ function updateInvestmentValues(state, params) {
   }
   
   // Update handleWithdrawals to use the standardized financial goal check
-function handleWithdrawals(state, params) {
+export function handleWithdrawals(state, params) {
     // Skip withdrawals if deceased
     if (state.isDeceased) return;
   
@@ -329,7 +337,7 @@ function validateBalances(state) {
       );
     }
   }
-function validateState(state) {
+export function validateState(state) {
     // Validate all account balances
     validateBalances(state);
   
@@ -347,7 +355,7 @@ function validateState(state) {
   }
 
   // Add investment validation function - moved up before runSimulation
-function validateInvestments(state) {
+export function validateInvestments(state) {
     state.taxable.investments.forEach((inv, index) => {
       if (inv.balance < 0) {
         throw new SimulationError(
@@ -394,7 +402,7 @@ function validateInvestments(state) {
     });
   }
 
-  function trackYearEndBalances(state) {
+  export function trackYearEndBalances(state) {
     // Initialize if not exists
     if (!state.previousYearInvestmentBalances) {
       state.previousYearInvestmentBalances = {};
@@ -404,4 +412,169 @@ function validateInvestments(state) {
     state.investments.forEach((inv) => {
       state.previousYearInvestmentBalances[inv.id] = inv.balance;
     });
+  }
+
+   // Helper function to sell taxable investments
+   function sellTaxableInvestments(state, amountNeeded) {
+    // Get all taxable investments
+    const taxableInvestments = state.investments.filter(
+      (inv) => inv.taxStatus === "non-retirement" && inv.balance > 0
+    );
+  
+    if (taxableInvestments.length === 0) return 0;
+  
+    // Sort investments by purchase year (oldest first - FIFO)
+    taxableInvestments.sort(
+      (a, b) => (a.purchaseYear || 0) - (b.purchaseYear || 0)
+    );
+  
+    let totalSold = 0;
+    let remainingNeeded = amountNeeded;
+  
+    // Sell investments until we have enough cash
+    for (const inv of taxableInvestments) {
+      if (remainingNeeded <= 0) break;
+  
+      // Calculate how much to sell from this investment
+      const amountToSell = Math.min(inv.balance, remainingNeeded);
+  
+      // Calculate proportion of investment being sold
+      const proportion = amountToSell / inv.balance;
+  
+      // Calculate cost basis for the sold portion
+      const costBasisForSold = inv.costBasis
+        ? Math.min(inv.costBasis * proportion, inv.costBasis)
+        : 0;
+  
+      // Calculate capital gain/loss
+      const gain = amountToSell - costBasisForSold;
+  
+      // Apply gain/loss to current year's capital gains
+      if (gain > 0) {
+        // Apply any carried forward losses first
+        if (state.capitalLossCarryforward && state.capitalLossCarryforward > 0) {
+          const offsetAmount = Math.min(gain, state.capitalLossCarryforward);
+          state.capitalLossCarryforward -= offsetAmount;
+          state.curYearGains += gain - offsetAmount;
+        } else {
+          state.curYearGains += gain;
+        }
+      } else if (gain < 0) {
+        // Negative gain (loss) - add to carryforward
+        state.capitalLossCarryforward =
+          (state.capitalLossCarryforward || 0) + Math.abs(gain);
+      }
+  
+      // Reduce investment balance
+      inv.balance -= amountToSell;
+  
+      // Reduce cost basis
+      if (inv.costBasis) {
+        inv.costBasis -= costBasisForSold;
+      }
+  
+      // Add to cash
+      state.cash += amountToSell;
+  
+      // Update tracking variables
+      totalSold += amountToSell;
+      remainingNeeded -= amountToSell;
+    }
+  
+    return totalSold;
+  }
+
+  // Helper function to sell pre-tax investments
+  function sellPreTaxInvestments(state, amountNeeded, penaltyRate) {
+    // Get all pre-tax investments
+    const preTaxInvestments = state.investments.filter(
+      (inv) => inv.taxStatus === "pre-tax" && inv.balance > 0
+    );
+  
+    if (preTaxInvestments.length === 0) return 0;
+  
+    // Calculate total pre-tax balance
+    const totalPreTax = preTaxInvestments.reduce(
+      (sum, inv) => sum + inv.balance,
+      0
+    );
+  
+    let totalSold = 0;
+    let remainingNeeded = amountNeeded;
+  
+    // Sell from each pre-tax investment proportionally
+    for (const inv of preTaxInvestments) {
+      if (remainingNeeded <= 0) break;
+  
+      // Calculate proportion of this investment to the total
+      const proportion = inv.balance / totalPreTax;
+  
+      // Calculate how much to withdraw from this investment
+      const amountToSell = Math.min(inv.balance, remainingNeeded * proportion);
+  
+      // Reduce investment balance
+      inv.balance -= amountToSell;
+  
+      // Add to cash
+      state.cash += amountToSell;
+  
+      // Add to current year income (pre-tax withdrawals are taxable)
+      state.curYearIncome += amountToSell;
+  
+      // Add penalty if applicable (early withdrawal)
+      if (penaltyRate > 0) {
+        const penalty = amountToSell * penaltyRate;
+        state.curYearEarlyWithdrawals += amountToSell;
+      }
+  
+      // Update tracking variables
+      totalSold += amountToSell;
+      remainingNeeded -= amountToSell;
+    }
+  
+    return totalSold;
+  }
+  
+  // Helper function to sell after-tax investments
+  function sellAfterTaxInvestments(state, amountNeeded) {
+    // Get all after-tax investments
+    const afterTaxInvestments = state.investments.filter(
+      (inv) => inv.taxStatus === "after-tax" && inv.balance > 0
+    );
+  
+    if (afterTaxInvestments.length === 0) return 0;
+  
+    // Calculate total after-tax balance
+    const totalAfterTax = afterTaxInvestments.reduce(
+      (sum, inv) => sum + inv.balance,
+      0
+    );
+  
+    let totalSold = 0;
+    let remainingNeeded = amountNeeded;
+  
+    // Sell from each after-tax investment proportionally
+    for (const inv of afterTaxInvestments) {
+      if (remainingNeeded <= 0) break;
+  
+      // Calculate proportion of this investment to the total
+      const proportion = inv.balance / totalAfterTax;
+  
+      // Calculate how much to withdraw from this investment
+      const amountToSell = Math.min(inv.balance, remainingNeeded * proportion);
+  
+      // Reduce investment balance
+      inv.balance -= amountToSell;
+  
+      // Add to cash
+      state.cash += amountToSell;
+  
+      // No tax implications for Roth withdrawals (assuming qualified)
+  
+      // Update tracking variables
+      totalSold += amountToSell;
+      remainingNeeded -= amountToSell;
+    }
+  
+    return totalSold;
   }

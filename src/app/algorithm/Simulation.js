@@ -1,4 +1,15 @@
 // this file should contain a single function which runs the algorithm
+import { prepareFiscalYear, updateInvestmentValues, handleWithdrawals, updateBalances, validateState, trackYearEndBalances} from './GlobalFunctions.js';
+import { shouldProcessSpouseDeath, handleSpouseDeath } from './spouse/Spouse.js';
+import { generateRandomReturn } from './GlobalFunctions.js';
+import { updateInflationAdjustedValues, applyInflation } from './inflation/Inflation.js';
+import { processEventSeries } from './events/EventsFunctions.js'
+import { processSocialSecurity } from './events/Income.js';
+import { processRothConversion } from './roth/Roth.js';
+import { calculateRMD } from './rmd/RMD.ks'
+import { processInvestEvents, investExcessCash } from './events/Invest.js';
+import { processRebalanceEvents, createTaxEfficientRebalanceEvent } from './events/Rebalance.js';
+import { calculateTaxes } from './taxes/Taxes.js';
 
 export default function runSimulation(initialState, params, taxBrackets) {
     let state = deepCopy(initialState);

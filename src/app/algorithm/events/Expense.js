@@ -1,5 +1,5 @@
 // Process expense event series
-function processExpenseEventSeries(state, series, currentYear) {
+export function processExpenseEventSeries(state, series, currentYear) {
     // Only process if the series is active
     if (!isEventSeriesActive(series, currentYear, state.age)) {
       return;

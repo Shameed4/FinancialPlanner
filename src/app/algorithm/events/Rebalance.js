@@ -1,4 +1,4 @@
-function processRebalanceEventSeries(state, series, currentYear) {
+export function processRebalanceEventSeries(state, series, currentYear) {
     // Only rebalance investments with the same account tax status
     // as specified in the event series
     const targetTaxStatus = series.accountTaxStatus;
@@ -80,7 +80,7 @@ function processRebalanceEventSeries(state, series, currentYear) {
     updateBalances(state);
   }
 
-  function processRebalanceEvents(state, currentYear) {
+  export function processRebalanceEvents(state, currentYear) {
     // Check for overlapping rebalance events with same account tax status
     const activeRebalanceEvents = state.eventSeries.filter(
       (series) =>
@@ -140,7 +140,7 @@ function processRebalanceEventSeries(state, series, currentYear) {
     }
   }
 
-  function createTaxEfficientRebalanceEvent(state) {
+  export function createTaxEfficientRebalanceEvent(state) {
     const assetAllocation = getAgeBasedAssetAllocation(state.age);
     const targetAllocation = getTaxEfficientLocation(state, assetAllocation);
   
@@ -170,7 +170,7 @@ function processRebalanceEventSeries(state, series, currentYear) {
   }
 
   // Age-based glide path for asset allocation
-function getAgeBasedAssetAllocation(age) {
+export function getAgeBasedAssetAllocation(age) {
   // Simple rule: stocks percentage = 110 - age
   // This decreases equity exposure as you age
   const stockPercentage = Math.max(20, Math.min(90, 110 - age));
