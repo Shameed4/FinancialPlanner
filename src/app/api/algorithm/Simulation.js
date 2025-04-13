@@ -28,12 +28,16 @@ function buildParams(state) {
   }
 
   // TODO: get the scraped tax brackets, according to the project specs, for testing/demonstration purposes we only need NY, NJ, and CT
-  taxBrackets = {};
+  let taxBrackets = {};
 
-  afterTaxRetirementContributionLimit = state.initialAfterTaxRetirementContributionLimit;
+  let afterTaxRetirementContributionLimit = state.initialAfterTaxRetirementContributionLimit;
 
-  curYearIncome = 0;
-  curYearSS = 0;
+  let curYearIncome = 0;
+  let curYearSS = 0;
+
+  let rmdTable = {} // get the rmd table from the database, which has been scraped
+
+  let prevRMD = null; // store the previous year rmd value
 
   return {
     curYear,
@@ -48,7 +52,9 @@ function buildParams(state) {
     taxBrackets,
     afterTaxRetirementContributionLimit,
     curYearIncome,
-    curYearSS
+    curYearSS,
+    rmdTable,
+    prevRMD
   };
 }
 
@@ -84,13 +90,9 @@ export default function runSimulation(initialState) {
     // TODO: params.taxBrackets = ...
     params.afterTaxRetirementContributionLimit = params.afterTaxRetirementContributionLimit * (1 + params.inflationRate / 100);
 
-    // Step 2: run the income events, adding income to the cash investment
+    // Step 1: run the income events, adding income to the cash investment
     // TODO: There is a pre-defined investment named “cash” that is held in a non-retirement account. Basically a dedicated “bucket” for holding liquid funds that the simulation uses to represent available cash
     // for each of the INCOME events, check the the current year is in the range of that event's [startYear, endYear] before proceeding with the step 2 logic
-    // apply annual change of the income event amount, then adjust for inflation
-    // if the user has a spouse, and one is dead, omit the correct percentage of the income event
-    // add the amount of that income event to the cash investment
-    // add to curYearIncome, and add to curYearSS if the income is specified to be social security
     let activeIncomeEvents = state.eventSeries.filter(event =>
       event.type === "income" &&
       params.curYear >= event.startYear &&
@@ -112,35 +114,93 @@ export default function runSimulation(initialState) {
       }
 
       if (params.hasSpouse && params.spouseAlive === false) { // if the user has a spouse who is deceased, consider only the user's percentage
-        event.amount *= event.userPercentage; 
+        event.amount *= event.userPercentage;
       }
 
       cash.value += event.amount // add the amount of that income event to the cash investment
 
-      curYearIncome += event.amount; // update current year's income
+      params.curYearIncome += event.amount; // update current year's income
       if (event.isSocialSecurity) {
-        curYearSS += event.amount; // update current years' SS income if applicable
+        params.curYearSS += event.amount; // update current years' SS income if applicable
       }
     });
 
+    // Step 2: RMDs
+    if (params.userAge >= 73) {
+      // pay RMD for previous year if it exists (user is age 74 or greater)
+      if (params.useAge >= 74 && params.prevRMD) {
+        let remainingToTransfer = params.prevRMD;
 
-    // Step 3: perform RMD for the previous year
+        for (let i = 0; i < state.investments.length && remainingToTransfer > 0; i++) {
+          // Only consider investments with taxStatus "pre-tax" and with a positive value.
+          if (inv.taxStatus !== "pretax-retirement" || inv.value <= 0) {
+            continue;
+          }
+
+          // determine the transfer amount: either the full investment value or the remaining amount needed.
+          let transferAmount = Math.min(inv.value, remainingToTransfer);
+
+          // reduce the source pre-tax investment by the transfer amount.
+          inv.value -= transferAmount;
+
+          // look for an existing investment with the same type that has taxStatus "non-retirement".
+          let targetInvestment = state.investments.find(
+            investment =>
+              investment.investmentType === inv.investmentType &&
+              investment.taxStatus === "non-retirement"
+          );
+
+          // if it exists, add the transferred amount; otherwise, create a new investment record.
+          if (targetInvestment) {
+            targetInvestment.value += transferAmount;
+          }
+          else {
+            let newInvestment = {
+              investmentType: inv.investmentType,
+              taxStatus: "non-retirement",
+              value: transferAmount
+            };
+            // TODO: handle DB end of pushing this new investment 
+            // state.investments.push(newInvestment);
+          }
+
+          // deduct the transferred amount from the remaining amount.
+          remainingToTransfer -= transferAmount;
+        }
+        // at this point, the previous RMD has been fully transferred in-kind.
+      }
+
+      // calculate RMD for current year
+      let pretaxInvestments = state.investments.filter(investment => investment.taxStatus === 'pretax-retirement');
+      let s = 0;
+      pretaxInvestments.forEach(investment => {
+        s += investment.value;
+      });
+      let d = params.rmdTable.find(entry => entry.age === params.userAge).distributionPeriod;
+      let rmd = s / d;
+
+      params.curYearIncome += rmd;
+
+      params.prevRMD = rmd; // store current year RMD to be used in next year's computation
+    }
+
+
     // if the user’s age is at least 74 and at the end of the previous year, there is at least one investment with tax status = “pre-tax” and with a positive value.
 
-    // Step 4: Update the values of investments, reflecting expected annual return, reinvestment of generated income, and subtraction of expenses.
+    // Step 3: Update the values of investments, reflecting expected annual return, reinvestment of generated income, and subtraction of expenses.
 
-    // Step 5: Run the Roth conversion (RC) optimizer, if it is enabled.
+    // Step 4: Run the Roth conversion (RC) optimizer, if it is enabled.
 
-    // Step 6: Pay non-discretionary expenses and the previous year’s taxes, i.e., subtract them from the cash investment. Perform additional withdrawals if needed to pay them.
+    // Step 5: Pay non-discretionary expenses and the previous year’s taxes, i.e., subtract them from the cash investment. Perform additional withdrawals if needed to pay them.
 
-    // Step 7: Pay discretionary expenses in the order given by the spending strategy, except stop if continuing would reduce the user’s total assets below the financial goal. 
+    // Step 6: Pay discretionary expenses in the order given by the spending strategy, except stop if continuing would reduce the user’s total assets below the financial goal. 
     // The last discretionary expense to be paid can be partially paid, if incurring the entire expense would violate the financial goal. 
     // Perform additional withdrawals if needed to pay them.
 
-    // Step 8: Run the invest event scheduled for the current year, if any, by using excess cash to buy investments included in the asset allocation in the invest event, 
+    // Step 7: Run the invest event scheduled for the current year, if any, by using excess cash to buy investments included in the asset allocation in the invest event, 
     // apportioning the excess cash according to that asset allocation.
 
-    // Step 9: Run rebalance events scheduled for the current year, by selling and buying the investments included in the specified asset allocation to achieve the specified ratios between their values.
+    // Step 8: Run rebalance events scheduled for the current year, by selling and buying the investments included in the specified asset allocation to achieve the specified ratios between their values.
 
   }
 }
