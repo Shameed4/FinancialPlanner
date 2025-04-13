@@ -16,18 +16,19 @@
 
 import { useSession } from 'next-auth/react';
 import { motion } from 'framer-motion';
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, ReactNode } from 'react';
 import Link from 'next/link';
 import { jsonToYaml, yamlToJson, validateScenario } from '@/utils/scenarioConverter';
 import pageVariants from "../components/PageAnimation";
 import ShareScenarioModal from './ShareScenarioModal';
 import ScenarioCard from './ScenarioCard.js';
+import { StringScenarioFormData } from './types';
 
-const FormSection = ({ title, children, isActive, errors = {} }) => {
+const FormSection = ({ title, children, isActive, errors = {} } : {title: string, children: ReactNode, isActive: boolean, errors: Record<string, string>}) => {
     if (!isActive) return null;
 
     const hasErrors = Object.keys(errors).length > 0;
-    console.log(errors);
+    console.log(JSON.stringify(errors));
 
     return (
         <motion.div
@@ -55,38 +56,38 @@ const US_STATES = [
     'SD', 'TN', 'TX', 'UT', 'VT', 'VA', 'WA', 'WV', 'WI', 'WY'
 ];
 
-const CreateScenarioForm = ({ onScenarioCreate, onCancel, initialData = null }) => {
+const CreateScenarioForm = ({ onScenarioCreate, onCancel, initialData = null } : {  onScenarioCreate: (data: StringScenarioFormData) => void, onCancel: () => void, initialData: StringScenarioFormData | null}) => {
     const [currentStep, setCurrentStep] = useState(1);
-    const [formData, setFormData] = useState(() => {
+    const [formData, setFormData] = useState<StringScenarioFormData>(() => {
         if (initialData) {
             return {
                 ...initialData,
-                // Ensure arrays are initialized
-                assetTypes: initialData.assetTypes || [],
-                investments: initialData.investments || [],
+                assetTypes: initialData.assetTypes || [{ name: "Cash", description: "Pre-defined" }],
+                investments: initialData.investments || [{ assetType: "Cash", value: "0", taxStatus: "non-retirement" }],
                 eventSeries: initialData.eventSeries || [],
-                // Convert numeric values to strings for form inputs
                 userBirthYear: initialData.userBirthYear?.toString() || '',
                 userLifeExpectancyMean: initialData.userLifeExpectancyMean?.toString() || '',
                 userLifeExpectancyStd: initialData.userLifeExpectancyStd?.toString() || '',
-                spouseBirthYear: initialData.spouseBirthYear?.toString() || '',
-                spouseLifeExpectancyMean: initialData.spouseLifeExpectancyMean?.toString() || '',
-                spouseLifeExpectancyStd: initialData.spouseLifeExpectancyStd?.toString() || '',
+                spouseBirthYear: initialData.spouseBirthYear?.toString(),
+                spouseLifeExpectancyMean: initialData.spouseLifeExpectancyMean?.toString(),
+                spouseLifeExpectancyStd: initialData.spouseLifeExpectancyStd?.toString(),
                 financialGoal: initialData.financialGoal?.toString() || '',
                 initialAfterTaxRetirementContributionLimit:
                     initialData.initialAfterTaxRetirementContributionLimit?.toString() || '',
-                // Ensure inflation values are properly set
                 inflationAssumption: initialData.inflationAssumption || 'fixed',
-                inflation: initialData.inflation?.toString() || '',
-                inflationMin: initialData.inflationMin?.toString() || '',
-                inflationMax: initialData.inflationMax?.toString() || '',
-                inflationMean: initialData.inflationMean?.toString() || '',
-                inflationStd: initialData.inflationStd?.toString() || '',
-                // Ensure boolean values are properly set
+                inflation: initialData.inflation?.toString(),
+                inflationMin: initialData.inflationMin?.toString(),
+                inflationMax: initialData.inflationMax?.toString(),
+                inflationMean: initialData.inflationMean?.toString(),
+                inflationStd: initialData.inflationStd?.toString(),
                 enableTaxOptimization: Boolean(initialData.rothOptimizationStartYear),
-                forIndividual: Boolean(initialData.forIndividual)
+                forIndividual: Boolean(initialData.forIndividual),
+                rothOptimizationStartYear: initialData.rothOptimizationStartYear?.toString(),
+                rothOptimizationEndYear: initialData.rothOptimizationEndYear?.toString()
             };
         }
+    
+        // Default values if no initialData
         return {
             name: '',
             forIndividual: true,
@@ -96,19 +97,23 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel, initialData = null }) 
             spouseBirthYear: '',
             spouseLifeExpectancyMean: '',
             spouseLifeExpectancyStd: '0',
-            assetTypes: [{name: "Cash", description: "Pre-defined"}],
-            investments: [{assetType: "Cash", value: "0", taxStatus: "non-retirement"}],
+            assetTypes: [{ name: "Cash", description: "Pre-defined" }],
+            investments: [{ assetType: "Cash", value: "0", taxStatus: "non-retirement" }],
             eventSeries: [],
             inflationAssumption: 'fixed',
             residenceState: '',
             financialGoal: '',
-            initialAfterTaxRetirementContributionLimit: ''
+            initialAfterTaxRetirementContributionLimit: '',
+            enableTaxOptimization: false,
+            rothOptimizationStartYear: '',
+            rothOptimizationEndYear: ''
         };
     });
     const [errors, setErrors] = useState({});
 
-    const validateStep = (step) => {
-        const newErrors = {};
+    const validateStep = (step : number) => {
+        const newErrors : Record<string, string> = {};
+        console.log(JSON.stringify(formData));
         switch (step) {
             case 1:
                 if (!formData.name) newErrors.name = 'Name is required';
@@ -117,7 +122,7 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel, initialData = null }) 
                 if (!formData.userLifeExpectancyStd) newErrors.userLifeExpectancyStd = 'Life expectancy standard deviation is required';
                 if (!formData.residenceState) newErrors.residenceState = 'Residence state is required';
                 if (!formData.financialGoal) newErrors.financialGoal = 'Financial goal is required';
-                if (formData.financialGoal && (isNaN(formData.financialGoal) || parseFloat(formData.financialGoal) < 0)) {
+                if (formData.financialGoal && (isNaN(Number(formData.financialGoal)) || parseFloat(formData.financialGoal) < 0)) {
                     newErrors.financialGoal = 'Financial goal must be a non-negative number';
                 }
                 if (!formData.forIndividual) {
@@ -131,20 +136,20 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel, initialData = null }) 
                 } else {
                     switch (formData.inflationAssumption) {
                         case 'fixed':
-                            if (!formData.inflation || isNaN(formData.inflation) || parseFloat(formData.inflation) < 0) {
+                            if (!formData.inflation || isNaN(Number(formData.inflation)) || parseFloat(formData.inflation) < 0) {
                                 newErrors.inflation = 'Valid fixed inflation rate is required';
                             }
                             break;
                         case 'uniform':
                             if (!formData.inflationMin || !formData.inflationMax ||
-                                isNaN(formData.inflationMin) || isNaN(formData.inflationMax) ||
+                                isNaN(Number(formData.inflationMin)) || isNaN(Number(formData.inflationMax)) ||
                                 parseFloat(formData.inflationMin) < 0 || parseFloat(formData.inflationMax) < parseFloat(formData.inflationMin)) {
                                 newErrors.inflationMin = 'Valid uniform distribution range is required';
                             }
                             break;
                         case 'normal':
                             if (!formData.inflationMean || !formData.inflationStd ||
-                                isNaN(formData.inflationMean) || isNaN(formData.inflationStd) ||
+                                isNaN(Number(formData.inflationMean)) || isNaN(Number(formData.inflationStd)) ||
                                 parseFloat(formData.inflationMean) < 0 || parseFloat(formData.inflationStd) <= 0) {
                                 newErrors.inflationMean = 'Valid normal distribution parameters are required';
                             }
@@ -154,7 +159,7 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel, initialData = null }) 
                 // Validate initial after tax retirement contribution limit
                 if (!formData.initialAfterTaxRetirementContributionLimit) {
                     newErrors.initialAfterTaxRetirementContributionLimit = 'Initial after tax retirement contribution limit is required';
-                } else if (isNaN(formData.initialAfterTaxRetirementContributionLimit) || parseFloat(formData.initialAfterTaxRetirementContributionLimit) < 0) {
+                } else if (isNaN(Number(formData.initialAfterTaxRetirementContributionLimit)) || parseFloat(formData.initialAfterTaxRetirementContributionLimit) < 0) {
                     newErrors.initialAfterTaxRetirementContributionLimit = 'Initial after tax retirement contribution limit must be a non-negative number';
                 }
                 break;
@@ -167,16 +172,16 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel, initialData = null }) 
                     // Validate return fields based on return type
                     if (asset.returnType === 'fixed') {
                         if (!asset.fixedReturn) newErrors[`assetTypes.${index}.fixedReturn`] = 'Fixed return is required';
-                        if (asset.fixedReturn && (isNaN(asset.fixedReturn) || parseFloat(asset.fixedReturn) <= 0)) {
+                        if (asset.fixedReturn && (isNaN(Number(asset.fixedReturn)) || parseFloat(asset.fixedReturn) <= 0)) {
                             newErrors[`assetTypes.${index}.fixedReturn`] = 'Fixed return must be a positive number';
                         }
                     } else {
                         if (!asset.normalReturnMean) newErrors[`assetTypes.${index}.normalReturnMean`] = 'Expected return mean is required';
                         if (!asset.normalReturnStd) newErrors[`assetTypes.${index}.normalReturnStd`] = 'Return standard deviation is required';
-                        if (asset.normalReturnMean && (isNaN(asset.normalReturnMean) || parseFloat(asset.normalReturnMean) <= 0)) {
+                        if (asset.normalReturnMean && (isNaN(Number(asset.normalReturnMean)) || parseFloat(asset.normalReturnMean) <= 0)) {
                             newErrors[`assetTypes.${index}.normalReturnMean`] = 'Expected return mean must be a positive number';
                         }
-                        if (asset.normalReturnStd && (isNaN(asset.normalReturnStd) || parseFloat(asset.normalReturnStd) <= 0)) {
+                        if (asset.normalReturnStd && (isNaN(Number(asset.normalReturnStd)) || parseFloat(asset.normalReturnStd) <= 0)) {
                             newErrors[`assetTypes.${index}.normalReturnStd`] = 'Return standard deviation must be a positive number';
                         }
                     }
@@ -197,7 +202,7 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel, initialData = null }) 
                     }
 
                     // Validate that value is a positive number
-                    if (investment.value && (isNaN(investment.value) || parseFloat(investment.value) <= 0)) {
+                    if (investment.value && (isNaN(Number(investment.value)) || parseFloat(investment.value) <= 0)) {
                         newErrors[`investments.${index}.value`] = 'Value must be a positive number';
                     }
                 });
@@ -209,9 +214,9 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel, initialData = null }) 
                     if (!event.startYearType) newErrors[`eventSeries.${index}.startYearType`] = 'Start year type is required';
 
                     // Validate start year based on type
-                    if (event.startYearType === 'fixed' && (!event.startYear || isNaN(event.startYear))) {
+                    if (event.startYearType === 'fixed' && (!event.startYear || isNaN(Number(event.startYear)))) {
                         newErrors[`eventSeries.${index}.startYear`] = 'Start year is required';
-                    } else if (event.startYearType === 'relative' && (!event.relativeStartYear || isNaN(event.relativeStartYear))) {
+                    } else if (event.startYearType === 'relative' && (!event.relativeStartYear || isNaN(Number(event.relativeStartYear)))) {
                         newErrors[`eventSeries.${index}.relativeStartYear`] = 'Relative start year is required';
                     }
 
@@ -221,20 +226,20 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel, initialData = null }) 
                     } else {
                         switch (event.durationType) {
                             case 'fixed':
-                                if (!event.durationFixed || isNaN(event.durationFixed) || parseFloat(event.durationFixed) <= 0) {
+                                if (!event.durationFixed || isNaN(Number(event.durationFixed)) || parseFloat(event.durationFixed) <= 0) {
                                     newErrors[`eventSeries.${index}.durationFixed`] = 'Duration must be a positive number';
                                 }
                                 break;
                             case 'uniform':
                                 if (!event.durationMin || !event.durationMax ||
-                                    isNaN(event.durationMin) || isNaN(event.durationMax) ||
+                                    isNaN(Number(event.durationMin)) || isNaN(Number(event.durationMax)) ||
                                     parseFloat(event.durationMin) <= 0 || parseFloat(event.durationMax) < parseFloat(event.durationMin)) {
                                     newErrors[`eventSeries.${index}.durationMin`] = 'Invalid uniform duration range';
                                 }
                                 break;
                             case 'normal':
                                 if (!event.durationMean || !event.durationStd ||
-                                    isNaN(event.durationMean) || isNaN(event.durationStd) ||
+                                    isNaN(Number(event.durationMean)) || isNaN(Number(event.durationStd)) ||
                                     parseFloat(event.durationMean) <= 0 || parseFloat(event.durationStd) < 0) {
                                     newErrors[`eventSeries.${index}.durationMean`] = 'Invalid normal duration parameters';
                                 }
@@ -244,7 +249,7 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel, initialData = null }) 
 
                     // Validate event-specific fields
                     if (event.type === 'income' || event.type === 'expense') {
-                        if (!event.amount || isNaN(event.amount) || parseFloat(event.amount) <= 0) {
+                        if (!event.amount || isNaN(Number(event.amount)) || parseFloat(event.amount) <= 0) {
                             newErrors[`eventSeries.${index}.amount`] = 'Amount must be a positive number';
                         }
 
@@ -265,7 +270,7 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel, initialData = null }) 
                                 newErrors[`eventSeries.${index}.allocations`] = 'Asset allocations are required';
                             } else {
                                 // Filter out allocations for pre-tax investments
-                                const filteredAllocations = {};
+                                const filteredAllocations : Record<string, string> = {};
                                 Object.entries(event.allocations).forEach(([assetName, percentage]) => {
                                     // Check if this asset type exists in any pre-tax investment
                                     const isPreTax = formData.investments?.some(
@@ -278,7 +283,7 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel, initialData = null }) 
 
                                 // Check if allocations sum to 100%
                                 const sum = Object.values(filteredAllocations)
-                                    .reduce((acc, val) => acc + parseFloat(val || 0), 0);
+                                    .reduce((acc, val) => acc + parseFloat(val || "0"), 0);
                                 if (Math.abs(sum - 100) > 0.1) { // Allow small rounding errors
                                     newErrors[`eventSeries.${index}.allocations`] = 'Asset allocations must sum to 100%';
                                 }
@@ -289,7 +294,7 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel, initialData = null }) 
                                 newErrors[`eventSeries.${index}.initialAllocations`] = 'Initial allocations are required';
                             } else {
                                 // Filter out allocations for pre-tax investments
-                                const filteredInitialAllocations = {};
+                                const filteredInitialAllocations : Record<string, string> = {};
                                 Object.entries(event.initialAllocations).forEach(([assetName, percentage]) => {
                                     // Check if this asset type exists in any pre-tax investment
                                     const isPreTax = formData.investments?.some(
@@ -301,7 +306,7 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel, initialData = null }) 
                                 });
 
                                 const initialSum = Object.values(filteredInitialAllocations)
-                                    .reduce((acc, val) => acc + parseFloat(val || 0), 0);
+                                    .reduce((acc, val) => acc + parseFloat(val || "0"), 0);
                                 if (Math.abs(initialSum - 100) > 0.1) {
                                     newErrors[`eventSeries.${index}.initialAllocations`] = 'Initial allocations must sum to 100%';
                                 }
@@ -311,7 +316,7 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel, initialData = null }) 
                                 newErrors[`eventSeries.${index}.finalAllocations`] = 'Final allocations are required';
                             } else {
                                 // Filter out allocations for pre-tax investments
-                                const filteredFinalAllocations = {};
+                                const filteredFinalAllocations : Record<string, string> = {};
                                 Object.entries(event.finalAllocations).forEach(([assetName, percentage]) => {
                                     // Check if this asset type exists in any pre-tax investment
                                     const isPreTax = formData.investments?.some(
@@ -323,7 +328,7 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel, initialData = null }) 
                                 });
 
                                 const finalSum = Object.values(filteredFinalAllocations)
-                                    .reduce((acc, val) => acc + parseFloat(val || 0), 0);
+                                    .reduce((acc, val) => acc + parseFloat(val || "0"), 0);
                                 if (Math.abs(finalSum - 100) > 0.1) {
                                     newErrors[`eventSeries.${index}.finalAllocations`] = 'Final allocations must sum to 100%';
                                 }
@@ -332,7 +337,7 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel, initialData = null }) 
 
                         // Validate maxCashValue for invest events if provided
                         if (event.type === 'invest' && event.maxCashValue &&
-                            (isNaN(event.maxCashValue) || parseFloat(event.maxCashValue) <= 0)) {
+                            (isNaN(Number(event.maxCashValue)) || parseFloat(event.maxCashValue) <= 0)) {
                             newErrors[`eventSeries.${index}.maxCashValue`] = 'Maximum cash value must be a positive number';
                         }
                     }
@@ -342,7 +347,7 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel, initialData = null }) 
                 // Validate tax optimization if enabled
                 if (formData.enableTaxOptimization) {
                     if (!formData.rothOptimizationStartYear || !formData.rothOptimizationEndYear ||
-                        isNaN(formData.rothOptimizationStartYear) || isNaN(formData.rothOptimizationEndYear) ||
+                        isNaN(Number(formData.rothOptimizationStartYear)) || isNaN(Number(formData.rothOptimizationEndYear)) ||
                         parseInt(formData.rothOptimizationStartYear) < 0 || parseInt(formData.rothOptimizationEndYear) < parseInt(formData.rothOptimizationStartYear)) {
                         newErrors.rothOptimizationStartYear = 'Valid tax optimization year range is required';
                     }
@@ -397,7 +402,7 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel, initialData = null }) 
                         .map((inv, idx) => ({
                             ...inv,
                             originalIndex: idx,
-                            withdrawalOrder: parseInt(inv.withdrawalOrder || idx + 1)
+                            withdrawalOrder: inv.withdrawalOrder || idx + 1
                         }))
                         .sort((a, b) => a.withdrawalOrder - b.withdrawalOrder);
 
@@ -414,7 +419,7 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel, initialData = null }) 
                             originalIndex: processedFormData.investments.findIndex(
                                 item => item.assetType === inv.assetType
                             ),
-                            rothConversionOrder: parseInt(inv.rothConversionOrder || idx + 1)
+                            rothConversionOrder: parseInt(inv.rothConversionOrder)
                         }))
                         .sort((a, b) => a.rothConversionOrder - b.rothConversionOrder);
 
@@ -1181,8 +1186,8 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel, initialData = null }) 
                                         >
                                             <option value="">Select tax status...</option>
                                             <option value="non-retirement">Non-Retirement</option>
-                                            <option value="pre-tax">Pre-Tax Retirement</option>
-                                            <option value="after-tax">After-Tax Retirement</option>
+                                            <option value="pre-tax-retirement">Pre-Tax Retirement</option>
+                                            <option value="after-tax-retirement">After-Tax Retirement</option>
                                         </select>
                                         {errors[`investments.${index}.taxStatus`] && (
                                             <p className="mt-1 text-sm text-red-600">{errors[`investments.${index}.taxStatus`]}</p>

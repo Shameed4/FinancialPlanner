@@ -345,6 +345,7 @@ async function createAssetTypes(assetTypes: any[]) {
 
 // Helper function to create investments and link them to scenario
 async function createInvestments(scenarioId: number, investments: any[], assetTypeMap: Map<string, number>) {
+  console.log(investments);
   const createdInvestments = [];
 
   for (const investment of investments) {
