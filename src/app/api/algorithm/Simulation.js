@@ -4,7 +4,7 @@ import { deepCopy, sampleNormal, sampleUniform } from './GlobalFunctions.js';
 // initialize the starting parameters that store information that either the state does not have, or is derived from the state
 // these parameters may be updated as the simulation progresses through the years
 function buildParams(state) {
-  const curYear = state.startYear;
+  const curYear = state.startYear; // 2025
 
   // user's age and life expectancy information
   const userAge = curYear - state.userBirthYear;
@@ -21,9 +21,9 @@ function buildParams(state) {
   let inflationRate;
   if (state.inflationAssumption === 'fixed') {
     inflationRate = state.inflation;
-  } else if (condition === 'normal') {
+  } else if (state.inflationAssumption === 'normal') {
     inflationRate = sampleNormal(state.inflationMean, state.inflationStd);
-  } else if (condition === 'uniform') {
+  } else if (state.inflationAssumption === 'uniform') {
     inflationRate = sampleUniform(state.inflationMin, state.inflationMax);
   }
 
@@ -60,6 +60,8 @@ export default function runSimulation(initialState) {
 
   // this while loop performs the simulation iteratively each year while at least one user is still alive
   while (params.userAlive || params.spouseAlive) {
+    params.curYear += 1
+
     // Age the user and update their alive status
     if (params.userAlive) {
       params.userAge += 1;
@@ -76,9 +78,11 @@ export default function runSimulation(initialState) {
     params.curYearIncome = 0;
     params.curYearSS = 0;
 
+    // some things need to be resampled each year
+
     // apply inflation to: tax brackets, annual limits on retirement accounts contributions
     // TODO: params.taxBrackets = ...
-    params.afterTaxRetirementContributionLimit = params.afterTaxRetirementContributionLimit * (1 + state.inflationRate / 100);
+    params.afterTaxRetirementContributionLimit = params.afterTaxRetirementContributionLimit * (1 + params.inflationRate / 100);
 
     // Step 2: run the income events, adding income to the cash investment
     // TODO: There is a pre-defined investment named “cash” that is held in a non-retirement account. Basically a dedicated “bucket” for holding liquid funds that the simulation uses to represent available cash
@@ -87,6 +91,38 @@ export default function runSimulation(initialState) {
     // if the user has a spouse, and one is dead, omit the correct percentage of the income event
     // add the amount of that income event to the cash investment
     // add to curYearIncome, and add to curYearSS if the income is specified to be social security
+    let activeIncomeEvents = state.eventSeries.filter(event =>
+      event.type === "income" &&
+      params.curYear >= event.startYear &&
+      params.curYear <= event.endYear
+    );
+
+    activeIncomeEvents.forEach(event => {
+      // TODO: apply sampling (if specified) to annual change
+
+      if (event.inflationAdjusted) {
+        event.annualChange = event.annualChange * (1 + params.inflationRate / 100); // apply inflation to annual change if the flag is checked
+      }
+
+      if (event.changeType == 'fixed') { // apply the annual change to the event amount
+        event.amount += event.annualChange
+      }
+      else if (event.changeType == 'percentage') {
+        event.amount = event.amount * (1 + event.annualChange / 100);
+      }
+
+      if (params.hasSpouse && params.spouseAlive === false) { // if the user has a spouse who is deceased, consider only the user's percentage
+        event.amount *= event.userPercentage; 
+      }
+
+      cash.value += event.amount // add the amount of that income event to the cash investment
+
+      curYearIncome += event.amount; // update current year's income
+      if (event.isSocialSecurity) {
+        curYearSS += event.amount; // update current years' SS income if applicable
+      }
+    });
+
 
     // Step 3: perform RMD for the previous year
     // if the user’s age is at least 74 and at the end of the previous year, there is at least one investment with tax status = “pre-tax” and with a positive value.
