@@ -96,8 +96,8 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel, initialData = null }) 
             spouseBirthYear: '',
             spouseLifeExpectancyMean: '',
             spouseLifeExpectancyStd: '0',
-            assetTypes: [],
-            investments: [],
+            assetTypes: [{name: "Cash", description: "Pre-defined"}],
+            investments: [{assetType: "Cash", value: "0", taxStatus: "non-retirement"}],
             eventSeries: [],
             inflationAssumption: 'fixed',
             residenceState: '',
@@ -889,6 +889,7 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel, initialData = null }) 
                                             }}
                                             className={`${getInputClassName(`assetTypes.${index}.name`)} text-black`}
                                             placeholder="Asset Type Name"
+                                            disabled={index == 0}
                                         />
                                         {errors[`assetTypes.${index}.name`] && (
                                             <p className="mt-1 text-sm text-red-600">{errors[`assetTypes.${index}.name`]}</p>
@@ -897,7 +898,7 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel, initialData = null }) 
                                     <div>
                                         <label className="block text-sm font-medium text-gray-700 mb-1">Return Type</label>
                                         <select
-                                            value={asset.returnType || 'normal'}
+                                            value={asset.returnType}
                                             onChange={(e) => {
                                                 const newAssetTypes = [...formData.assetTypes];
                                                 newAssetTypes[index].returnType = e.target.value;
@@ -1069,7 +1070,7 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel, initialData = null }) 
                                     </div>
                                 </div>
                                 <div className="flex justify-end">
-                                    <button
+                                    {index != 0 && (<button
                                         type="button"
                                         onClick={() => {
                                             const newAssetTypes = formData.assetTypes.filter((_, i) => i !== index);
@@ -1078,7 +1079,7 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel, initialData = null }) 
                                         className="p-2 text-red-500 hover:text-red-700"
                                     >
                                         Remove Asset
-                                    </button>
+                                    </button>)}
                                 </div>
                             </div>
                         ))}
@@ -1135,6 +1136,7 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel, initialData = null }) 
                                                 setFormData({ ...formData, investments: newInvestments });
                                             }}
                                             className={`${getInputClassName(`investments.${index}.assetType`)} text-black`}
+                                            disabled={index == 0}
                                         >
                                             <option value="">Select an asset type...</option>
                                             {formData.assetTypes?.map((asset, assetIndex) => (
@@ -1175,6 +1177,7 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel, initialData = null }) 
                                                 setFormData({ ...formData, investments: newInvestments });
                                             }}
                                             className={`${getInputClassName(`investments.${index}.taxStatus`)} text-black`}
+                                            disabled={index == 0}
                                         >
                                             <option value="">Select tax status...</option>
                                             <option value="non-retirement">Non-Retirement</option>
@@ -1187,7 +1190,7 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel, initialData = null }) 
                                     </div>
                                 </div>
                                 <div className="flex justify-end">
-                                    <button
+                                    {index != 0 && (<button
                                         type="button"
                                         onClick={() => {
                                             const newInvestments = formData.investments.filter((_, i) => i !== index);
@@ -1196,7 +1199,7 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel, initialData = null }) 
                                         className="p-2 text-red-500 hover:text-red-700"
                                     >
                                         Remove Investment
-                                    </button>
+                                    </button>)}
                                 </div>
                             </div>
                         ))}
