@@ -132,6 +132,7 @@ export default function runSimulation(initialState) {
       if (params.useAge >= 74 && params.prevRMD) {
         let remainingToTransfer = params.prevRMD;
 
+        // this loop assumings that in the investments object, they are ordered according to the expense withdrawal strategy
         for (let i = 0; i < state.investments.length && remainingToTransfer > 0; i++) {
           // Only consider investments with taxStatus "pre-tax" and with a positive value.
           if (inv.taxStatus !== "pretax-retirement" || inv.value <= 0) {
@@ -219,7 +220,62 @@ export default function runSimulation(initialState) {
 
     })
 
-    // Step 4: Run the Roth conversion (RC) optimizer, if it is enabled.
+    // Step 4: Run the Roth conversion (RC) optimizer, if it is enabled
+    if (state.rothOptimizationStartYear && state.rothOptimizationEndYear) {
+      // user's taxable income for the year
+      let curYearFedTaxableIncome = params.curYearIncome - 0.85 * params.curYearSS;
+
+      // search for the tax bracket the user is in
+      let taxBracket = params.taxBrackets.find(bracket => {
+        curYearFedTaxableIncome >= bracket.lower && curYearFedTaxableIncome <= bracket.upper
+      });
+
+      // the difference between the user's taxable income and upper limit the tax bracket = the Roth conversion amount
+      let rothConversionAmount = taxBracket.upper - curYearFedTaxableIncome;
+      if (rothConversionAmount <= 0) { // no room in the bracket for a Roth conversion this year
+        return;
+      }
+
+      let remainingConversion = rc;
+      // assuming that 'state.investments' is already in the desired order for Roth conversions
+      for (let i = 0; i < state.investments.length; i++) {
+        if (remainingConversion <= 0) break; // done converting
+
+        let inv = state.investments[i];
+
+        // only convert from pre-tax investments
+        if (inv.taxStatus === 'pretax-retirement' && inv.value > 0) {
+          let transferAmount = Math.min(inv.value, remainingConversion);
+
+          // reduce the source investment by the transfer amount
+          inv.value -= transferAmount;
+
+          // find or create the corresponding after-tax retirement investment of the same type
+          let target = state.investments.find(t => t.assetType === inv.assetType && t.taxStatus === 'aftertax-retirement'
+          );
+
+          if (!target) {
+            // create a new after-tax retirement investment
+            let newInv = {
+              assetType: inv.investmentType,
+              value: transferAmount,
+              taxStatus: 'aftertax-retirement',
+            };
+            // TODO: handle DB end of pushing this new investment 
+            // state.investments.push(newInv);
+          } else {
+            // increase the existing after-tax retirement investment
+            target.value += transferAmount;
+          }
+
+          // decrease the amount still to be converted
+          remainingConversion -= transferAmount;
+        }
+        // add the Roth conversion amount to this year’s income (bc converting pre-tax funds to Roth is a taxable event in the year of conversion)
+        params.curYearIncome += rc;
+      }
+
+    }
 
     // Step 5: Pay non-discretionary expenses and the previous year’s taxes, i.e., subtract them from the cash investment. Perform additional withdrawals if needed to pay them.
 
