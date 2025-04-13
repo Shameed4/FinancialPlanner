@@ -11,7 +11,7 @@ import { processInvestEvents, investExcessCash } from './events/Invest.js';
 import { processRebalanceEvents, createTaxEfficientRebalanceEvent } from './events/Rebalance.js';
 import { calculateTaxes } from './taxes/Taxes.js';
 
-export default function runSimulation(initialState, params, taxBrackets) {
+export default function runSimulation(initialState, params) {
   let state = deepCopy(initialState);
   let history = [];
   let error = null;

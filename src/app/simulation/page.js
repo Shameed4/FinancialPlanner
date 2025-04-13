@@ -53,24 +53,28 @@ async function fetchScenarios(userEmail) {
 }
 
 // Function to handle the "Begin" button click
-function handleBeginSimulation(selectedScenario, numberOfSimulations, simulationType) {
+function handleBeginSimulation(selectedScenario, numberOfSimulations) {
     const simulationData = {
         scenario: selectedScenario,
         numberOfSimulations,
-        simulationType
     };
 
     console.log(selectedScenario);
 
     // Send data to the fake endpoint
-    fetch('/api/simulate', { // Replace with the actual endpoint
+    fetch('/api/algorithm', { // Replace with the actual endpoint
         method: 'POST',
         headers: {
             'Content-Type': 'application/json'
         },
         body: JSON.stringify(simulationData)
     })
-        .then(response => response.json())
+        .then(response => {
+            if (!response.ok) {
+                throw new Error('Network response was not ok');
+            }
+            return response.json();
+        })
         .then(data => {
             console.log('Simulation result:', data);
         })
@@ -86,7 +90,6 @@ const SimulationPage = () => {
     const router = useRouter();
     const [selectedScenario, setSelectedScenario] = useState(null);
     const [simulationCount, setSimulationCount] = useState(5);
-    const [simulationType, setSimulationType] = useState('');
     const [scenarios, setScenarios] = useState([]);
     const { data: session } = useSession();
 
@@ -156,19 +159,7 @@ const SimulationPage = () => {
                             </div>
 
                             <div className="w-full max-w-md">
-                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                                    Simulation Type
-                                </label>
                                 <div className="relative">
-                                    <select
-                                        value={simulationType}
-                                        onChange={(e) => setSimulationType(e.target.value)}
-                                        className="appearance-none bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-gray-100 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 block w-full px-4 py-2.5 pr-10 transition-all rounded-md"
-                                    >
-                                        <option value="">Select simulation type...</option>
-                                        <option value="roth">Roth Optimizer</option>
-                                        <option value="montecarlo">Monte Carlo</option>
-                                    </select>
 
                                     {/* Dropdown Arrow */}
                                     <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-3 text-gray-500 dark:text-gray-300">
@@ -190,12 +181,12 @@ const SimulationPage = () => {
                     {/* Button to begin the simulation, enabled only when a scenario and simulation type are selected */}
                     <div className="flex justify-end">
                         <button
-                            className={`px-8 py-3 rounded-md font-medium ${selectedScenario && simulationType
+                            className={`px-8 py-3 rounded-md font-medium ${selectedScenario
                                 ? 'bg-black text-white hover:bg-gray-800 hover:cursor-pointer'
                                 : 'bg-gray-100 text-gray-400 cursor-not-allowed'
                                 } transition-colors duration-200`}
-                            disabled={!selectedScenario || !simulationType}
-                            onClick={() => handleBeginSimulation(selectedScenario, simulationCount, simulationType)}
+                            disabled={!selectedScenario}
+                            onClick={() => handleBeginSimulation(selectedScenario, simulationCount)}
                         >
                             Begin
                         </button>
