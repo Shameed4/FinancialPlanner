@@ -126,6 +126,7 @@ export default function runSimulation(initialState) {
     });
 
     // Step 2: RMDs
+    // if the user’s age is at least 74 and at the end of the previous year, there is at least one investment with tax status = “pre-tax” and with a positive value
     if (params.userAge >= 73) {
       // pay RMD for previous year if it exists (user is age 74 or greater)
       if (params.useAge >= 74 && params.prevRMD) {
@@ -144,11 +145,7 @@ export default function runSimulation(initialState) {
           inv.value -= transferAmount;
 
           // look for an existing investment with the same type that has taxStatus "non-retirement".
-          let targetInvestment = state.investments.find(
-            investment =>
-              investment.investmentType === inv.investmentType &&
-              investment.taxStatus === "non-retirement"
-          );
+          let targetInvestment = state.investments.find(investment => investment.assetType === inv.assetType && investment.taxStatus === "non-retirement");
 
           // if it exists, add the transferred amount; otherwise, create a new investment record.
           if (targetInvestment) {
@@ -156,9 +153,9 @@ export default function runSimulation(initialState) {
           }
           else {
             let newInvestment = {
-              investmentType: inv.investmentType,
+              assetType: inv.investmentType,
+              value: transferAmount,
               taxStatus: "non-retirement",
-              value: transferAmount
             };
             // TODO: handle DB end of pushing this new investment 
             // state.investments.push(newInvestment);
@@ -184,10 +181,43 @@ export default function runSimulation(initialState) {
       params.prevRMD = rmd; // store current year RMD to be used in next year's computation
     }
 
-
-    // if the user’s age is at least 74 and at the end of the previous year, there is at least one investment with tax status = “pre-tax” and with a positive value.
-
     // Step 3: Update the values of investments, reflecting expected annual return, reinvestment of generated income, and subtraction of expenses.
+    state.investments.forEach(investment => {
+      let type = investment.assetType;
+      let assetType = state.assetTypes.find(at => at.name === type);
+
+      let annualReturnPercentage = 0;
+      if (assetType.returnType === 'fixed') {
+        annualReturnPercentage = assetType.fixedReturn;
+      }
+      else if (assetType.returnType == 'normal') {
+        annualReturnPercentage = sampleNormal(assetType.normalReturnMean, assetType.normalReturnStd);
+      }
+
+      let generatedIncome = investment.value * (annualReturnPercentage / 100);
+
+      // add the generated income to curYearIncome, if the investment is non-retirement and taxable.
+      if (investment.taxStatus === 'non-retirement') {
+        params.curYearIncome += generatedIncome;
+      }
+
+      // add the generated income to the value of the investment.
+      let startingValue = investment.value;  // we'll need this for expense calculation
+      investment.value += generatedIncome;
+
+      // calculate the change in value, using the specified distribution/percentage, this models capital appreciation or depreciation.
+      let changeInValue = investment.value * (sampleNormal(assetType.normalIncomeMean, assetType.normalIncomeStd) / 100)
+      investment.value += changeInValue;
+
+      // calculate this year’s expenses, using the average of the beginning-of-year and end-of-year values
+      // subtract the expenses from the investment value.
+      let endingValue = investment.value;
+      let averageValue = (startingValue + endingValue) / 2;
+      let expenses = averageValue * assetType.expenseRatio;
+
+      investment.value -= expenses;
+
+    })
 
     // Step 4: Run the Roth conversion (RC) optimizer, if it is enabled.
 
