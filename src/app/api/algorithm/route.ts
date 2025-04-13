@@ -12,7 +12,7 @@ export async function POST(request: Request) {
     console.log(scenario);
 
     // Run the simulation algorithm multiple times.
-    // const simulationResults = runAlgorithm(scenario, Number(numberOfSimulations));
+    const simulationResults = runAlgorithm(scenario, Number(numberOfSimulations));
 
     // Return the simulation results in the response.
     // return NextResponse.json({ result: simulationResults }, { status: 200 });

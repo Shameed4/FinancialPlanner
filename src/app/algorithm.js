@@ -1,5 +1,5 @@
 class FinancialState {
-    constructor(
+    constructor( 
       age,
       taxable,
       ira,
@@ -610,7 +610,7 @@ class FinancialState {
     };
   }
   
-  // Tax-efficient asset location
+  // Tax-efficient asset location .
   function getTaxEfficientLocation(state, assetAllocation) {
     // Calculate total portfolio value
     const totalValue = state.investments.reduce(

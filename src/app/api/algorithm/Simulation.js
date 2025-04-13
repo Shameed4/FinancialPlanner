@@ -1,124 +1,110 @@
 // this file should contain a single function which runs the algorithm
-import { prepareFiscalYear, updateInvestmentValues, handleWithdrawals, updateBalances, validateState, trackYearEndBalances } from './GlobalFunctions.js';
-import { shouldProcessSpouseDeath, handleSpouseDeath } from './spouse/Spouse.js';
-import { generateRandomReturn } from './GlobalFunctions.js';
-import { updateInflationAdjustedValues, applyInflation } from './inflation/Inflation.js';
-import { processEventSeries } from './events/EventsFunctions.js'
-import { processSocialSecurity } from './events/Income.js';
-import { processRothConversion } from './roth/Roth.js';
-import { calculateRMD } from './rmd/RMD.ks'
-import { processInvestEvents, investExcessCash } from './events/Invest.js';
-import { processRebalanceEvents, createTaxEfficientRebalanceEvent } from './events/Rebalance.js';
-import { calculateTaxes } from './taxes/Taxes.js';
+import { deepCopy, sampleNormal, sampleUniform } from './GlobalFunctions.js';
 
-export default function runSimulation(initialState, params) {
-  let state = deepCopy(initialState);
-  let history = [];
-  let error = null;
+// initialize the starting parameters that store information that either the state does not have, or is derived from the state
+// these parameters may be updated as the simulation progresses through the years
+function buildParams(state) {
+  const curYear = state.startYear;
 
-  try {
-    initializeMarriedStatus(state, params);
-    // Initialize previous year values
-    state.previousYearIncome = state.income;
-    state.previousYearSS = 0;
-    state.previousYearGains = 0;
-    state.previousYearEarlyWithdrawals = 0;
+  // user's age and life expectancy information
+  const userAge = curYear - state.userBirthYear;
+  const userLifeExpectancy = sampleNormal(state.userLifeExpectancyMean, state.userLifeExpectancyStd);
+  const userAlive = userAge < userLifeExpectancy;
 
-    for (let year = 0; year < params.years; year++) {
-      const currentYear = new Date().getFullYear() + year;
+  // spouse's (if applicable) age and life expectancy information
+  const hasSpouse = !!state.spouseBirthYear;
+  const spouseAge = hasSpouse ? 2025 - state.spouseBirthYear : null
+  const spouseLifeExpectancy = hasSpouse ? sampleNormal(state.spouseLifeExpectancyMean, state.spouseLifeExpectancyStd) : null;
+  const spouseAlive = hasSpouse ? spouseAge < spouseLifeExpectancy : null
 
-      try {
-        state.age += 1;
-
-        // Step 0: Preliminaries
-        // Check for spouse death status changes
-        if (state.isMarried && !state.spouseDeceased) {
-          // Check for spouse death based on mortality tables or user input
-          if (shouldProcessSpouseDeath(state, params, currentYear)) {
-            handleSpouseDeath(state);
-          }
-        }
-
-        // Sample inflation rate if using probability distribution
-        const currentInflation = generateRandomReturn(
-          params.inflation,
-          params.inflationVolatility || 0.01
-        );
-
-        // Update inflation-adjusted values
-        updateInflationAdjustedValues(state, currentInflation);
-
-        // Apply inflation to expenses - FIX #2
-        applyInflation(state, currentInflation);
-
-        // Step 1: Run income events
-        processEventSeries(state, currentYear);
-        processSocialSecurity(state);
-
-        state.yearsUntilRetirement > 0;
-
-        // Step 2: Process Roth conversions
-        if (!state.isDeceased) {
-          processRothConversion(state, params);
-        }
-
-        // Step 3: Process RMDs (after Roth conversion)
-        prepareFiscalYear(state);
-        if (state.age >= 74 && !state.isDeceased) {
-          calculateRMD(state, params);
-        }
-
-        // Step 4: Update investment values
-        updateInvestmentValues(state, params);
-
-        // Step 5: Pay non-discretionary expenses and taxes
-        handleWithdrawals(state, params);
-
-        // Step 6: Pay discretionary expenses
-        // (Already handled in handleWithdrawals)
-
-        // Step 7: Invest excess cash
-        processInvestEvents(state, currentYear);
-
-        investExcessCash(state, params);
-
-        // Step 8: Rebalance if scheduled
-        processRebalanceEvents(state, currentYear);
-        // Add after Step 8 in simulation loop
-        if (
-          params.useTaxEfficientRebalancing &&
-          state.age % params.rebalanceFrequency === 0
-        ) {
-          createTaxEfficientRebalanceEvent(state);
-        }
-
-        // FIX #1: Update income before it's reset
-        state.income = state.curYearIncome;
-        // Calculate current year's taxes (to be paid next year)
-        calculateTaxes(state, state.inflationAdjustedTaxBrackets);
-
-
-        updateBalances(state);
-        validateState(state);
-
-        // CHECKPOINT
-
-        // Step 9: Track year-end balances
-        trackYearEndBalances(state);
-
-        history.push(deepCopy(state));
-      } catch (err) {
-        if (err instanceof SimulationError) {
-          error = err;
-          break;
-        }
-        throw err;
-      }
-    }
-  } catch (err) {
-    console.error("Simulation failed:", err.message);
-    throw err;
+  // set inflation rate: sample normal, sample uniform, or fixed
+  let inflationRate;
+  if (state.inflationAssumption === 'fixed') {
+    inflationRate = state.inflation;
+  } else if (condition === 'normal') {
+    inflationRate = sampleNormal(state.inflationMean, state.inflationStd);
+  } else if (condition === 'uniform') {
+    inflationRate = sampleUniform(state.inflationMin, state.inflationMax);
   }
 
-  return { history, error };
+  // TODO: get the scraped tax brackets, according to the project specs, for testing/demonstration purposes we only need NY, NJ, and CT
+  taxBrackets = {};
+
+  afterTaxRetirementContributionLimit = state.initialAfterTaxRetirementContributionLimit;
+
+  curYearIncome = 0;
+  curYearSS = 0;
+
+  return {
+    curYear,
+    userAge,
+    userLifeExpectancy,
+    userAlive,
+    hasSpouse,
+    spouseAge,
+    spouseLifeExpectancy,
+    spouseAlive,
+    inflationRate,
+    taxBrackets,
+    afterTaxRetirementContributionLimit,
+    curYearIncome,
+    curYearSS
+  };
+}
+
+// rewriting the algorithm from scratch
+export default function runSimulation(initialState) {
+  let state = deepCopy(initialState);
+  let params = buildParams(state);
+  let cash = state.investments.find(investment => investment.assetType == 'cash');
+
+  // this while loop performs the simulation iteratively each year while at least one user is still alive
+  while (params.userAlive || params.spouseAlive) {
+    // Age the user and update their alive status
+    if (params.userAlive) {
+      params.userAge += 1;
+      params.userAlive = params.userAge < params.userLifeExpectancy;
+    }
+
+    // Age the spouse and update their alive status (if applicable)
+    if (params.hasSpouse && params.spouseAlive) {
+      params.spouseAge += 1;
+      params.spouseAlive = params.spouseAge < params.spouseLifeExpectancy;
+    }
+
+    // reset parameters that go back to the initial value at the beginning of each year
+    params.curYearIncome = 0;
+    params.curYearSS = 0;
+
+    // apply inflation to: tax brackets, annual limits on retirement accounts contributions
+    // TODO: params.taxBrackets = ...
+    params.afterTaxRetirementContributionLimit = params.afterTaxRetirementContributionLimit * (1 + state.inflationRate / 100);
+
+    // Step 2: run the income events, adding income to the cash investment
+    // TODO: There is a pre-defined investment named “cash” that is held in a non-retirement account. Basically a dedicated “bucket” for holding liquid funds that the simulation uses to represent available cash
+    // for each of the INCOME events, check the the current year is in the range of that event's [startYear, endYear] before proceeding with the step 2 logic
+    // apply annual change of the income event amount, then adjust for inflation
+    // if the user has a spouse, and one is dead, omit the correct percentage of the income event
+    // add the amount of that income event to the cash investment
+    // add to curYearIncome, and add to curYearSS if the income is specified to be social security
+
+    // Step 3: perform RMD for the previous year
+    // if the user’s age is at least 74 and at the end of the previous year, there is at least one investment with tax status = “pre-tax” and with a positive value.
+
+    // Step 4: Update the values of investments, reflecting expected annual return, reinvestment of generated income, and subtraction of expenses.
+
+    // Step 5: Run the Roth conversion (RC) optimizer, if it is enabled.
+
+    // Step 6: Pay non-discretionary expenses and the previous year’s taxes, i.e., subtract them from the cash investment. Perform additional withdrawals if needed to pay them.
+
+    // Step 7: Pay discretionary expenses in the order given by the spending strategy, except stop if continuing would reduce the user’s total assets below the financial goal. 
+    // The last discretionary expense to be paid can be partially paid, if incurring the entire expense would violate the financial goal. 
+    // Perform additional withdrawals if needed to pay them.
+
+    // Step 8: Run the invest event scheduled for the current year, if any, by using excess cash to buy investments included in the asset allocation in the invest event, 
+    // apportioning the excess cash according to that asset allocation.
+
+    // Step 9: Run rebalance events scheduled for the current year, by selling and buying the investments included in the specified asset allocation to achieve the specified ratios between their values.
+
+  }
 }
