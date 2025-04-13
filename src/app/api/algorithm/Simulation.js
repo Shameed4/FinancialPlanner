@@ -1,4 +1,3 @@
-// this file should contain a single function which runs the algorithm
 import { deepCopy, sampleNormal, sampleUniform } from './GlobalFunctions.js';
 
 // initialize the starting parameters that store information that either the state does not have, or is derived from the state
@@ -34,6 +33,12 @@ function buildParams(state) {
 
   let curYearIncome = 0;
   let curYearSS = 0;
+  let prevYearIncome = null;
+  let prevYearSS = null;
+  let curYearGains = 0;
+  let prevYearGains = null;
+  let curYearEarlyWithdrawals = 0;
+  let prevYearEarlyWithdrawals = null;
 
   let rmdTable = {} // get the rmd table from the database, which has been scraped
 
@@ -53,12 +58,17 @@ function buildParams(state) {
     afterTaxRetirementContributionLimit,
     curYearIncome,
     curYearSS,
+    prevYearIncome,
+    prevYearSS,
+    curYearGains,
+    prevYearGains,
+    curYearEarlyWithdrawals,
+    prevYearEarlyWithdrawals,
     rmdTable,
     prevRMD
   };
 }
 
-// rewriting the algorithm from scratch
 export default function runSimulation(initialState) {
   let state = deepCopy(initialState);
   let params = buildParams(state);
@@ -217,7 +227,6 @@ export default function runSimulation(initialState) {
       let expenses = averageValue * assetType.expenseRatio;
 
       investment.value -= expenses;
-
     })
 
     // Step 4: Run the Roth conversion (RC) optimizer, if it is enabled
@@ -226,7 +235,7 @@ export default function runSimulation(initialState) {
       let curYearFedTaxableIncome = params.curYearIncome - 0.85 * params.curYearSS;
 
       // search for the tax bracket the user is in
-      let taxBracket = params.taxBrackets.find(bracket => {
+      let taxBracket = params.taxBrackets.federal.find(bracket => {
         curYearFedTaxableIncome >= bracket.lower && curYearFedTaxableIncome <= bracket.upper
       });
 
@@ -274,10 +283,48 @@ export default function runSimulation(initialState) {
         // add the Roth conversion amount to this year’s income (bc converting pre-tax funds to Roth is a taxable event in the year of conversion)
         params.curYearIncome += rc;
       }
-
     }
 
     // Step 5: Pay non-discretionary expenses and the previous year’s taxes, i.e., subtract them from the cash investment. Perform additional withdrawals if needed to pay them.
+    let prevYearFedTax = 0;
+    let prevYearStateTax = 0;
+    let prevYearCapitalGainsTax = 0;
+    let earlyWithdrawalTax = 0; // Withdrawals from retirement accounts (pre-tax or after-tax) taken before age 59 ½ incur a 10% early withdrawal tax. 
+
+    let prevYearFedTaxableIncome = (params.prevYearIncome ?? 0) - 0.85 * (params.prevYearSS ?? 0);
+
+    // calculate federal tax based on last year data
+    let lastYearFedBracket = params.taxBrackets.federal.find(bracket => prevYearFedTaxableIncome >= bracket.lower && prevYearFedTaxableIncome <= bracket.upper);
+    if (lastYearFedBracket) {
+      prevYearFedTax = prevYearFedTaxableIncome * (lastYearFedBracket.rate / 100);
+    }
+
+    // calculate state tax based on last year data
+    let lastYearStateBracket = params.taxBrackets.state.find(bracket => prevYearFedTaxableIncome >= bracket.lower && prevYearFedTaxableIncome <= bracket.upper);
+    if (lastYearStateBracket) {
+      prevYearStateTax = prevYearFedTaxableIncome * (lastYearStateBracket.rate / 100);
+    }
+
+    // TODO: calculate the capital gains tax
+
+    // TODO: calculate early withdrawals tax
+
+    let totalTaxes = prevYearFedTax + prevYearStateTax + capitalGainsTax + earlyWithdrawalTax;
+
+    let nonDiscretionarySum = 0;
+    let discretionaryEvents = state.eventSeries.filter(event => {
+      event.isDiscretionary === true
+    })
+    discretionaryEvents.forEach(event => {
+      nonDiscretionarySum += event.amount;
+    })
+
+    let totalPaymentAmount = nonDiscretionarySum + totalTaxes;
+
+    let withdrawalAmount = Math.max(0, totalPaymentAmount - cash.value);
+
+    // Step 5 still in progress...
+
 
     // Step 6: Pay discretionary expenses in the order given by the spending strategy, except stop if continuing would reduce the user’s total assets below the financial goal. 
     // The last discretionary expense to be paid can be partially paid, if incurring the entire expense would violate the financial goal. 
@@ -288,5 +335,8 @@ export default function runSimulation(initialState) {
 
     // Step 8: Run rebalance events scheduled for the current year, by selling and buying the investments included in the specified asset allocation to achieve the specified ratios between their values.
 
+
+    params.prevYearIncome = params.curYearIncome;
+    params.prevYearSS = params.curYearSS;
   }
 }
