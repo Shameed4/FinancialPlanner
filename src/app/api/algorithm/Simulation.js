@@ -142,7 +142,7 @@ export default function runSimulation(initialState) {
       if (params.useAge >= 74 && params.prevRMD) {
         let remainingToTransfer = params.prevRMD;
 
-        // this loop assumings that in the investments object, they are ordered according to the expense withdrawal strategy
+        // this loop assumes that in the investments object, they are ordered according to the expense withdrawal strategy
         for (let i = 0; i < state.investments.length && remainingToTransfer > 0; i++) {
           // Only consider investments with taxStatus "pre-tax" and with a positive value.
           if (inv.taxStatus !== "pretax-retirement" || inv.value <= 0) {
@@ -219,6 +219,7 @@ export default function runSimulation(initialState) {
       // calculate the change in value, using the specified distribution/percentage, this models capital appreciation or depreciation.
       let changeInValue = investment.value * (sampleNormal(assetType.normalIncomeMean, assetType.normalIncomeStd) / 100)
       investment.value += changeInValue;
+      params.curYearGains += changeInValue;
 
       // calculate this year’s expenses, using the average of the beginning-of-year and end-of-year values
       // subtract the expenses from the investment value.
@@ -258,10 +259,12 @@ export default function runSimulation(initialState) {
 
           // reduce the source investment by the transfer amount
           inv.value -= transferAmount;
+          if (params.userAge < 59) {
+            params.curYearEarlyWithdrawals += transferAmount;
+          }
 
           // find or create the corresponding after-tax retirement investment of the same type
-          let target = state.investments.find(t => t.assetType === inv.assetType && t.taxStatus === 'aftertax-retirement'
-          );
+          let target = state.investments.find(t => t.assetType === inv.assetType && t.taxStatus === 'aftertax-retirement');
 
           if (!target) {
             // create a new after-tax retirement investment
@@ -289,7 +292,7 @@ export default function runSimulation(initialState) {
     let prevYearFedTax = 0;
     let prevYearStateTax = 0;
     let prevYearCapitalGainsTax = 0;
-    let earlyWithdrawalTax = 0; // Withdrawals from retirement accounts (pre-tax or after-tax) taken before age 59 ½ incur a 10% early withdrawal tax. 
+    let earlyWithdrawalTax = 0;
 
     let prevYearFedTaxableIncome = (params.prevYearIncome ?? 0) - 0.85 * (params.prevYearSS ?? 0);
 
@@ -305,25 +308,104 @@ export default function runSimulation(initialState) {
       prevYearStateTax = prevYearFedTaxableIncome * (lastYearStateBracket.rate / 100);
     }
 
-    // TODO: calculate the capital gains tax
+    // calculate state tax based on last year data
+    let lastYearCapitalBracket = params.taxBrackets.capital.find(bracket => prevYearFedTaxableIncome >= bracket.lower && prevYearFedTaxableIncome <= bracket.upper);
+    if (lastYearCapitalBracket) {
+      // if net realized gains (prevYearGains) are negative, we tax 0.
+      prevYearCapitalGainsTax = Math.max(0, params.prevYearGains) * (lastYearCapitalBracket.rate / 100);
+    }
 
-    // TODO: calculate early withdrawals tax
+    // calculate early withdrawal tax, which is withdrawals from retirement accounts (pre-tax or after-tax) taken before age 59.5
+    earlyWithdrawalTax = (params.prevYearEarlyWithdrawals ?? 0) * 0.1;
 
+    // total up all four tax sources
     let totalTaxes = prevYearFedTax + prevYearStateTax + capitalGainsTax + earlyWithdrawalTax;
 
     let nonDiscretionarySum = 0;
     let discretionaryEvents = state.eventSeries.filter(event => {
-      event.isDiscretionary === true
+      event.type == "expense" &&
+        event.isDiscretionary === false
     })
     discretionaryEvents.forEach(event => {
       nonDiscretionarySum += event.amount;
     })
 
+    // total payment amount P = non-discretionary expenses + all taxes from last year
     let totalPaymentAmount = nonDiscretionarySum + totalTaxes;
 
+    // determine how much must be withdrawn from investments
+    // if there is insufficient cash already, then withdrawal amount W = (totalPaymentAmount - cash.value)
     let withdrawalAmount = Math.max(0, totalPaymentAmount - cash.value);
 
-    // Step 5 still in progress...
+    // if additional funds are needed, iterate over eligible investments according to the expense withdrawal strategy
+    // for each sale, compute the realized capital gain and update running totals
+    // the sale may be partial for the last investment
+    if (withdrawalAmount > 0) {
+      let totalWithdrawn = 0;
+
+      for (let i = 0; i < state.investments.length && totalWithdrawn < withdrawalAmount; i++) {
+        let inv = state.investments[i];
+
+        // skip the cash investments (already used) and investments with no value
+        if (inv.assetType === "cash" || inv.value <= 0) continue;
+
+        // determine how much to sell from this investment
+        let remainingToSell = withdrawalAmount - totalWithdrawn;
+        let amountSold = Math.min(inv.value, remainingToSell);
+
+        // calculate the fraction of the investment being sold
+        let fractionSold = amountSold / inv.value;
+
+        // compute capital gain on this sale:
+        // if selling the entire investment, capital gain = (current value - purchasePrice)
+        // otherwise, for a partial sale, capital gain = f * (current value - purchasePrice)
+
+        // TODO: figure out how purchasePrice is calculated/stored/updated
+        let saleCapitalGain = 0;
+        if (amountSold === inv.value) {
+          saleCapitalGain = inv.value - inv.purchasePrice;
+        } else {
+          saleCapitalGain = fractionSold * (inv.value - inv.purchasePrice);
+        }
+
+        // if the investment sold is NOT held in a pre-tax retirement account,
+        // record the realized capital gain (note: this gain may be negative)
+        if (inv.taxStatus !== "pretax-retirement") {
+          params.curYearGains += saleCapitalGain;
+        } else {
+          // For pre-tax retirement accounts, treat the withdrawal as ordinary income
+          params.curYearIncome += amountSold;
+        }
+
+        // if the investment is in a retirement account and the user is younger than 59,
+        // update the early withdrawal running total.
+        if ((inv.taxStatus === "pretax-retirement" || inv.taxStatus === "aftertax-retirement") && params.userAge < 59) {
+          params.curYearEarlyWithdrawals += amountSold;
+        }
+
+        // update the investment's value by subtracting the amount sold
+        inv.value -= amountSold;
+
+        // adjust the investment's purchasePrice proportionally
+        // this assumes that the purchasePrice is reduced in proportion to the sale
+        inv.purchasePrice -= fractionSold * inv.purchasePrice;
+
+        totalWithdrawn += amountSold;
+      }
+
+      if (totalWithdrawn < withdrawalAmount) {
+        // could not fully cover the required withdrawal for expenses and taxes
+      }
+    }
+
+    // subtract the total payment amount from the cash bucket
+    // (this assumes that cash was first used and any shortfall was met by withdrawals)
+    if (cash.value >= totalPaymentAmount) {
+      cash.value -= totalPaymentAmount;
+    } else {
+      cash.value = 0;
+    }
+
 
 
     // Step 6: Pay discretionary expenses in the order given by the spending strategy, except stop if continuing would reduce the user’s total assets below the financial goal. 
@@ -338,5 +420,7 @@ export default function runSimulation(initialState) {
 
     params.prevYearIncome = params.curYearIncome;
     params.prevYearSS = params.curYearSS;
+    params.prevYearGains = params.curYearGains;
+    params.prevYearEarlyWithdrawals = params.curYearEarlyWithdrawals;
   }
 }
