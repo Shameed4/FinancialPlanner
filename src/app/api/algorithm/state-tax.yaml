@@ -2,299 +2,298 @@ NY:
   single:
     - min: 0
       max: 8500
-      rate: "4%"
+      rate: 4
     - min: 8501
       max: 11700
-      rate: "4.5%"
+      rate: 4.5
     - min: 11701
       max: 13900
-      rate: "5.25%"
+      rate: 5.25
     - min: 13901
       max: 80650
-      rate: "5.5%"
+      rate: 5.5
     - min: 80651
       max: 215400
-      rate: "6%"
+      rate: 6
     - min: 215401
       max: 1077550
-      rate: "6.85%"
+      rate: 6.85
     - min: 1077551
       max: 5000000
-      rate: "9.65%"
+      rate: 9.65
     - min: 5000001
       max: 25000000
-      rate: "10.3%"
+      rate: 10.3
     - min: 25000001
       max: null
-      rate: "10.9%"
+      rate: 10.9
   married-separate:
     - min: 0
       max: 8500
-      rate: "4%"
+      rate: 4
     - min: 8501
       max: 11700
-      rate: "4.5%"
+      rate: 4.5
     - min: 11701
       max: 13900
-      rate: "5.25%"
+      rate: 5.25
     - min: 13901
       max: 80650
-      rate: "5.5%"
+      rate: 5.5
     - min: 80651
       max: 215400
-      rate: "6%"
+      rate: 6
     - min: 215401
       max: 1077550
-      rate: "6.85%"
+      rate: 6.85
     - min: 1077551
       max: 5000000
-      rate: "9.65%"
+      rate: 9.65
     - min: 5000001
       max: 25000000
-      rate: "10.3%"
+      rate: 10.3
     - min: 25000001
       max: null
-      rate: "10.9%"
-
+      rate: 10.9
   married-joint:
     - min: 0
       max: 17150
-      rate: "4%"
+      rate: 4
     - min: 17151
       max: 23600
-      rate: "4.5%"
+      rate: 4.5
     - min: 23601
       max: 27900
-      rate: "5.25%"
+      rate: 5.25
     - min: 27901
       max: 161550
-      rate: "5.5%"
+      rate: 5.5
     - min: 161551
       max: 323200
-      rate: "6%"
+      rate: 6
     - min: 323201
       max: 2155350
-      rate: "6.85%"
+      rate: 6.85
     - min: 2155351
       max: 5000000
-      rate: "9.65%"
+      rate: 9.65
     - min: 5000001
       max: 25000000
-      rate: "10.3%"
+      rate: 10.3
     - min: 25000001
       max: null
-      rate: "10.9%"
+      rate: 10.9
   head-of-household:
     - min: 0
       max: 12800
-      rate: "4%"
+      rate: 4
     - min: 12801
       max: 17650
-      rate: "4.5%"
+      rate: 4.5
     - min: 17651
       max: 20900
-      rate: "5.25%"
+      rate: 5.25
     - min: 20901
       max: 107650
-      rate: "5.5%"
+      rate: 5.5
     - min: 107651
       max: 269300
-      rate: "6%"
+      rate: 6
     - min: 269301
       max: 1616450
-      rate: "6.85%"
+      rate: 6.85
     - min: 1616451
       max: 5000000
-      rate: "9.65%"
+      rate: 9.65
     - min: 5000001
       max: 25000000
-      rate: "10.3%"
+      rate: 10.3
     - min: 25000001
       max: null
-      rate: "10.9%"
+      rate: 10.9
 
 NJ:
   single:
     - min: 0
       max: 20000
-      rate: "1.4%"
+      rate: 1.4
     - min: 20001
       max: 35000
-      rate: "1.75%"
+      rate: 1.75
     - min: 35001
       max: 40000
-      rate: "3.5%"
+      rate: 3.5
     - min: 40001
       max: 75000
-      rate: "5.525%"
+      rate: 5.525
     - min: 75001
       max: 500000
-      rate: "6.37%"
+      rate: 6.37
     - min: 500001
       max: 1000000
-      rate: "8.97%"
+      rate: 8.97
     - min: 1000001
       max: null
-      rate: "10.75%"
+      rate: 10.75
   married-joint:
     - min: 0
       max: 20000
-      rate: "1.4%"
+      rate: 1.4
     - min: 20001
       max: 50000
-      rate: "1.75%"
+      rate: 1.75
     - min: 50001
       max: 70000
-      rate: "2.45%"
+      rate: 2.45
     - min: 70001
       max: 80000
-      rate: "3.5%"
+      rate: 3.5
     - min: 80001
       max: 150000
-      rate: "5.525%"
+      rate: 5.525
     - min: 150001
       max: 500000
-      rate: "6.37%"
+      rate: 6.37
     - min: 500001
       max: 1000000
-      rate: "8.97%"
+      rate: 8.97
     - min: 1000001
       max: null
-      rate: "10.75%"
+      rate: 10.75
   married-separate:
     - min: 0
       max: 20000
-      rate: "1.4%"
+      rate: 1.4
     - min: 20001
       max: 35000
-      rate: "1.75%"
+      rate: 1.75
     - min: 35001
       max: 40000
-      rate: "3.5%"
+      rate: 3.5
     - min: 40001
       max: 75000
-      rate: "5.525%"
+      rate: 5.525
     - min: 75001
       max: 500000
-      rate: "6.37%"
+      rate: 6.37
     - min: 500001
       max: 1000000
-      rate: "8.97%"
+      rate: 8.97
     - min: 1000001
       max: null
-      rate: "10.75%"
+      rate: 10.75
   head-of-household:
     - min: 0
       max: 20000
-      rate: "1.4%"
+      rate: 1.4
     - min: 20001
       max: 50000
-      rate: "1.75%"
+      rate: 1.75
     - min: 50001
       max: 70000
-      rate: "2.45%"
+      rate: 2.45
     - min: 70001
       max: 80000
-      rate: "3.5%"
+      rate: 3.5
     - min: 80001
       max: 150000
-      rate: "5.525%"
+      rate: 5.525
     - min: 150001
       max: 500000
-      rate: "6.37%"
+      rate: 6.37
     - min: 500001
       max: 1000000
-      rate: "8.97%"
+      rate: 8.97
     - min: 1000001
       max: null
-      rate: "10.75%"
+      rate: 10.75
 
 CT:
   single:
     - min: 0
       max: 10000
-      rate: "2%"
+      rate: 2
     - min: 10000.01
       max: 50000
-      rate: "4.5%"
+      rate: 4.5
     - min: 50000.01
       max: 100000
-      rate: "5.5%"
+      rate: 5.5
     - min: 100000.01
       max: 200000
-      rate: "6%"
+      rate: 6
     - min: 200000.01
       max: 250000
-      rate: "6.5%"
+      rate: 6.5
     - min: 250000.01
       max: 500000
-      rate: "6.9%"
+      rate: 6.9
     - min: 500000.01
       max: null
-      rate: "6.99%"
+      rate: 6.99
   married-joint:
     - min: 0
       max: 20000
-      rate: "2%"
+      rate: 2
     - min: 20000.01
       max: 100000
-      rate: "4.5%"
+      rate: 4.5
     - min: 100000.01
       max: 200000
-      rate: "5.5%"
+      rate: 5.5
     - min: 200000.01
       max: 400000
-      rate: "6%"
+      rate: 6
     - min: 400000.01
       max: 500000
-      rate: "6.5%"
+      rate: 6.5
     - min: 500000.01
       max: 1000000
-      rate: "6.9%"
+      rate: 6.9
     - min: 1000000.01
       max: null
-      rate: "6.99%"
+      rate: 6.99
   married-separate:
     - min: 0
       max: 10000
-      rate: "2%"
+      rate: 2
     - min: 10000.01
       max: 50000
-      rate: "4.5%"
+      rate: 4.5
     - min: 50000.01
       max: 100000
-      rate: "5.5%"
+      rate: 5.5
     - min: 100000.01
       max: 200000
-      rate: "6%"
+      rate: 6
     - min: 200000.01
       max: 250000
-      rate: "6.5%"
+      rate: 6.5
     - min: 250000.01
       max: 500000
-      rate: "6.9%"
+      rate: 6.9
     - min: 500000.01
       max: null
-      rate: "6.99%"
+      rate: 6.99
   head-of-household:
     - min: 0
       max: 16000
-      rate: "2%"
+      rate: 2
     - min: 16000.01
       max: 80000
-      rate: "4.5%"
+      rate: 4.5
     - min: 80000.01
       max: 160000
-      rate: "5.5%"
+      rate: 5.5
     - min: 160000.01
       max: 320000
-      rate: "6%"
+      rate: 6
     - min: 320000.01
       max: 400000
-      rate: "6.5%"
+      rate: 6.5
     - min: 400000.01
       max: 800000
-      rate: "6.9%"
+      rate: 6.9
     - min: 800000.01
       max: null
-      rate: "6.99%"
+      rate: 6.99
