@@ -60,6 +60,7 @@ model IncomeEventDetails {
   id                     Int              @id @default(autoincrement())
   initialAmount          Float
   annualChangeType       DistributionType
+  changeAmtOrPct         AmountOrPercent
   annualChangeAmount     Float? // Can be a fixed amount or percentage for fixed
   annualChangePercentage Float? // Can be a fixed amount or percentage for fixed
   annualChangeMin        Float? // for random_uniform

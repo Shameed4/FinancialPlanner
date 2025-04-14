@@ -61,3 +61,8 @@ model StateBracket {
 
   @@unique([state, bracket, userId])
 }
+
+enum AmountOrPercent {
+  amount
+  percent
+}

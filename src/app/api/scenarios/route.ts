@@ -330,8 +330,8 @@ async function createAssetTypes(assetTypes: any[]) {
           gbmIncomeVolatility: assetType.gbmIncomeVolatility,
           expenseRatio: assetType.expenseRatio || 0,
           taxability: taxability,
-          returnAmtOrPct: assetType.returnAmtOrPct,
-          incomeAmtOrPct: assetType.incomeAmtOrPct
+          // incomeAmtOrPct: assetType.incomeAmtOrPct,
+          // returnAmtOrPct: assetType.returnAmtOrPct,
         }
       });
     } catch (error) {

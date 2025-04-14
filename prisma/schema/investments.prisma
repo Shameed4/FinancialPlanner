@@ -7,6 +7,7 @@ model AssetType {
   fixedReturn         Float? // for fixed
   normalReturnMean    Float? // for normal
   normalReturnStd     Float? // for normal
+  returnAmtOrPct      AmountOrPercent
 
   expectedAnnualIncomeType ReturnType
   fixedIncome              Float?
@@ -14,6 +15,7 @@ model AssetType {
   normalIncomeStd          Float?
   gbmIncomeDrift           Float?
   gbmIncomeVolatility      Float?
+  incomeAmtOrPct      AmountOrPercent
 
   expenseRatio Float
   taxability   Taxability
