@@ -2,8 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import yaml from 'js-yaml';
 
-
-export function loadTaxBracketsFromYaml(source, isFilePath = true) {
+export async function loadTaxBracketsFromYaml(source, isFilePath = true) {
     try {
         let fileContent;
 
@@ -11,7 +10,7 @@ export function loadTaxBracketsFromYaml(source, isFilePath = true) {
             if (!fs.existsSync(source)) {
                 throw new Error(`Tax brackets file not found at: ${source}`);
             }
-            fileContent = fs.readFileSync(source, 'utf8');
+            fileContent = await fs.promises.readFile(source, 'utf8');
         } else {
             if (typeof source === 'string' || Buffer.isBuffer(source)) {
                 fileContent = source.toString();
@@ -31,68 +30,71 @@ export function loadTaxBracketsFromYaml(source, isFilePath = true) {
             throw new Error('Invalid YAML structure: root must be an object');
         }
 
-        const isStateTaxFile = Object.keys(taxBrackets).some(key =>
-            key.length === 2 && key === key.toUpperCase()
-        );
+        // Validate state tax structure
+        for (const stateCode of Object.keys(taxBrackets)) {
+            if (stateCode.length !== 2 || stateCode !== stateCode.toUpperCase()) {
+                throw new Error(`Invalid state code format: ${stateCode}`);
+            }
 
-        if (isStateTaxFile) {
-            for (const stateCode of Object.keys(taxBrackets)) {
-                const stateData = taxBrackets[stateCode];
-                if (!stateData || typeof stateData !== 'object') {
-                    throw new Error(`Invalid state data structure for ${stateCode}`);
-                }
+            const stateData = taxBrackets[stateCode];
+            if (!stateData || typeof stateData !== 'object') {
+                throw new Error(`Invalid state data structure for ${stateCode}`);
+            }
 
-                const years = Object.keys(stateData);
-                if (years.length === 0) {
-                    throw new Error(`No year data found for state ${stateCode}`);
-                }
+            const years = Object.keys(stateData);
+            if (years.length === 0) {
+                throw new Error(`No year data found for state ${stateCode}`);
+            }
 
-                for (const year of years) {
-                    const yearData = stateData[year];
-                    const requiredStatuses = [
-                        'married_jointly_or_surviving_spouse',
-                        'single_or_married_separately',
-                        'head_of_household'
-                    ];
+            for (const year of years) {
+                const yearData = stateData[year];
+                const requiredStatuses = [
+                    'married_jointly_or_surviving_spouse',  // maps to "married filing jointly"
+                    'single_or_married_separately'          // maps to "single"
+                ];
 
-                    for (const status of requiredStatuses) {
-                        if (!yearData[status] || !Array.isArray(yearData[status])) {
-                            throw new Error(`Missing or invalid ${status} data for ${stateCode} ${year}`);
+                for (const status of requiredStatuses) {
+                    if (!yearData[status] || !Array.isArray(yearData[status])) {
+                        throw new Error(`Missing or invalid ${status} data for ${stateCode} ${year}`);
+                    }
+
+                    for (const bracket of yearData[status]) {
+                        // Validate required fields for simplified format
+                        if (!('over' in bracket)) {
+                            throw new Error(`Missing lower bound (over) in bracket for ${stateCode} ${year} ${status}`);
+                        }
+                        if (!('but_not_over' in bracket)) {
+                            throw new Error(`Missing upper bound (but_not_over) in bracket for ${stateCode} ${year} ${status}`);
+                        }
+                        if (!('rate' in bracket)) {
+                            throw new Error(`Missing rate in bracket for ${stateCode} ${year} ${status}`);
                         }
 
-                        for (const bracket of yearData[status]) {
-                            const requiredFields = [
-                                'over',
-                                'but_not_over',
-                                'base_tax',
-                                'plus',
-                                'rate',
-                                'of_excess_over'
-                            ];
+                        // Validate numeric fields
+                        const value = bracket.rate;
+                        if (typeof value !== 'number' || isNaN(value)) {
+                            throw new Error(`Rate must be a number in bracket for ${stateCode} ${year} ${status}`);
+                        }
 
-                            for (const field of requiredFields) {
-                                if (!(field in bracket)) {
-                                    throw new Error(`Missing required field ${field} in bracket for ${stateCode} ${year} ${status}`);
-                                }
-                            }
+                        // Validate bounds
+                        if (bracket.over !== null && (typeof bracket.over !== 'number' || isNaN(bracket.over))) {
+                            throw new Error(`Lower bound (over) must be null or a number in bracket for ${stateCode} ${year} ${status}`);
+                        }
+                        if (bracket.but_not_over !== null && (typeof bracket.but_not_over !== 'number' || isNaN(bracket.but_not_over))) {
+                            throw new Error(`Upper bound (but_not_over) must be null or a number in bracket for ${stateCode} ${year} ${status}`);
+                        }
+
+                        // Convert null values to appropriate bounds
+                        if (bracket.over === null) {
+                            bracket.over = 0;
+                        }
+                        if (bracket.but_not_over === null) {
+                            bracket.but_not_over = Infinity;
                         }
                     }
-                }
-            }
-        } else {
-            const requiredStatuses = ['single', 'married-joint', 'married-separate', 'head-of-household'];
-            for (const status of requiredStatuses) {
-                if (!taxBrackets[status]) {
-                    throw new Error(`Missing required filing status: ${status}`);
-                }
 
-                const statusData = taxBrackets[status];
-                if (!statusData.income_tax || !statusData.capital_gains || statusData.standard_deduction === undefined) {
-                    throw new Error(`Invalid structure for filing status: ${status}`);
-                }
-
-                if (!Array.isArray(statusData.income_tax.brackets) || !Array.isArray(statusData.capital_gains.brackets)) {
-                    throw new Error(`Invalid brackets structure for filing status: ${status}`);
+                    // Sort brackets by lower bound
+                    yearData[status].sort((a, b) => a.over - b.over);
                 }
             }
         }
@@ -103,7 +105,6 @@ export function loadTaxBracketsFromYaml(source, isFilePath = true) {
         throw error;
     }
 }
-
 
 export function getYamlFilePath(filename) {
     return path.join(process.cwd(), filename);
@@ -117,19 +118,16 @@ export function getUserStateTaxBracketsFilePath(userId) {
     return path.join(process.cwd(), 'user_data', userId, 'state_tax_brackets.yaml');
 }
 
-
-export function loadUserStateTaxBrackets(userId) {
+export async function loadUserStateTaxBrackets(userId) {
     const filePath = getUserStateTaxBracketsFilePath(userId);
-    return loadTaxBracketsFromYaml(filePath, true);
+    return await loadTaxBracketsFromYaml(filePath, true);
 }
 
-
-export function loadUploadedStateTaxBrackets(yamlContent) {
-    return loadTaxBracketsFromYaml(yamlContent, false);
+export async function loadUploadedStateTaxBrackets(yamlContent) {
+    return await loadTaxBracketsFromYaml(yamlContent, false);
 }
 
-
-export function loadDefaultTaxBrackets() {
+export async function loadDefaultTaxBrackets() {
     const filePath = getTaxBracketsFilePath();
-    return loadTaxBracketsFromYaml(filePath, true);
+    return await loadTaxBracketsFromYaml(filePath, true);
 } 
