@@ -932,43 +932,66 @@ export async function loadRMD() {
 
 export async function loadTaxData() {
   try {
-    // Fetch the federal tax data from the API route.
     const response = await fetch('http://localhost:3000/api/tax-brackets');
     const federalTaxData = await response.json();
     const data = federalTaxData.data;
 
-    // Dictionaries to store federal tax data by filing status.
     let taxBrackets = {};
     let capitalGainsTax = {};
     let standardDeductions = {};
 
-    // Process each filing status: "single", "married-joint", "married-separate", "head-of-household"
     const filingStatuses = ['single', 'married-joint', 'married-separate', 'head-of-household'];
+
+    // Replace "no_limit" with Infinity in federal brackets
+    function replaceNoLimitWithInfinity(brackets) {
+      for (const bracket of brackets) {
+        if (bracket.max === "no_limit") {
+          bracket.max = Infinity;
+        }
+      }
+    }
+
     filingStatuses.forEach(status => {
-      // Income Tax Brackets
-      taxBrackets[status] = data[status].income_tax.brackets;
-      // Capital Gains Tax Brackets
-      capitalGainsTax[status] = data[status].capital_gains.brackets;
-      // Standard Deductions
+      const incomeBrackets = data[status].income_tax.brackets;
+      const capitalBrackets = data[status].capital_gains.brackets;
+
+      replaceNoLimitWithInfinity(incomeBrackets);
+      replaceNoLimitWithInfinity(capitalBrackets);
+
+      taxBrackets[status] = incomeBrackets;
+      capitalGainsTax[status] = capitalBrackets;
       standardDeductions[status] = data[status].standard_deduction;
     });
 
-    // ----- Load the State Tax Data from the YAML file (state-tax.yaml) -----
-    // Read the YAML file from disk.
+    // Load state tax data from YAML
     const __filename = fileURLToPath(import.meta.url);
     const __dirname = path.dirname(__filename);
-
     const yamlFilePath = path.join(__dirname, 'state-tax.yaml');
     const fileContents = fs.readFileSync(yamlFilePath, 'utf8');
-
     const stateTaxData = YAML.parse(fileContents);
 
-    // Only keep tax data for NY, NJ, and CT.
     const stateTaxBrackets = {
       NY: stateTaxData.NY,
       NJ: stateTaxData.NJ,
       CT: stateTaxData.CT,
     };
+
+    // Replace null with Infinity in state brackets
+    function replaceNullMaxWithInfinity(data) {
+      for (const state of Object.keys(data)) {
+        const filingStatuses = data[state];
+        for (const status of Object.keys(filingStatuses)) {
+          const brackets = filingStatuses[status];
+          for (const bracket of brackets) {
+            if (bracket.max === null) {
+              bracket.max = Infinity;
+            }
+          }
+        }
+      }
+    }
+
+    replaceNullMaxWithInfinity(stateTaxBrackets);
 
     return { taxBrackets, capitalGainsTax, standardDeductions, stateTaxBrackets };
   } catch (error) {
@@ -976,3 +999,4 @@ export async function loadTaxData() {
     return { taxBrackets: {}, capitalGainsTax: {}, standardDeductions: {}, stateTaxBrackets: {} };
   }
 }
+
