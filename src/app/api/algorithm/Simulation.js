@@ -69,6 +69,11 @@ function buildParams(state) {
   };
 }
 
+function computeTotalAssets() {
+  // Note: cash is already one of the investments.
+  return state.investments.reduce((acc, inv) => acc + inv.value, 0);
+}
+
 export default function runSimulation(initialState) {
   let state = deepCopy(initialState);
   let params = buildParams(state);
@@ -322,11 +327,13 @@ export default function runSimulation(initialState) {
     let totalTaxes = prevYearFedTax + prevYearStateTax + capitalGainsTax + earlyWithdrawalTax;
 
     let nonDiscretionarySum = 0;
-    let discretionaryEvents = state.eventSeries.filter(event => {
+    let nonDiscretionaryEvents = state.eventSeries.filter(event => {
       event.type == "expense" &&
-        event.isDiscretionary === false
+        event.isDiscretionary === false &&
+        params.curYear >= event.startYear &&
+        params.curYear <= event.endYear
     })
-    discretionaryEvents.forEach(event => {
+    nonDiscretionaryEvents.forEach(event => {
       nonDiscretionarySum += event.amount;
     })
 
@@ -406,11 +413,102 @@ export default function runSimulation(initialState) {
       cash.value = 0;
     }
 
-
-
     // Step 6: Pay discretionary expenses in the order given by the spending strategy, except stop if continuing would reduce the user’s total assets below the financial goal. 
     // The last discretionary expense to be paid can be partially paid, if incurring the entire expense would violate the financial goal. 
     // Perform additional withdrawals if needed to pay them.
+    const financialGoal = state.financialGoal;
+
+    // get the discretionary expense events for the current year
+    let discretionaryEvents = state.eventSeries.filter(event =>
+      event.type === "expense" &&
+      event.isDiscretionary === true &&
+      params.curYear >= event.startYear &&
+      params.curYear <= event.endYear
+    );
+
+    for (let event of discretionaryEvents) {
+      let expenseAmount = event.amount;
+
+      // get updated amount ofcurrent total assets
+      let totalAssets = computeTotalAssets();
+
+      // check if paying this entire expense would drop assets below the financial goal
+      if (totalAssets - expenseAmount < financialGoal) {
+        // only pay enough so that assets remain at the financial goal
+        expenseAmount = Math.max(0, totalAssets - financialGoal);
+        // if expenseAmount is zero, we cannot pay any more discretionary expenses
+        if (expenseAmount === 0) {
+          // paying more would violate the financial goal
+          break;
+        }
+      }
+
+      // determine if cash is sufficient to pay the expense
+      if (cash.value < expenseAmount) {
+        // amount that must be withdrawn from other investments
+        let additionalWithdrawal = expenseAmount - cash.value;
+
+        let totalWithdrawn = 0;
+
+        // iterate over investments in the order defined by the strategy
+        for (let i = 0; i < state.investments.length && totalWithdrawn < additionalWithdrawal; i++) {
+          let inv = state.investments[i];
+
+          // skip the cash bucket or investments with zero value
+          if (inv.assetType === "cash" || inv.value <= 0) continue;
+
+          // determine how much to withdraw from this investment
+          let remainingToWithdraw = additionalWithdrawal - totalWithdrawn;
+          let withdrawalAmount = Math.min(inv.value, remainingToWithdraw);
+
+          // the fraction of the investment sold
+          let fractionSold = withdrawalAmount / inv.value;
+          // calculate the realized capital gain: if the whole investment is sold, gain = (current market value - purchasePrice)
+          // for a partial sale, gain = fractionSold * (current market value - purchasePrice)
+          let realizedGain = fractionSold * (inv.value - inv.purchasePrice);
+
+          // if the investment is not held in a pre-tax retirement account, record the realized gain
+          if (inv.taxStatus !== "pretax-retirement") {
+            params.curYearGains += realizedGain;
+          } else {
+            // for pre-tax retirement accounts, the withdrawn amount is treated as ordinary income
+            params.curYearIncome += withdrawalAmount;
+          }
+          // for any retirement account withdrawals before age 59, update early withdrawals
+          if ((inv.taxStatus === "pretax-retirement" || inv.taxStatus === "aftertax-retirement") && params.userAge < 59) {
+            params.curYearEarlyWithdrawals += withdrawalAmount;
+          }
+
+          // adjust the investment's value
+          inv.value -= withdrawalAmount;
+
+          // adjust the cost basis (purchasePrice) proportionally
+          inv.purchasePrice -= fractionSold * inv.purchasePrice;
+
+          // sum up withdrawn funds
+          totalWithdrawn += withdrawalAmount;
+        }
+
+        if (totalWithdrawn < additionalWithdrawal) {
+          // could not fully withdraw funds to pay the discretionary expense; expense may be partially covered
+        }
+
+        // after the withdrawal process, increase cash by the withdrawn amount
+        cash.value += totalWithdrawn;
+      }
+      // there is enough cash to pay expenseAmount
+      cash.value -= expenseAmount;
+
+      // after paying, update total assets
+      totalAssets = computeTotalAssets();
+
+      // check again if total assets are now at the financial goal
+      if (totalAssets <= financialGoal) {
+        // financial goal violated
+        break;
+      }
+    }
+
 
     // Step 7: Run the invest event scheduled for the current year, if any, by using excess cash to buy investments included in the asset allocation in the invest event, 
     // apportioning the excess cash according to that asset allocation.
