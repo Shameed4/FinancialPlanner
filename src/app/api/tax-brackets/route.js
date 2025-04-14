@@ -257,6 +257,8 @@ async function scrapeTaxBrackets() {
 export async function GET() {
     try {
         console.log('🔍 Checking database for existing tax brackets...');
+        const currentYear = new Date().getFullYear();
+
         // Check if we have tax brackets in the database
         const existingBrackets = await prisma.taxBrackets.findFirst({
             orderBy: {
@@ -264,8 +266,8 @@ export async function GET() {
             }
         });
 
-        if (existingBrackets) {
-            console.log('✅ Found existing tax brackets in database from year:', existingBrackets.year);
+        if (existingBrackets && existingBrackets.year === currentYear) {
+            console.log('✅ Found existing tax brackets in database from current year:', existingBrackets.year);
             // Return existing brackets
             return NextResponse.json({
                 data: JSON.parse(existingBrackets.content),
@@ -274,12 +276,13 @@ export async function GET() {
             });
         }
 
-        console.log('❌ No tax brackets found in database');
+        console.log(existingBrackets ?
+            `🔄 Found tax brackets from year ${existingBrackets.year}, but need current year ${currentYear}` :
+            '❌ No tax brackets found in database');
         console.log('🔄 Starting web scraping process...');
 
-        // If no brackets found, scrape and store them
+        // If no brackets found or not from current year, scrape and store them
         const scrapedBrackets = await scrapeTaxBrackets();
-        const currentYear = new Date().getFullYear();
 
         console.log('✅ Successfully scraped tax brackets');
         console.log('💾 Storing tax brackets in database...');
