@@ -16,33 +16,26 @@ jest.mock('path', () => ({
 describe('TaxBracketsLoader', () => {
   const mockValidYaml = `
 NY:
-  '2025':
-    married_jointly_or_surviving_spouse:
-      - over: null
-        but_not_over: 5000
-        base_tax: 90
-        plus: '105'
-        rate: 0.12
-        of_excess_over: 135
-      - over: 5000
-        but_not_over: 6000
-        base_tax: 75
-        plus: 90
-        rate: 0.15
-        of_excess_over: 120
-    single_or_married_separately:
-      - over: null
-        but_not_over: 5000
-        base_tax: 90
-        plus: '105'
-        rate: 0.12
-        of_excess_over: 135
-      - over: 5000
-        but_not_over: 6000
-        base_tax: 75
-        plus: 90
-        rate: 0.15
-        of_excess_over: 120
+  single:
+    - min: 0
+      max: 8500
+      rate: "4%"
+    - min: 8501
+      max: 11700
+      rate: "4.5%"
+    - min: 11701
+      max: null
+      rate: "5.25%"
+  married-joint:
+    - min: 0
+      max: 17150
+      rate: "4%"
+    - min: 17151
+      max: 23600
+      rate: "4.5%"
+    - min: 23601
+      max: null
+      rate: "5.25%"
 `;
 
   const mockInvalidYaml = `
@@ -52,28 +45,15 @@ invalid:
 
   const mockInvalidStateCodeYaml = `
 Nyy:  # Invalid state code
-  '2025':
-    married_jointly_or_surviving_spouse: []
-    single_or_married_separately: []
+  single: []
 `;
 
   const mockInvalidNumericFieldYaml = `
 NY:
-  '2025':
-    married_jointly_or_surviving_spouse:
-      - over: null
-        but_not_over: 5000
-        base_tax: "90"  # Invalid: should be number
-        plus: '105'
-        rate: 0.12
-        of_excess_over: 135
-    single_or_married_separately:
-      - over: null
-        but_not_over: 5000
-        base_tax: 90
-        plus: '105'
-        rate: 0.12
-        of_excess_over: 135
+  single:
+    - min: 0
+      max: "not a number"
+      rate: "4%"
 `;
 
   beforeEach(() => {
@@ -96,21 +76,14 @@ NY:
 
       expect(result).toBeDefined();
       expect(result.NY).toBeDefined();
-      expect(result.NY['2025']).toBeDefined();
-
-      // Verify structure of state tax data
-      const stateData = result.NY['2025'];
-      expect(stateData.married_jointly_or_surviving_spouse).toBeInstanceOf(Array);
-      expect(stateData.single_or_married_separately).toBeInstanceOf(Array);
+      expect(result.NY.single).toBeInstanceOf(Array);
+      expect(result.NY['married-joint']).toBeInstanceOf(Array);
 
       // Verify bracket structure
-      const bracket = stateData.married_jointly_or_surviving_spouse[0];
+      const bracket = result.NY.single[0];
       expect(bracket).toHaveProperty('over');
       expect(bracket).toHaveProperty('but_not_over');
-      expect(bracket).toHaveProperty('base_tax');
-      expect(bracket).toHaveProperty('plus');
       expect(bracket).toHaveProperty('rate');
-      expect(bracket).toHaveProperty('of_excess_over');
     });
 
     it('should throw error when file does not exist', async () => {
@@ -140,125 +113,156 @@ NY:
     });
 
     it('should throw error for invalid numeric field', async () => {
-      const mockYaml = `
-NY:
-  '2025':
-    married_jointly_or_surviving_spouse:
-      - over: null
-        but_not_over: "not a number"
-        rate: 0.12
-    single_or_married_separately:
-      - over: null
-        but_not_over: 5000
-        rate: 0.12
-`;
+      fs.existsSync.mockReturnValue(true);
+      fs.promises.readFile.mockResolvedValue(mockInvalidNumericFieldYaml);
 
-      await expect(loadTaxBracketsFromYaml(mockYaml, false))
+      await expect(loadTaxBracketsFromYaml('test/path/invalid_numeric.yaml'))
         .rejects
-        .toThrow('Upper bound (but_not_over) must be null or a number in bracket for NY 2025 married_jointly_or_surviving_spouse');
+        .toThrow('Upper bound (max) must be null or a number in bracket for NY single');
     });
 
-    it('should load and parse valid YAML with simplified format', async () => {
+    it('should load and parse valid YAML with percentage rates', async () => {
       const mockYaml = `
 NY:
-  '2025':
-    married_jointly_or_surviving_spouse:
-      - over: null
-        but_not_over: 5000
-        rate: 0.12
-      - over: 5000
-        but_not_over: null
-        rate: 0.15
-    single_or_married_separately:
-      - over: 0
-        but_not_over: 5000
-        rate: 0.12
-      - over: 5000
-        but_not_over: null
-        rate: 0.15
+  single:
+    - min: 0
+      max: 8500
+      rate: "4%"
+    - min: 8501
+      max: 11700
+      rate: "4.5%"
+    - min: 11701
+      max: null
+      rate: "5.25%"
+  married-joint:
+    - min: 0
+      max: 17150
+      rate: "4%"
+    - min: 17151
+      max: 23600
+      rate: "4.5%"
+    - min: 23601
+      max: null
+      rate: "5.25%"
 `;
 
       const result = await loadTaxBracketsFromYaml(mockYaml, false);
       expect(result).toBeDefined();
-      expect(result.NY['2025'].married_jointly_or_surviving_spouse).toHaveLength(2);
-      expect(result.NY['2025'].single_or_married_separately).toHaveLength(2);
+      expect(result.NY.single).toHaveLength(3);
+      expect(result.NY['married-joint']).toHaveLength(3);
 
-      // Verify first bracket for married filing jointly
-      const firstBracket = result.NY['2025'].married_jointly_or_surviving_spouse[0];
-      expect(firstBracket.over).toBe(0); // null should be converted to 0
-      expect(firstBracket.but_not_over).toBe(5000);
-      expect(firstBracket.rate).toBe(0.12);
+      // Verify first bracket for single
+      const firstBracket = result.NY.single[0];
+      expect(firstBracket.over).toBe(0);
+      expect(firstBracket.but_not_over).toBe(8500);
+      expect(firstBracket.rate).toBeCloseTo(0.04, 5);
 
-      // Verify second bracket for married filing jointly
-      const secondBracket = result.NY['2025'].married_jointly_or_surviving_spouse[1];
-      expect(secondBracket.over).toBe(5000);
-      expect(secondBracket.but_not_over).toBe(Infinity); // null should be converted to Infinity
-      expect(secondBracket.rate).toBe(0.15);
+      // Verify last bracket for single
+      const lastBracket = result.NY.single[2];
+      expect(lastBracket.over).toBe(11701);
+      expect(lastBracket.but_not_over).toBe(Infinity);
+      expect(lastBracket.rate).toBeCloseTo(0.0525, 5);
     });
 
-    it('should validate required fields in simplified format', async () => {
+    it('should validate required fields in new format', async () => {
       const mockYaml = `
 NY:
-  '2025':
-    married_jointly_or_surviving_spouse:
-      - over: null
-        but_not_over: 5000
-        # Missing rate field
+  single:
+    - min: 0
+      max: 8500
+      # Missing rate field
 `;
 
       await expect(loadTaxBracketsFromYaml(mockYaml, false))
         .rejects
-        .toThrow('Missing rate in bracket for NY 2025 married_jointly_or_surviving_spouse');
+        .toThrow('Missing rate in bracket for NY single');
     });
 
-    it('should validate numeric fields in simplified format', async () => {
+    it('should validate rate format', async () => {
       const mockYaml = `
 NY:
-  '2025':
-    married_jointly_or_surviving_spouse:
-      - over: null
-        but_not_over: "not a number"
-        rate: 0.12
+  single:
+    - min: 0
+      max: 8500
+      rate: "not a percentage"
 `;
 
       await expect(loadTaxBracketsFromYaml(mockYaml, false))
         .rejects
-        .toThrow('Upper bound (but_not_over) must be null or a number in bracket for NY 2025 married_jointly_or_surviving_spouse');
+        .toThrow('Rate must be a percentage string in bracket for NY single');
+    });
+
+    it('should validate numeric bounds', async () => {
+      const mockYaml = `
+NY:
+  single:
+    - min: "not a number"
+      max: 8500
+      rate: "4%"
+`;
+
+      await expect(loadTaxBracketsFromYaml(mockYaml, false))
+        .rejects
+        .toThrow('Lower bound (min) must be null or a number in bracket for NY single');
     });
 
     it('should sort brackets by lower bound', async () => {
       const mockYaml = `
 NY:
-  '2025':
-    married_jointly_or_surviving_spouse:
-      - over: 10000
-        but_not_over: 20000
-        rate: 0.15
-      - over: 0
-        but_not_over: 10000
-        rate: 0.12
-      - over: 20000
-        but_not_over: null
-        rate: 0.20
-    single_or_married_separately:
-      - over: 0
-        but_not_over: 10000
-        rate: 0.12
-      - over: 10000
-        but_not_over: 20000
-        rate: 0.15
-      - over: 20000
-        but_not_over: null
-        rate: 0.20
+  single:
+    - min: 11701
+      max: null
+      rate: "5.25%"
+    - min: 0
+      max: 8500
+      rate: "4%"
+    - min: 8501
+      max: 11700
+      rate: "4.5%"
 `;
 
       const result = await loadTaxBracketsFromYaml(mockYaml, false);
-      const brackets = result.NY['2025'].married_jointly_or_surviving_spouse;
+      const brackets = result.NY.single;
 
-      // Verify brackets are sorted by over (lower bound)
+      // Verify brackets are sorted by min (lower bound)
       expect(brackets[0].over).toBe(0);
-      expect(brackets[1].over).toBe(10000);
-      expect(brackets[2].over).toBe(20000);
+      expect(brackets[1].over).toBe(8501);
+      expect(brackets[2].over).toBe(11701);
+    });
+
+    it('should handle multiple states', async () => {
+      const mockYaml = `
+NY:
+  single:
+    - min: 0
+      max: 8500
+      rate: "4%"
+    - min: 8501
+      max: null
+      rate: "4.5%"
+NJ:
+  single:
+    - min: 0
+      max: 20000
+      rate: "1.4%"
+    - min: 20001
+      max: null
+      rate: "1.75%"
+`;
+
+      const result = await loadTaxBracketsFromYaml(mockYaml, false);
+      expect(result.NY).toBeDefined();
+      expect(result.NJ).toBeDefined();
+      expect(result.NY.single).toHaveLength(2);
+      expect(result.NJ.single).toHaveLength(2);
+
+      // Verify NY rates
+      expect(result.NY.single[0].rate).toBeCloseTo(0.04, 5);
+      expect(result.NY.single[1].rate).toBeCloseTo(0.045, 5);
+
+      // Verify NJ rates
+      expect(result.NJ.single[0].rate).toBeCloseTo(0.014, 5);
+      expect(result.NJ.single[1].rate).toBeCloseTo(0.0175, 5);
     });
   });
 
@@ -288,7 +292,7 @@ NY:
       const result = await loadUserStateTaxBrackets(userId);
       expect(result).toBeDefined();
       expect(result.NY).toBeDefined();
-      expect(result.NY['2025']).toBeDefined();
+      expect(result.NY.single).toBeInstanceOf(Array);
     });
 
     it('should throw error when user file does not exist', async () => {
@@ -306,7 +310,7 @@ NY:
       const result = await loadUploadedStateTaxBrackets(mockValidYaml);
       expect(result).toBeDefined();
       expect(result.NY).toBeDefined();
-      expect(result.NY['2025']).toBeDefined();
+      expect(result.NY.single).toBeInstanceOf(Array);
     });
 
     it('should throw error for invalid YAML content', async () => {
@@ -325,7 +329,7 @@ NY:
       const result = await loadDefaultTaxBrackets();
       expect(result).toBeDefined();
       expect(result.NY).toBeDefined();
-      expect(result.NY['2025']).toBeDefined();
+      expect(result.NY.single).toBeInstanceOf(Array);
     });
   });
 }); 
