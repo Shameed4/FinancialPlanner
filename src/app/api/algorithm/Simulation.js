@@ -159,7 +159,6 @@ export default async function runSimulation(initialState) {
     console.log(params.stateTaxBrackets[state.residenceState].single);
 
     // Step 1: run the income events, adding income to the cash investment
-    // for each of the INCOME events, check the the current year is in the range of that event's [startYear, endYear] before proceeding with the step 2 logic
     console.log("Running income events...");
     let activeIncomeEvents = state.eventSeries.filter(event =>
       event.type === "income" &&
@@ -168,28 +167,29 @@ export default async function runSimulation(initialState) {
     );
 
     activeIncomeEvents.forEach(event => {
-      // TODO: apply sampling (if specified) to annual change
-
-      if (event.inflationAdjusted) {
-        event.annualChange = event.annualChange * (1 + params.inflationRate / 100); // apply inflation to annual change if the flag is checked
-      }
-
-      if (event.changeType == 'fixed') { // apply the annual change to the event amount
-        event.amount += event.annualChange
+      // Apply annual change first (without inflation adjustment)
+      if (event.changeType == 'fixed') {
+        event.amount += event.annualChange;
       }
       else if (event.changeType == 'percentage') {
         event.amount = event.amount * (1 + event.annualChange / 100);
       }
 
-      if (params.hasSpouse && params.spouseAlive === false) { // if the user has a spouse who is deceased, consider only the user's percentage
+      // Then apply inflation adjustment if needed
+      if (event.inflationAdjusted) {
+        event.amount = event.amount * (1 + params.inflationRate / 100);
+      }
+
+      if (params.hasSpouse && params.spouseAlive === false) {
+        // if the user has a spouse who is deceased, consider only the user's percentage
         event.amount *= event.userPercentage;
       }
 
-      cash.value += event.amount // add the amount of that income event to the cash investment
-
-      params.curYearIncome += event.amount; // update current year's income
+      // Add the amount to cash and update income tracking
+      cash.value += event.amount;
+      params.curYearIncome += event.amount;
       if (event.isSocialSecurity) {
-        params.curYearSS += event.amount; // update current years' SS income if applicable
+        params.curYearSS += event.amount;
       }
     });
 
@@ -259,7 +259,7 @@ export default async function runSimulation(initialState) {
 
       let generatedIncome = investment.value * (sampleNormal(assetType.normalIncomeMean, assetType.normalIncomeStd ?? 0) / 100);
 
-      // add the generated income to curYearIncome, if the investment is non-retirement and taxable.
+      // add the generated income to curYearIncome, if the investment is non-retirement and taxable
       if (investment.taxStatus === 'non-retirement') {
         params.curYearIncome += generatedIncome;
       }
@@ -274,16 +274,17 @@ export default async function runSimulation(initialState) {
       }
       let changeInValue = investment.value * (annualReturnPercentage / 100);
 
-      // add the generated income to the value of the investment.
+      // add the generated income to the value of the investment
       let startingValue = investment.value;  // we'll need this for expense calculation
       investment.value += generatedIncome;
 
-      // add the change in value, using the specified distribution/percentage, this models capital appreciation or depreciation.
+      // add the change in value, using the specified distribution/percentage
+      // this models capital appreciation or depreciation
       investment.value += changeInValue;
-      params.curYearGains += changeInValue;
+      // Note: We no longer update curYearGains here as this is unrealized gain
 
       // calculate this year's expenses, using the average of the beginning-of-year and end-of-year values
-      // subtract the expenses from the investment value.
+      // subtract the expenses from the investment value
       let endingValue = investment.value;
       let averageValue = (startingValue + endingValue) / 2;
       let expenses = averageValue * assetType.expenseRatio;
