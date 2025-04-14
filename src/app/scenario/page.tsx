@@ -273,7 +273,7 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel, initialData = null }: 
                                 const filteredAllocations: Record<string, string> = {};
                                 Object.entries(event.allocations).forEach(([assetName, percentage]) => {
                                     // Check if this asset type exists in any pre-tax investment
-                                    const isPreTax = formData.investments?.some(
+                                    const isPreTax = formData.investments?.every(
                                         inv => inv.assetType === assetName && inv.taxStatus === 'pre-tax-retirement'
                                     );
                                     if (!isPreTax) {
@@ -297,7 +297,7 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel, initialData = null }: 
                                 const filteredInitialAllocations: Record<string, string> = {};
                                 Object.entries(event.initialAllocations).forEach(([assetName, percentage]) => {
                                     // Check if this asset type exists in any pre-tax investment
-                                    const isPreTax = formData.investments?.some(
+                                    const isPreTax = formData.investments?.every(
                                         inv => inv.assetType === assetName && inv.taxStatus === 'pre-tax-retirement'
                                     );
                                     if (!isPreTax) {
@@ -319,7 +319,7 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel, initialData = null }: 
                                 const filteredFinalAllocations: Record<string, string> = {};
                                 Object.entries(event.finalAllocations).forEach(([assetName, percentage]) => {
                                     // Check if this asset type exists in any pre-tax investment
-                                    const isPreTax = formData.investments?.some(
+                                    const isPreTax = formData.investments?.every(
                                         inv => inv.assetType === assetName && inv.taxStatus === 'pre-tax-retirement'
                                     );
                                     if (!isPreTax) {
@@ -902,7 +902,7 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel, initialData = null }: 
                                         )}
                                     </div>
                                     <div>
-                                        <label className="block text-sm font-medium text-gray-700 mb-1">Return Type</label>
+                                        <label className="block text-sm font-medium text-gray-700 mb-1">Return Distribution</label>
                                         <select
                                             value={asset.returnType}
                                             onChange={(e) => {
@@ -1853,9 +1853,9 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel, initialData = null }: 
                                                         <label className="block text-sm font-medium text-gray-700 mb-1">Asset Allocations (%)</label>
                                                         {formData.assetTypes?.filter(asset =>
                                                             // Only show non-pre-tax assets
-                                                            !formData.investments?.some(inv =>
+                                                            formData.investments?.some(inv =>
                                                                 inv.assetType === asset.name &&
-                                                                inv.taxStatus === 'pre-tax-retirement'
+                                                                inv.taxStatus !== 'pre-tax-retirement'
                                                             )
                                                         ).map((asset, assetIndex) => (
                                                             <div key={assetIndex} className="flex items-center gap-2 mb-2">
@@ -1890,9 +1890,9 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel, initialData = null }: 
                                                             <label className="block text-sm font-medium text-gray-700 mb-1">Initial Allocations (%)</label>
                                                             {formData.assetTypes?.filter(asset =>
                                                                 // Only show non-pre-tax assets
-                                                                !formData.investments?.some(inv =>
+                                                                formData.investments?.some(inv =>
                                                                     inv.assetType === asset.name &&
-                                                                    inv.taxStatus === 'pre-tax-retirement'
+                                                                    inv.taxStatus !== 'pre-tax-retirement'
                                                                 )
                                                             ).map((asset, assetIndex) => (
                                                                 <div key={assetIndex} className="flex items-center gap-2 mb-2">
@@ -1925,9 +1925,9 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel, initialData = null }: 
                                                             <label className="block text-sm font-medium text-gray-700 mb-1">Final Allocations (%)</label>
                                                             {formData.assetTypes?.filter(asset =>
                                                                 // Only show non-pre-tax assets
-                                                                !formData.investments?.some(inv =>
+                                                                formData.investments?.some(inv =>
                                                                     inv.assetType === asset.name &&
-                                                                    inv.taxStatus === 'pre-tax-retirement'
+                                                                    inv.taxStatus !== 'pre-tax-retirement'
                                                                 )
                                                             ).map((asset, assetIndex) => (
                                                                 <div key={assetIndex} className="flex items-center gap-2 mb-2">
@@ -2391,7 +2391,7 @@ const ScenarioPage = () => {
         }
     };
 
-    const handleScenarioEdit = async (updatedScenario) => {
+    const handleScenarioEdit = async (updatedScenario : StringScenarioFormData) => {
         try {
             setIsLoading(true);
             const response = await fetch(`/api/scenarios`, {
@@ -2429,332 +2429,332 @@ const ScenarioPage = () => {
         setIsCreating(true);
     };
 
-    // Handle YAML file import
-    const handleFileUpload = (e) => {
-        const file = e.target.files[0];
-        if (!file) return;
+    // // Handle YAML file import
+    // const handleFileUpload = (e) => {
+    //     const file = e.target.files[0];
+    //     if (!file) return;
 
-        const reader = new FileReader();
-        reader.onload = async (event) => {
-            try {
-                const yamlContent = event.target.result;
-                setIsLoading(true);
+    //     const reader = new FileReader();
+    //     reader.onload = async (event) => {
+    //         try {
+    //             const yamlContent = event.target.result;
+    //             setIsLoading(true);
 
-                // Client-side validation before sending to API
-                try {
-                    // Import the YAML parser directly in the component
-                    const yaml = await import('js-yaml');
-                    const parsedData = yaml.load(yamlContent);
+    //             // Client-side validation before sending to API
+    //             try {
+    //                 // Import the YAML parser directly in the component
+    //                 const yaml = await import('js-yaml');
+    //                 const parsedData = yaml.load(yamlContent);
 
-                    // Basic structure validation
-                    if (!parsedData || typeof parsedData !== 'object') {
-                        throw new Error('Invalid YAML format: File must contain a valid scenario object');
-                    }
+    //                 // Basic structure validation
+    //                 if (!parsedData || typeof parsedData !== 'object') {
+    //                     throw new Error('Invalid YAML format: File must contain a valid scenario object');
+    //                 }
 
-                    // Normalize the data structure - exported YAMLs might have properties in different locations
-                    const normalizedData = { ...parsedData };
+    //                 // Normalize the data structure - exported YAMLs might have properties in different locations
+    //                 const normalizedData = { ...parsedData };
 
-                    // Exported YAMLs might have these arrays inside investmentScenario or with prefix
-                    if (!Array.isArray(normalizedData.assetTypes)) {
-                        // Try to find assetTypes in nested locations
-                        if (normalizedData.investmentScenario && Array.isArray(normalizedData.investmentScenario)) {
-                            const extractedAssetTypes = [];
-                            // Extract from investments
-                            normalizedData.investmentScenario.forEach(is => {
-                                if (is.investment && is.investment.assetType) {
-                                    extractedAssetTypes.push(is.investment.assetType);
-                                }
-                            });
-                            if (extractedAssetTypes.length > 0) {
-                                normalizedData.assetTypes = extractedAssetTypes;
-                            }
-                        }
-                    }
+    //                 // Exported YAMLs might have these arrays inside investmentScenario or with prefix
+    //                 if (!Array.isArray(normalizedData.assetTypes)) {
+    //                     // Try to find assetTypes in nested locations
+    //                     if (normalizedData.investmentScenario && Array.isArray(normalizedData.investmentScenario)) {
+    //                         const extractedAssetTypes = [];
+    //                         // Extract from investments
+    //                         normalizedData.investmentScenario.forEach(is => {
+    //                             if (is.investment && is.investment.assetType) {
+    //                                 extractedAssetTypes.push(is.investment.assetType);
+    //                             }
+    //                         });
+    //                         if (extractedAssetTypes.length > 0) {
+    //                             normalizedData.assetTypes = extractedAssetTypes;
+    //                         }
+    //                     }
+    //                 }
 
-                    // Try to extract investments if they're not directly in the root
-                    if (!Array.isArray(normalizedData.investments)) {
-                        if (normalizedData.investmentScenario && Array.isArray(normalizedData.investmentScenario)) {
-                            normalizedData.investments = normalizedData.investmentScenario.map(is => {
-                                if (is.investment) {
-                                    return {
-                                        ...is.investment,
-                                        assetType: is.investment.assetType?.name || is.investment.assetTypeId
-                                    };
-                                }
-                                return is;
-                            });
-                        }
-                    }
+    //                 // Try to extract investments if they're not directly in the root
+    //                 if (!Array.isArray(normalizedData.investments)) {
+    //                     if (normalizedData.investmentScenario && Array.isArray(normalizedData.investmentScenario)) {
+    //                         normalizedData.investments = normalizedData.investmentScenario.map(is => {
+    //                             if (is.investment) {
+    //                                 return {
+    //                                     ...is.investment,
+    //                                     assetType: is.investment.assetType?.name || is.investment.assetTypeId
+    //                                 };
+    //                             }
+    //                             return is;
+    //                         });
+    //                     }
+    //                 }
 
-                    // Create empty arrays if they don't exist to avoid validation errors
-                    if (!Array.isArray(normalizedData.assetTypes)) normalizedData.assetTypes = [];
-                    if (!Array.isArray(normalizedData.investments)) normalizedData.investments = [];
-                    if (!Array.isArray(normalizedData.eventSeries)) normalizedData.eventSeries = [];
+    //                 // Create empty arrays if they don't exist to avoid validation errors
+    //                 if (!Array.isArray(normalizedData.assetTypes)) normalizedData.assetTypes = [];
+    //                 if (!Array.isArray(normalizedData.investments)) normalizedData.investments = [];
+    //                 if (!Array.isArray(normalizedData.eventSeries)) normalizedData.eventSeries = [];
 
-                    // Ensure the required fields exist to pass backend validation
-                    const requiredFields = [
-                        'name', 'forIndividual', 'userBirthYear', 'userLifeExpectancyMean',
-                        'userLifeExpectancyStd', 'inflationAssumption', 'residenceState',
-                        'financialGoal', 'initialAfterTaxRetirementContributionLimit',
-                        'assetTypes', 'investments', 'eventSeries'
-                    ];
+    //                 // Ensure the required fields exist to pass backend validation
+    //                 const requiredFields = [
+    //                     'name', 'forIndividual', 'userBirthYear', 'userLifeExpectancyMean',
+    //                     'userLifeExpectancyStd', 'inflationAssumption', 'residenceState',
+    //                     'financialGoal', 'initialAfterTaxRetirementContributionLimit',
+    //                     'assetTypes', 'investments', 'eventSeries'
+    //                 ];
 
-                    // Normalize event series to ensure they have all required fields
-                    if (Array.isArray(normalizedData.eventSeries)) {
-                        normalizedData.eventSeries = normalizedData.eventSeries.map(event => {
-                            const normalizedEvent = { ...event };
+    //                 // Normalize event series to ensure they have all required fields
+    //                 if (Array.isArray(normalizedData.eventSeries)) {
+    //                     normalizedData.eventSeries = normalizedData.eventSeries.map(event => {
+    //                         const normalizedEvent = { ...event };
 
-                            // Ensure type field uses correct casing
-                            if (normalizedEvent.type) {
-                                // Convert to proper format for backend compatibility
-                                // Map common values to the exact enum values expected by Prisma
-                                const typeMap = {
-                                    'INCOME': 'income',
-                                    'EXPENSE': 'expense',
-                                    'INVEST': 'invest',
-                                    'REBALANCE': 'rebalance',
-                                    'income': 'income',
-                                    'expense': 'expense',
-                                    'invest': 'invest',
-                                    'rebalance': 'rebalance'
-                                };
+    //                         // Ensure type field uses correct casing
+    //                         if (normalizedEvent.type) {
+    //                             // Convert to proper format for backend compatibility
+    //                             // Map common values to the exact enum values expected by Prisma
+    //                             const typeMap = {
+    //                                 'INCOME': 'income',
+    //                                 'EXPENSE': 'expense',
+    //                                 'INVEST': 'invest',
+    //                                 'REBALANCE': 'rebalance',
+    //                                 'income': 'income',
+    //                                 'expense': 'expense',
+    //                                 'invest': 'invest',
+    //                                 'rebalance': 'rebalance'
+    //                             };
 
-                                const normalizedType = normalizedEvent.type.toUpperCase();
-                                normalizedEvent.type = typeMap[normalizedType] || 'income'; // Default to income if type is unknown
-                            } else {
-                                normalizedEvent.type = 'income'; // Default type
-                            }
+    //                             const normalizedType = normalizedEvent.type.toUpperCase();
+    //                             normalizedEvent.type = typeMap[normalizedType] || 'income'; // Default to income if type is unknown
+    //                         } else {
+    //                             normalizedEvent.type = 'income'; // Default type
+    //                         }
 
-                            // Handle income and expense events
-                            if (normalizedEvent.type === 'income' || normalizedEvent.type === 'expense') {
-                                // Ensure annualchangeAmtOrPct is set
-                                if (!normalizedEvent.annualChangeType) {
-                                    // Try to derive from existing fields
-                                    if (normalizedEvent.changeType) {
-                                        normalizedEvent.annualChangeType = normalizedEvent.changeType.toUpperCase();
-                                    } else {
-                                        // Default to FIXED
-                                        normalizedEvent.annualChangeType = 'FIXED';
-                                    }
-                                }
+    //                         // Handle income and expense events
+    //                         if (normalizedEvent.type === 'income' || normalizedEvent.type === 'expense') {
+    //                             // Ensure annualchangeAmtOrPct is set
+    //                             if (!normalizedEvent.annualChangeType) {
+    //                                 // Try to derive from existing fields
+    //                                 if (normalizedEvent.changeType) {
+    //                                     normalizedEvent.annualChangeType = normalizedEvent.changeType.toUpperCase();
+    //                                 } else {
+    //                                     // Default to FIXED
+    //                                     normalizedEvent.annualChangeType = 'FIXED';
+    //                                 }
+    //                             }
 
-                                // Ensure amount is set
-                                if (normalizedEvent.amount === undefined && normalizedEvent.initialAmount === undefined) {
-                                    normalizedEvent.amount = 0;
-                                }
+    //                             // Ensure amount is set
+    //                             if (normalizedEvent.amount === undefined && normalizedEvent.initialAmount === undefined) {
+    //                                 normalizedEvent.amount = 0;
+    //                             }
 
-                                // Ensure inflation adjustment is set
-                                if (normalizedEvent.inflationAdjusted === undefined &&
-                                    normalizedEvent.inflationAdjustment === undefined) {
-                                    normalizedEvent.inflationAdjusted = false;
-                                }
-                            } else if (normalizedEvent.type === 'INVEST' || normalizedEvent.type === 'REBALANCE') {
-                                // Ensure investments have proper allocations
-                                if (!normalizedEvent.allocations) {
-                                    normalizedEvent.allocations = {};
-                                }
-                            }
+    //                             // Ensure inflation adjustment is set
+    //                             if (normalizedEvent.inflationAdjusted === undefined &&
+    //                                 normalizedEvent.inflationAdjustment === undefined) {
+    //                                 normalizedEvent.inflationAdjusted = false;
+    //                             }
+    //                         } else if (normalizedEvent.type === 'INVEST' || normalizedEvent.type === 'REBALANCE') {
+    //                             // Ensure investments have proper allocations
+    //                             if (!normalizedEvent.allocations) {
+    //                                 normalizedEvent.allocations = {};
+    //                             }
+    //                         }
 
-                            // Ensure startYearType and durationType are set with correct formats
-                            if (!normalizedEvent.startYearType) {
-                                normalizedEvent.startYearType = 'fixed';
-                            } else {
-                                // Map to expected enum values
-                                const startYearTypeMap = {
-                                    'FIXED': 'fixed',
-                                    'RANDOM_UNIFORM': 'random_uniform',
-                                    'RANDOM_NORMAL': 'random_normal',
-                                    'SAME_AS': 'same_as',
-                                    'AFTER': 'after',
-                                    'fixed': 'fixed',
-                                    'random_uniform': 'random_uniform',
-                                    'random_normal': 'random_normal',
-                                    'same_as': 'same_as',
-                                    'after': 'after'
-                                };
+    //                         // Ensure startYearType and durationType are set with correct formats
+    //                         if (!normalizedEvent.startYearType) {
+    //                             normalizedEvent.startYearType = 'fixed';
+    //                         } else {
+    //                             // Map to expected enum values
+    //                             const startYearTypeMap = {
+    //                                 'FIXED': 'fixed',
+    //                                 'RANDOM_UNIFORM': 'random_uniform',
+    //                                 'RANDOM_NORMAL': 'random_normal',
+    //                                 'SAME_AS': 'same_as',
+    //                                 'AFTER': 'after',
+    //                                 'fixed': 'fixed',
+    //                                 'random_uniform': 'random_uniform',
+    //                                 'random_normal': 'random_normal',
+    //                                 'same_as': 'same_as',
+    //                                 'after': 'after'
+    //                             };
 
-                                const normalizedStartYearType = normalizedEvent.startYearType.toUpperCase();
-                                normalizedEvent.startYearType = startYearTypeMap[normalizedStartYearType] || 'fixed';
-                            }
+    //                             const normalizedStartYearType = normalizedEvent.startYearType.toUpperCase();
+    //                             normalizedEvent.startYearType = startYearTypeMap[normalizedStartYearType] || 'fixed';
+    //                         }
 
-                            if (!normalizedEvent.durationType) {
-                                normalizedEvent.durationType = 'fixed';
-                            } else {
-                                // Map to expected enum values
-                                const durationTypeMap = {
-                                    'FIXED': 'fixed',
-                                    'RANDOM_UNIFORM': 'random_uniform',
-                                    'RANDOM_NORMAL': 'random_normal',
-                                    'fixed': 'fixed',
-                                    'random_uniform': 'random_uniform',
-                                    'random_normal': 'random_normal'
-                                };
+    //                         if (!normalizedEvent.durationType) {
+    //                             normalizedEvent.durationType = 'fixed';
+    //                         } else {
+    //                             // Map to expected enum values
+    //                             const durationTypeMap = {
+    //                                 'FIXED': 'fixed',
+    //                                 'RANDOM_UNIFORM': 'random_uniform',
+    //                                 'RANDOM_NORMAL': 'random_normal',
+    //                                 'fixed': 'fixed',
+    //                                 'random_uniform': 'random_uniform',
+    //                                 'random_normal': 'random_normal'
+    //                             };
 
-                                const normalizedDurationType = normalizedEvent.durationType.toUpperCase();
-                                normalizedEvent.durationType = durationTypeMap[normalizedDurationType] || 'fixed';
-                            }
+    //                             const normalizedDurationType = normalizedEvent.durationType.toUpperCase();
+    //                             normalizedEvent.durationType = durationTypeMap[normalizedDurationType] || 'fixed';
+    //                         }
 
-                            // Ensure duration is set for fixed duration
-                            if (normalizedEvent.durationType === 'FIXED' && normalizedEvent.durationFixed === undefined) {
-                                normalizedEvent.durationFixed = 1;
-                            }
+    //                         // Ensure duration is set for fixed duration
+    //                         if (normalizedEvent.durationType === 'FIXED' && normalizedEvent.durationFixed === undefined) {
+    //                             normalizedEvent.durationFixed = 1;
+    //                         }
 
-                            // Ensure start year is set for fixed start
-                            if (normalizedEvent.startYearType === 'FIXED' && normalizedEvent.startYear === undefined) {
-                                normalizedEvent.startYear = new Date().getFullYear();
-                            }
+    //                         // Ensure start year is set for fixed start
+    //                         if (normalizedEvent.startYearType === 'FIXED' && normalizedEvent.startYear === undefined) {
+    //                             normalizedEvent.startYear = new Date().getFullYear();
+    //                         }
 
-                            return normalizedEvent;
-                        });
-                    }
+    //                         return normalizedEvent;
+    //                     });
+    //                 }
 
-                    // Create a sanitized version of the data with minimal required structure
-                    const sanitizedData: any = {};
-                    requiredFields.forEach(field => {
-                        // If field exists in normalized data, use it
-                        if (normalizedData[field] !== undefined) {
-                            sanitizedData[field] = normalizedData[field];
-                        }
-                        // Otherwise use a minimal default
-                        else if (field === 'assetTypes' || field === 'investments' || field === 'eventSeries') {
-                            sanitizedData[field] = [];
-                        } else if (field === 'forIndividual') {
-                            sanitizedData[field] = true;
-                        } else if (field === 'inflationAssumption') {
-                            sanitizedData[field] = 'fixed';
-                        } else if (field === 'userLifeExpectancyStd' || field === 'financialGoal' ||
-                            field === 'initialAfterTaxRetirementContributionLimit') {
-                            sanitizedData[field] = 0;
-                        } else {
-                            sanitizedData[field] = '';
-                        }
-                    });
+    //                 // Create a sanitized version of the data with minimal required structure
+    //                 const sanitizedData: any = {};
+    //                 requiredFields.forEach(field => {
+    //                     // If field exists in normalized data, use it
+    //                     if (normalizedData[field] !== undefined) {
+    //                         sanitizedData[field] = normalizedData[field];
+    //                     }
+    //                     // Otherwise use a minimal default
+    //                     else if (field === 'assetTypes' || field === 'investments' || field === 'eventSeries') {
+    //                         sanitizedData[field] = [];
+    //                     } else if (field === 'forIndividual') {
+    //                         sanitizedData[field] = true;
+    //                     } else if (field === 'inflationAssumption') {
+    //                         sanitizedData[field] = 'fixed';
+    //                     } else if (field === 'userLifeExpectancyStd' || field === 'financialGoal' ||
+    //                         field === 'initialAfterTaxRetirementContributionLimit') {
+    //                         sanitizedData[field] = 0;
+    //                     } else {
+    //                         sanitizedData[field] = '';
+    //                     }
+    //                 });
 
-                    // Keep any additional fields from normalized data
-                    Object.keys(normalizedData).forEach(key => {
-                        if (!requiredFields.includes(key)) {
-                            sanitizedData[key] = normalizedData[key];
-                        }
-                    });
+    //                 // Keep any additional fields from normalized data
+    //                 Object.keys(normalizedData).forEach(key => {
+    //                     if (!requiredFields.includes(key)) {
+    //                         sanitizedData[key] = normalizedData[key];
+    //                     }
+    //                 });
 
-                    // // Use the same validation as the form but with more flexible checks
-                    // const validateFields = (data : StringScenarioFormData) => {
-                    //     const errors : string[] = [];
+    //                 // // Use the same validation as the form but with more flexible checks
+    //                 // const validateFields = (data : StringScenarioFormData) => {
+    //                 //     const errors : string[] = [];
 
-                    //     // Check required top-level fields
-                    //     const requiredFields = [
-                    //         'name', 'forIndividual', 'userBirthYear', 'userLifeExpectancyMean',
-                    //         'userLifeExpectancyStd', 'inflationAssumption', 'residenceState',
-                    //         'financialGoal', 'initialAfterTaxRetirementContributionLimit',
-                    //         'assetTypes', 'investments', 'eventSeries'
-                    //     ];
+    //                 //     // Check required top-level fields
+    //                 //     const requiredFields = [
+    //                 //         'name', 'forIndividual', 'userBirthYear', 'userLifeExpectancyMean',
+    //                 //         'userLifeExpectancyStd', 'inflationAssumption', 'residenceState',
+    //                 //         'financialGoal', 'initialAfterTaxRetirementContributionLimit',
+    //                 //         'assetTypes', 'investments', 'eventSeries'
+    //                 //     ];
 
-                    //     requiredFields.forEach(field => {
-                    //         if (data[field as keyof StringScenarioFormData] === undefined) {
-                    //             errors.push(`Missing required field: ${field}`);
-                    //         }
-                    //     });
+    //                 //     requiredFields.forEach(field => {
+    //                 //         if (data[field as keyof StringScenarioFormData] === undefined) {
+    //                 //             errors.push(`Missing required field: ${field}`);
+    //                 //         }
+    //                 //     });
 
-                    //     // Skip array validation since we're normalizing them above
+    //                 //     // Skip array validation since we're normalizing them above
 
-                    //     // Only validate assetTypes if we have some
-                    //     if (data.assetTypes.length > 0) {
-                    //         data.assetTypes.forEach((asset, index) => {
-                    //             if (!asset.name) errors.push(`Asset type #${index + 1} missing name`);
+    //                 //     // Only validate assetTypes if we have some
+    //                 //     if (data.assetTypes.length > 0) {
+    //                 //         data.assetTypes.forEach((asset, index) => {
+    //                 //             if (!asset.name) errors.push(`Asset type #${index + 1} missing name`);
 
-                    //             // More lenient on description
-                    //             if (!asset.description && !asset.name) {
-                    //                 errors.push(`Asset type #${index + 1} missing description`);
-                    //             }
+    //                 //             // More lenient on description
+    //                 //             if (!asset.description && !asset.name) {
+    //                 //                 errors.push(`Asset type #${index + 1} missing description`);
+    //                 //             }
 
-                    //             // Checks for return values are more flexible
-                    //             const returnType = (asset.returnType || '').toLowerCase();
-                    //             if (returnType === 'fixed' && asset.fixedReturn === undefined) {
-                    //                 errors.push(`Asset type #${index + 1} missing a return value`);
-                    //             }
-                    //         });
-                    //     }
+    //                 //             // Checks for return values are more flexible
+    //                 //             const returnType = (asset.returnType || '').toLowerCase();
+    //                 //             if (returnType === 'fixed' && asset.fixedReturn === undefined) {
+    //                 //                 errors.push(`Asset type #${index + 1} missing a return value`);
+    //                 //             }
+    //                 //         });
+    //                 //     }
 
-                    //     // Only validate investments if we have some
-                    //     if (data.investments.length > 0) {
-                    //         data.investments.forEach((investment, index) => {
-                    //             // AssetType might be provided as a name or ID reference
-                    //             if (!investment.assetType) {
-                    //                 errors.push(`Investment #${index + 1} missing asset type reference`);
-                    //             }
+    //                 //     // Only validate investments if we have some
+    //                 //     if (data.investments.length > 0) {
+    //                 //         data.investments.forEach((investment, index) => {
+    //                 //             // AssetType might be provided as a name or ID reference
+    //                 //             if (!investment.assetType) {
+    //                 //                 errors.push(`Investment #${index + 1} missing asset type reference`);
+    //                 //             }
 
-                    //             // More lenient with value check
-                    //             if (investment.value === undefined &&
-                    //                 investment.amount === undefined) {
-                    //                 errors.push(`Investment #${index + 1} missing value`);
-                    //             }
-                    //         });
-                    //     }
+    //                 //             // More lenient with value check
+    //                 //             if (investment.value === undefined &&
+    //                 //                 investment.amount === undefined) {
+    //                 //                 errors.push(`Investment #${index + 1} missing value`);
+    //                 //             }
+    //                 //         });
+    //                 //     }
 
-                    //     return errors;
-                    // };
+    //                 //     return errors;
+    //                 // };
 
-                    // const validationErrors = validateFields(normalizedData);
+    //                 // const validationErrors = validateFields(normalizedData);
 
-                    // if (validationErrors.length > 0) {
-                    //     throw new Error(`Invalid scenario format:\n${validationErrors.join('\n')}`);
-                    // }
+    //                 // if (validationErrors.length > 0) {
+    //                 //     throw new Error(`Invalid scenario format:\n${validationErrors.join('\n')}`);
+    //                 // }
 
-                    // Convert the sanitized data back to YAML to send to the API
-                    const transformedYamlContent = yaml.dump(sanitizedData);
+    //                 // Convert the sanitized data back to YAML to send to the API
+    //                 const transformedYamlContent = yaml.dump(sanitizedData);
 
-                    // Call the YAML API endpoint to import the scenario
-                    const response = await fetch(`/api/scenarios/yaml?userEmail=${userEmail}`, {
-                        method: 'POST',
-                        body: transformedYamlContent,
-                        headers: {
-                            'Content-Type': 'text/yaml',
-                        },
-                    });
+    //                 // Call the YAML API endpoint to import the scenario
+    //                 const response = await fetch(`/api/scenarios/yaml?userEmail=${userEmail}`, {
+    //                     method: 'POST',
+    //                     body: transformedYamlContent,
+    //                     headers: {
+    //                         'Content-Type': 'text/yaml',
+    //                     },
+    //                 });
 
-                    const data = await response.json();
+    //                 const data = await response.json();
 
-                    if (data.status === 201) {
-                        await fetchScenarios();
-                        setError(null);
-                    } else {
-                        setError(data.error || 'Failed to import scenario');
-                    }
-                } catch (validationError) {
-                    setError(`Validation failed`);
-                    setIsLoading(false);
-                    if (fileInputRef.current) {
-                        fileInputRef.current.value = '';
-                    }
-                    return;
-                }
-            } catch (error) {
-                console.error('Error importing scenario:', error);
-                setError(`Failed to import scenario: ${error.message || 'Unknown error'}`);
-            } finally {
-                setIsLoading(false);
-                // Reset the file input
-                if (fileInputRef.current) {
-                    fileInputRef.current.value = '';
-                }
-            }
-        };
+    //                 if (data.status === 201) {
+    //                     await fetchScenarios();
+    //                     setError(null);
+    //                 } else {
+    //                     setError(data.error || 'Failed to import scenario');
+    //                 }
+    //             } catch (validationError) {
+    //                 setError(`Validation failed`);
+    //                 setIsLoading(false);
+    //                 if (fileInputRef.current) {
+    //                     fileInputRef.current.value = '';
+    //                 }
+    //                 return;
+    //             }
+    //         } catch (error) {
+    //             console.error('Error importing scenario:', error);
+    //             setError(`Failed to import scenario: ${error.message || 'Unknown error'}`);
+    //         } finally {
+    //             setIsLoading(false);
+    //             // Reset the file input
+    //             if (fileInputRef.current) {
+    //                 fileInputRef.current.value = '';
+    //             }
+    //         }
+    //     };
 
-        reader.onerror = (error) => {
-            console.error('Error reading file:', error);
-            setError('Failed to read the YAML file');
-            setIsLoading(false);
-        };
+    //     reader.onerror = (error) => {
+    //         console.error('Error reading file:', error);
+    //         setError('Failed to read the YAML file');
+    //         setIsLoading(false);
+    //     };
 
-        reader.readAsText(file);
-    };
+    //     reader.readAsText(file);
+    // };
 
-    // Trigger file input click
-    const handleImportClick = () => {
-        if (fileInputRef.current) {
-            fileInputRef.current.click();
-        }
-    };
+    // // Trigger file input click
+    // const handleImportClick = () => {
+    //     if (fileInputRef.current) {
+    //         fileInputRef.current.click();
+    //     }
+    // };
 
     return (
         <motion.div
@@ -2774,11 +2774,11 @@ const ScenarioPage = () => {
                             type="file"
                             accept=".yaml,.yml"
                             ref={fileInputRef}
-                            onChange={handleFileUpload}
+                            // onChange={handleFileUpload}
                             className="hidden"
                         />
                         <button
-                            onClick={handleImportClick}
+                            // onClick={handleImportClick}
                             className="px-6 py-2 rounded-md bg-blue-600 text-white hover:bg-blue-700"
                         >
                             Import YAML
