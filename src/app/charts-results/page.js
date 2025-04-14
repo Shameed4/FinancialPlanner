@@ -44,7 +44,7 @@ const simulationResults = [
 // Summary Card Component
 const ResultCard = ({ result, onClick }) => (
     <div
-        className="bg-white rounded-xl shadow-md p-6 hover:shadow-lg transition-all cursor-pointer"
+        className="bg-white text-black rounded-xl shadow-md p-6 hover:shadow-lg transition-all cursor-pointer"
         onClick={onClick}
     >
         <h3 className="text-xl font-semibold mb-2 text-gray-900">{result.title}</h3>
@@ -223,7 +223,7 @@ const DetailedView = ({ result, onBack }) => {
     };
 
     return (
-        <div className="bg-white rounded-xl shadow-md p-6">
+        <div className="bg-white text-black rounded-xl shadow-md p-6">
             {/* Header with back button and title */}
             <div className="flex justify-between items-center mb-6">
                 <button

@@ -1703,6 +1703,7 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel, initialData = null }: 
                                                             setFormData({ ...formData, eventSeries: newEventSeries });
                                                         }}
                                                         // className={`${getInputClassName('inflation')} text-black`}
+                                                        className={`border border-black text-black rounded-md p-2`}
                                                         placeholder="2.0"
                                                     />
                                                 </div>
@@ -1722,6 +1723,7 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel, initialData = null }: 
                                                                 setFormData({ ...formData, eventSeries: newEventSeries });
                                                             }}
                                                             // className={`${getInputClassName('inflation')} text-black`}
+                                                            className={`border border-black text-black rounded-md p-2`}
                                                             placeholder="2.0"
                                                         />
                                                     </div>
@@ -1737,6 +1739,7 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel, initialData = null }: 
                                                                 setFormData({ ...formData, eventSeries: newEventSeries });
                                                             }}
                                                             // className={`${getInputClassName('inflation')} text-black`}
+                                                            className={`border border-black text-black rounded-md p-2`}
                                                             placeholder="2.0"
                                                         />
                                                     </div>
@@ -1757,6 +1760,7 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel, initialData = null }: 
                                                                 setFormData({ ...formData, eventSeries: newEventSeries });
                                                             }}
                                                             // className={`${getInputClassName('inflation')} text-black`}
+                                                            className={`border border-black text-black rounded-md p-2`}
                                                             placeholder="2.0"
                                                         />
                                                     </div>
@@ -1772,16 +1776,12 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel, initialData = null }: 
                                                                 setFormData({ ...formData, eventSeries: newEventSeries });
                                                             }}
                                                             // className={`${getInputClassName('inflation')} text-black`}
+                                                            className={`border border-black text-black rounded-md p-2`}
                                                             placeholder="2.0"
                                                         />
                                                     </div>
                                                 </>
                                             )}
-
-
-
-
-
 
                                             <div className="flex items-center">
                                                 <label className="inline-flex items-center mt-3">

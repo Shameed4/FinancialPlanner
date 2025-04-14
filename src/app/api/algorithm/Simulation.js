@@ -12,7 +12,8 @@ const prisma = new PrismaClient();
 // initialize the starting parameters that store information that either the state does not have, or is derived from the state
 // these parameters may be updated as the simulation progresses through the years
 async function buildParams(state) {
-  const curYear = state.startYear; // 2025
+  console.log("Simulation Preprocessing...")
+  const curYear = 2025;
 
   // user's age and life expectancy information
   const userAge = curYear - state.userBirthYear;
@@ -35,71 +36,7 @@ async function buildParams(state) {
     inflationRate = sampleUniform(state.inflationMin, state.inflationMax);
   }
 
-  // Get tax data from the database
   const { taxBrackets, capitalGainsTax, standardDeductions, stateTaxBrackets } = await loadTaxData();
-  // Data Format:
-  /*
-{
-  taxBrackets: {
-    single: [
-      [Object], [Object],
-      [Object], [Object],
-      [Object], [Object],
-      [Object]
-    ],
-    'married-joint': [
-      [Object], [Object],
-      [Object], [Object],
-      [Object], [Object],
-      [Object]
-    ],
-    'married-separate': [
-      [Object], [Object],
-      [Object], [Object],
-      [Object], [Object],
-      [Object]
-    ],
-    'head-of-household': [
-      [Object], [Object],
-      [Object], [Object],
-      [Object], [Object],
-      [Object]
-    ]
-  },
-  capitalGainsTax: {
-    single: [ [Object], [Object], [Object] ],
-    'married-joint': [ [Object], [Object], [Object] ],
-    'married-separate': [ [Object], [Object], [Object] ],
-    'head-of-household': [ [Object], [Object], [Object] ]
-  },
-  standardDeductions: {
-    single: 14600,
-    'married-joint': 29200,
-    'married-separate': 14600,
-    'head-of-household': 21900
-  },
-  stateTaxBrackets: {
-    NY: {
-      single: [Array],
-      'married-separate': [Array],
-      'married-joint': [Array],
-      'head-of-household': [Array]
-    },
-    NJ: {
-      single: [Array],
-      'married-joint': [Array],
-      'married-separate': [Array],
-      'head-of-household': [Array]
-    },
-    CT: {
-      single: [Array],
-      'married-joint': [Array],
-      'married-separate': [Array],
-      'head-of-household': [Array]
-    }
-  }
-  }
-  */
 
   let afterTaxRetirementContributionLimit = state.initialAfterTaxRetirementContributionLimit;
 
@@ -112,62 +49,7 @@ async function buildParams(state) {
   let curYearEarlyWithdrawals = 0;
   let prevYearEarlyWithdrawals = null;
 
-  // TODO: get the scraped RMD table III from the database
   let rmdTable = await loadRMD();
-  // Data Format:
-  /*
-[
-  { age: 72, distributionPeriod: 27.4 },
-  { age: 97, distributionPeriod: 7.8 },
-  { age: 73, distributionPeriod: 26.5 },
-  { age: 98, distributionPeriod: 7.3 },
-  { age: 74, distributionPeriod: 25.5 },
-  { age: 99, distributionPeriod: 6.8 },
-  { age: 75, distributionPeriod: 24.6 },
-  { age: 100, distributionPeriod: 6.4 },
-  { age: 76, distributionPeriod: 23.7 },
-  { age: 101, distributionPeriod: 6 },
-  { age: 77, distributionPeriod: 22.9 },
-  { age: 102, distributionPeriod: 5.6 },
-  { age: 78, distributionPeriod: 22 },
-  { age: 103, distributionPeriod: 5.2 },
-  { age: 79, distributionPeriod: 21.1 },
-  { age: 104, distributionPeriod: 4.9 },
-  { age: 80, distributionPeriod: 20.2 },
-  { age: 105, distributionPeriod: 4.6 },
-  { age: 81, distributionPeriod: 19.4 },
-  { age: 106, distributionPeriod: 4.3 },
-  { age: 82, distributionPeriod: 18.5 },
-  { age: 107, distributionPeriod: 4.1 },
-  { age: 83, distributionPeriod: 17.7 },
-  { age: 108, distributionPeriod: 3.9 },
-  { age: 84, distributionPeriod: 16.8 },
-  { age: 109, distributionPeriod: 3.7 },
-  { age: 85, distributionPeriod: 16 },
-  { age: 110, distributionPeriod: 3.5 },
-  { age: 86, distributionPeriod: 15.2 },
-  { age: 111, distributionPeriod: 3.4 },
-  { age: 87, distributionPeriod: 14.4 },
-  { age: 112, distributionPeriod: 3.3 },
-  { age: 88, distributionPeriod: 13.7 },
-  { age: 113, distributionPeriod: 3.1 },
-  { age: 89, distributionPeriod: 12.9 },
-  { age: 114, distributionPeriod: 3 },
-  { age: 90, distributionPeriod: 12.2 },
-  { age: 115, distributionPeriod: 2.9 },
-  { age: 91, distributionPeriod: 11.5 },
-  { age: 116, distributionPeriod: 2.8 },
-  { age: 92, distributionPeriod: 10.8 },
-  { age: 117, distributionPeriod: 2.7 },
-  { age: 93, distributionPeriod: 10.1 },
-  { age: 118, distributionPeriod: 2.5 },
-  { age: 94, distributionPeriod: 9.5 },
-  { age: 119, distributionPeriod: 2.3 },
-  { age: 95, distributionPeriod: 8.9 },
-  { age: 120, distributionPeriod: 2 },
-  { age: 96, distributionPeriod: 8.4 }
-]
-  */
 
   let prevRMD = null; // store the previous year rmd value
 
@@ -199,15 +81,20 @@ async function buildParams(state) {
   };
 }
 
-function computeTotalAssets() {
+function computeTotalAssets(state) {
   // Note: cash is already one of the investments.
   return state.investments.reduce((acc, inv) => acc + inv.value, 0);
 }
 
 export default async function runSimulation(initialState) {
   let state = deepCopy(initialState);
-  let params = buildParams(state);
+  let params = await buildParams(state);
   let cash = state.investments.find(investment => investment.assetType == 'cash');
+
+  console.log("Simulation started running!");
+  console.log(params.stateTaxBrackets[state.residenceState].single);
+  // console.log(params);
+  // console.log(state);
 
   // this while loop performs the simulation iteratively each year while at least one user is still alive
   while (params.userAlive || params.spouseAlive) {
@@ -231,13 +118,40 @@ export default async function runSimulation(initialState) {
 
     // some things need to be resampled each year
 
-    // apply inflation to: tax brackets, annual limits on retirement accounts contributions
-    // TODO: params.taxBrackets = ...
+    // apply inflation to: federal tax brackets, capital gains tax brackets, standard deductions, annual limits on retirement accounts contributions
+    params.taxBrackets.single.forEach(bracket => {
+      bracket.min = bracket.min * (1 + params.inflationRate / 100);
+      bracket.max = bracket.max * (1 + params.inflationRate / 100);
+    })
+    params.taxBrackets["married-joint"].forEach(bracket => {
+      bracket.min = bracket.min * (1 + params.inflationRate / 100);
+      bracket.max = bracket.max * (1 + params.inflationRate / 100);
+    });
+    params.stateTaxBrackets[state.residenceState].single.forEach(bracket => {
+      bracket.min = bracket.min * (1 + params.inflationRate / 100);
+      bracket.max = bracket.max * (1 + params.inflationRate / 100);
+    })
+    params.stateTaxBrackets[state.residenceState]["married-joint"].forEach(bracket => {
+      bracket.min = bracket.min * (1 + params.inflationRate / 100);
+      bracket.max = bracket.max * (1 + params.inflationRate / 100);
+    });
+    params.capitalGainsTax.single.forEach(bracket => {
+      bracket.min = bracket.min * (1 + params.inflationRate / 100);
+      bracket.max = bracket.max * (1 + params.inflationRate / 100);
+    })
+    params.capitalGainsTax["married-joint"].forEach(bracket => {
+      bracket.min = bracket.min * (1 + params.inflationRate / 100);
+      bracket.max = bracket.max * (1 + params.inflationRate / 100);
+    });
+    for (let sd in params.standardDeductions) {
+      params.standardDeductions[sd] *= (1 + params.inflationRate / 100);
+    }
     params.afterTaxRetirementContributionLimit = params.afterTaxRetirementContributionLimit * (1 + params.inflationRate / 100);
+    console.log(params.stateTaxBrackets[state.residenceState].single);
 
     // Step 1: run the income events, adding income to the cash investment
-    // TODO: There is a pre-defined investment named "cash" that is held in a non-retirement account. Basically a dedicated "bucket" for holding liquid funds that the simulation uses to represent available cash
     // for each of the INCOME events, check the the current year is in the range of that event's [startYear, endYear] before proceeding with the step 2 logic
+    console.log("Running income events...");
     let activeIncomeEvents = state.eventSeries.filter(event =>
       event.type === "income" &&
       params.curYear >= event.startYear &&
@@ -272,6 +186,7 @@ export default async function runSimulation(initialState) {
 
     // Step 2: RMDs
     // if the user's age is at least 74 and at the end of the previous year, there is at least one investment with tax status = "pre-tax" and with a positive value
+    console.log("Running RMDs...");
     if (params.userAge >= 73) {
       // pay RMD for previous year if it exists (user is age 74 or greater)
       if (params.useAge >= 74 && params.prevRMD) {
@@ -328,6 +243,7 @@ export default async function runSimulation(initialState) {
     }
 
     // Step 3: Update the values of investments, reflecting expected annual return, reinvestment of generated income, and subtraction of expenses.
+    console.log("Running investment updates...");
     state.investments.forEach(investment => {
       let type = investment.assetType;
       let assetType = state.assetTypes.find(at => at.name === type);
@@ -368,6 +284,7 @@ export default async function runSimulation(initialState) {
 
     // Step 4: Run the Roth conversion (RC) optimizer, if it is enabled
     if (state.rothOptimizationStartYear && state.rothOptimizationEndYear) {
+      console.log("Running roth conversion optimizer...");
       // user's taxable income for the year
       let curYearFedTaxableIncome = params.curYearIncome - 0.85 * params.curYearSS;
 
@@ -425,6 +342,7 @@ export default async function runSimulation(initialState) {
     }
 
     // Step 5: Pay non-discretionary expenses and the previous year's taxes, i.e., subtract them from the cash investment. Perform additional withdrawals if needed to pay them.
+    console.log("Running non-discretionary expense and tax processing...");
     let prevYearFedTax = 0;
     let prevYearStateTax = 0;
     let prevYearCapitalGainsTax = 0;
@@ -547,6 +465,7 @@ export default async function runSimulation(initialState) {
     // Step 6: Pay discretionary expenses in the order given by the spending strategy, except stop if continuing would reduce the user's total assets below the financial goal. 
     // The last discretionary expense to be paid can be partially paid, if incurring the entire expense would violate the financial goal. 
     // Perform additional withdrawals if needed to pay them.
+    console.log("Running discretionary expense processing...");
     const financialGoal = state.financialGoal;
 
     // get the discretionary expense events for the current year
@@ -561,7 +480,7 @@ export default async function runSimulation(initialState) {
       let expenseAmount = event.amount;
 
       // get updated amount ofcurrent total assets
-      let totalAssets = computeTotalAssets();
+      let totalAssets = computeTotalAssets(state);
 
       // check if paying this entire expense would drop assets below the financial goal
       if (totalAssets - expenseAmount < financialGoal) {
@@ -631,7 +550,7 @@ export default async function runSimulation(initialState) {
       cash.value -= expenseAmount;
 
       // after paying, update total assets
-      totalAssets = computeTotalAssets();
+      totalAssets = computeTotalAssets(state);
 
       // check again if total assets are now at the financial goal
       if (totalAssets <= financialGoal) {
@@ -642,15 +561,20 @@ export default async function runSimulation(initialState) {
 
     // Step 7: Run the invest event scheduled for the current year, if any, by using excess cash to buy investments included in the asset allocation in the invest event, 
     // apportioning the excess cash according to that asset allocation.
+    console.log("Running invest events...");
 
     // Step 8: Run rebalance events scheduled for the current year, by selling and buying the investments included in the specified asset allocation to achieve the specified ratios between their values.
+    console.log("Running rebalance events...");
 
 
     params.prevYearIncome = params.curYearIncome;
     params.prevYearSS = params.curYearSS;
     params.prevYearGains = params.curYearGains;
     params.prevYearEarlyWithdrawals = params.curYearEarlyWithdrawals;
+
   }
+  console.log("simulation done");
+  console.log(computeTotalAssets(state) <= state.financialGoal);
 }
 
 export async function loadRMD() {

@@ -1,0 +1,118 @@
+  // Data Format:
+  /*
+{
+  taxBrackets: {
+    single: [
+      [Object], [Object],
+      [Object], [Object],
+      [Object], [Object],
+      [Object]
+    ],
+    'married-joint': [
+      [Object], [Object],
+      [Object], [Object],
+      [Object], [Object],
+      [Object]
+    ],
+    'married-separate': [
+      [Object], [Object],
+      [Object], [Object],
+      [Object], [Object],
+      [Object]
+    ],
+    'head-of-household': [
+      [Object], [Object],
+      [Object], [Object],
+      [Object], [Object],
+      [Object]
+    ]
+  },
+  capitalGainsTax: {
+    single: [ [Object], [Object], [Object] ],
+    'married-joint': [ [Object], [Object], [Object] ],
+    'married-separate': [ [Object], [Object], [Object] ],
+    'head-of-household': [ [Object], [Object], [Object] ]
+  },
+  standardDeductions: {
+    single: 14600,
+    'married-joint': 29200,
+    'married-separate': 14600,
+    'head-of-household': 21900
+  },
+  stateTaxBrackets: {
+    NY: {
+      single: [Array],
+      'married-separate': [Array],
+      'married-joint': [Array],
+      'head-of-household': [Array]
+    },
+    NJ: {
+      single: [Array],
+      'married-joint': [Array],
+      'married-separate': [Array],
+      'head-of-household': [Array]
+    },
+    CT: {
+      single: [Array],
+      'married-joint': [Array],
+      'married-separate': [Array],
+      'head-of-household': [Array]
+    }
+  }
+  }
+  */
+
+    // Data Format:
+  /*
+[
+  { age: 72, distributionPeriod: 27.4 },
+  { age: 97, distributionPeriod: 7.8 },
+  { age: 73, distributionPeriod: 26.5 },
+  { age: 98, distributionPeriod: 7.3 },
+  { age: 74, distributionPeriod: 25.5 },
+  { age: 99, distributionPeriod: 6.8 },
+  { age: 75, distributionPeriod: 24.6 },
+  { age: 100, distributionPeriod: 6.4 },
+  { age: 76, distributionPeriod: 23.7 },
+  { age: 101, distributionPeriod: 6 },
+  { age: 77, distributionPeriod: 22.9 },
+  { age: 102, distributionPeriod: 5.6 },
+  { age: 78, distributionPeriod: 22 },
+  { age: 103, distributionPeriod: 5.2 },
+  { age: 79, distributionPeriod: 21.1 },
+  { age: 104, distributionPeriod: 4.9 },
+  { age: 80, distributionPeriod: 20.2 },
+  { age: 105, distributionPeriod: 4.6 },
+  { age: 81, distributionPeriod: 19.4 },
+  { age: 106, distributionPeriod: 4.3 },
+  { age: 82, distributionPeriod: 18.5 },
+  { age: 107, distributionPeriod: 4.1 },
+  { age: 83, distributionPeriod: 17.7 },
+  { age: 108, distributionPeriod: 3.9 },
+  { age: 84, distributionPeriod: 16.8 },
+  { age: 109, distributionPeriod: 3.7 },
+  { age: 85, distributionPeriod: 16 },
+  { age: 110, distributionPeriod: 3.5 },
+  { age: 86, distributionPeriod: 15.2 },
+  { age: 111, distributionPeriod: 3.4 },
+  { age: 87, distributionPeriod: 14.4 },
+  { age: 112, distributionPeriod: 3.3 },
+  { age: 88, distributionPeriod: 13.7 },
+  { age: 113, distributionPeriod: 3.1 },
+  { age: 89, distributionPeriod: 12.9 },
+  { age: 114, distributionPeriod: 3 },
+  { age: 90, distributionPeriod: 12.2 },
+  { age: 115, distributionPeriod: 2.9 },
+  { age: 91, distributionPeriod: 11.5 },
+  { age: 116, distributionPeriod: 2.8 },
+  { age: 92, distributionPeriod: 10.8 },
+  { age: 117, distributionPeriod: 2.7 },
+  { age: 93, distributionPeriod: 10.1 },
+  { age: 118, distributionPeriod: 2.5 },
+  { age: 94, distributionPeriod: 9.5 },
+  { age: 119, distributionPeriod: 2.3 },
+  { age: 95, distributionPeriod: 8.9 },
+  { age: 120, distributionPeriod: 2 },
+  { age: 96, distributionPeriod: 8.4 }
+]
+  */
