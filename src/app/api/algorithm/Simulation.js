@@ -1,8 +1,11 @@
 import { deepCopy, sampleNormal, sampleUniform } from './GlobalFunctions.js';
+import { PrismaClient } from '@prisma/client';
+
+const prisma = new PrismaClient();
 
 // initialize the starting parameters that store information that either the state does not have, or is derived from the state
 // these parameters may be updated as the simulation progresses through the years
-function buildParams(state) {
+async function buildParams(state) {
   const curYear = state.startYear; // 2025
 
   // user's age and life expectancy information
@@ -26,8 +29,17 @@ function buildParams(state) {
     inflationRate = sampleUniform(state.inflationMin, state.inflationMax);
   }
 
-  // TODO: get the scraped tax brackets, according to the project specs, for testing/demonstration purposes we only need NY, NJ, and CT
+  // TODO: get the scraped federal tax brackets which should be stored in the database
   let taxBrackets = {};
+
+  // TODO: get capital scraped gains tax rates/thresholds from databse
+  let capitalGainsTax = {}
+
+  // TODO: get scraped standard deductions from the databse
+  let standardDeductions = {}
+
+  // TODO: read this data from a YAML configuration file, only needs data for NY, NJ, or CT
+  let stateTaxBrackets = {}
 
   let afterTaxRetirementContributionLimit = state.initialAfterTaxRetirementContributionLimit;
 
@@ -40,7 +52,8 @@ function buildParams(state) {
   let curYearEarlyWithdrawals = 0;
   let prevYearEarlyWithdrawals = null;
 
-  let rmdTable = {} // get the rmd table from the database, which has been scraped
+  // TODO: get the scraped RMD table III from the database
+  let rmdTable = {};
 
   let prevRMD = null; // store the previous year rmd value
 
@@ -55,6 +68,9 @@ function buildParams(state) {
     spouseAlive,
     inflationRate,
     taxBrackets,
+    capitalGainsTax,
+    standardDeductions,
+    stateTaxBrackets,
     afterTaxRetirementContributionLimit,
     curYearIncome,
     curYearSS,
@@ -74,7 +90,7 @@ function computeTotalAssets() {
   return state.investments.reduce((acc, inv) => acc + inv.value, 0);
 }
 
-export default function runSimulation(initialState) {
+export default async function runSimulation(initialState) {
   let state = deepCopy(initialState);
   let params = buildParams(state);
   let cash = state.investments.find(investment => investment.assetType == 'cash');
@@ -209,10 +225,6 @@ export default function runSimulation(initialState) {
         params.curYearIncome += generatedIncome;
       }
 
-      // add the generated income to the value of the investment.
-      let startingValue = investment.value;  // we'll need this for expense calculation
-      investment.value += generatedIncome;
-
       // annual return specifies the change in value
       let annualReturnPercentage = 0;
       if (assetType.returnType === 'fixed') {
@@ -223,7 +235,11 @@ export default function runSimulation(initialState) {
       }
       let changeInValue = investment.value * (annualReturnPercentage / 100);
 
-      // calculate the change in value, using the specified distribution/percentage, this models capital appreciation or depreciation.
+      // add the generated income to the value of the investment.
+      let startingValue = investment.value;  // we'll need this for expense calculation
+      investment.value += generatedIncome;
+
+      // add the change in value, using the specified distribution/percentage, this models capital appreciation or depreciation.
       investment.value += changeInValue;
       params.curYearGains += changeInValue;
 
