@@ -101,7 +101,8 @@ async function createEventSeries(scenarioId: number, eventSeries: any[], investm
             annualChangeStd: event.annualChangeStd ? parseFloat(event.annualChangeStd) : null,
             inflationAdjustment: event.inflationAdjusted,
             userPercentage: event.userPercentage ? parseFloat(event.userPercentage) : null,
-            isSocialSecurity: event.isSocialSecurity || false
+            isSocialSecurity: event.isSocialSecurity || false,
+            changeAmtOrPct: event.changeAmtOrPct
           }
         });
         break;
@@ -123,7 +124,8 @@ async function createEventSeries(scenarioId: number, eventSeries: any[], investm
             inflationAdjustment: event.inflationAdjusted,
             userPercentage: event.userPercentage ? parseFloat(event.userPercentage) : null,
             isDiscretionary: event.isDiscretionary || false,
-            order: event.order
+            order: event.order,
+            changeAmtOrPct: event.changeAmtOrPct
           }
         });
         break;
@@ -314,6 +316,8 @@ async function createAssetTypes(assetTypes: any[]) {
 
     let createdAssetType;
     try {
+      console.log("---")
+      console.log(assetType);
       createdAssetType = await prisma.assetType.create({
         data: {
           name: assetType.name,
@@ -330,8 +334,8 @@ async function createAssetTypes(assetTypes: any[]) {
           gbmIncomeVolatility: assetType.gbmIncomeVolatility,
           expenseRatio: assetType.expenseRatio || 0,
           taxability: taxability,
-          // incomeAmtOrPct: assetType.incomeAmtOrPct,
-          // returnAmtOrPct: assetType.returnAmtOrPct,
+          incomeAmtOrPct: assetType.incomeAmtOrPct,
+          returnAmtOrPct: assetType.returnAmtOrPct,
         }
       });
     } catch (error) {

@@ -62,7 +62,7 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel, initialData = null }: 
         if (initialData) {
             return {
                 ...initialData,
-                assetTypes: initialData.assetTypes || [{ name: "Cash", description: "Pre-defined", returnType: "fixed", expenseRatio: "" }],
+                assetTypes: initialData.assetTypes || [{ name: "Cash", description: "Pre-defined", returnType: "fixed", expenseRatio: "", incomeAmtOrPct: "amount", returnAmtOrPct: "amount" }],
                 investments: initialData.investments || [{ assetType: "Cash", value: "0", taxStatus: "non-retirement" }],
                 eventSeries: initialData.eventSeries || [],
                 userBirthYear: initialData.userBirthYear?.toString() || '',
@@ -97,7 +97,7 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel, initialData = null }: 
             spouseBirthYear: '',
             spouseLifeExpectancyMean: '',
             spouseLifeExpectancyStd: '0',
-            assetTypes: [{ name: "Cash", description: "Pre-defined", returnType: "", expenseRatio: "" }],
+            assetTypes: [{ name: "Cash", description: "Pre-defined", returnType: "fixed", expenseRatio: "", incomeAmtOrPct: "amount", returnAmtOrPct: "amount" }],
             investments: [{ assetType: "Cash", value: "0", taxStatus: "non-retirement" }],
             eventSeries: [],
             inflationAssumption: '',
@@ -1150,6 +1150,7 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel, initialData = null }: 
                                         expenseRatio: '',
                                         incomeType: 'fixed',
                                         incomeAmtOrPct: 'amount',
+                                        returnAmtOrPct: 'amount',
                                         expectedAnnualIncomeType: 'FIXED',
                                         fixedIncome: '',
                                         normalIncomeMean: '',
@@ -2013,6 +2014,7 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel, initialData = null }: 
                                         durationMean: '',
                                         durationStd: '',
                                         type: '',
+                                        changeAmtOrPct: 'amount',
                                         inflationAdjusted: false
                                     }]
                                 });
@@ -2366,6 +2368,8 @@ const ScenarioPage = () => {
                 rothOptimizationStartYear: newScenario.rothOptimizationStartYear || null,
                 rothOptimizationEndYear: newScenario.rothOptimizationEndYear || null
             };
+
+            console.log("Scenario data", scenarioData);
 
             const response = await fetch('/api/scenarios', {
                 method: 'POST',

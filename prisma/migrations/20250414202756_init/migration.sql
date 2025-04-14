@@ -49,6 +49,7 @@ CREATE TABLE `ExpenseEventDetails` (
     `id` INTEGER NOT NULL AUTO_INCREMENT,
     `initialAmount` DOUBLE NOT NULL,
     `annualChangeType` ENUM('fixed', 'percentage', 'random_uniform', 'random_normal') NOT NULL,
+    `changeAmtOrPct` ENUM('amount', 'percent') NOT NULL,
     `annualChangeAmount` DOUBLE NULL,
     `annualChangePercentage` DOUBLE NULL,
     `annualChangeMin` DOUBLE NULL,
