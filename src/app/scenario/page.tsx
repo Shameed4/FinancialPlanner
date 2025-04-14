@@ -24,7 +24,7 @@ import ShareScenarioModal from './ShareScenarioModal';
 import ScenarioCard from './ScenarioCard.js';
 import { StringScenarioFormData } from './types';
 
-const FormSection = ({ title, children, isActive, errors = {} } : {title: string, children: ReactNode, isActive: boolean, errors: Record<string, string>}) => {
+const FormSection = ({ title, children, isActive, errors = {} }: { title: string, children: ReactNode, isActive: boolean, errors: Record<string, string> }) => {
     if (!isActive) return null;
 
     const hasErrors = Object.keys(errors).length > 0;
@@ -56,7 +56,7 @@ const US_STATES = [
     'SD', 'TN', 'TX', 'UT', 'VT', 'VA', 'WA', 'WV', 'WI', 'WY'
 ];
 
-const CreateScenarioForm = ({ onScenarioCreate, onCancel, initialData = null } : {  onScenarioCreate: (data: StringScenarioFormData) => void, onCancel: () => void, initialData: StringScenarioFormData | null}) => {
+const CreateScenarioForm = ({ onScenarioCreate, onCancel, initialData = null }: { onScenarioCreate: (data: StringScenarioFormData) => void, onCancel: () => void, initialData: StringScenarioFormData | null }) => {
     const [currentStep, setCurrentStep] = useState(1);
     const [formData, setFormData] = useState<StringScenarioFormData>(() => {
         if (initialData) {
@@ -86,7 +86,7 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel, initialData = null } :
                 rothOptimizationEndYear: initialData.rothOptimizationEndYear?.toString()
             };
         }
-    
+
         // Default values if no initialData
         return {
             name: '',
@@ -111,8 +111,8 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel, initialData = null } :
     });
     const [errors, setErrors] = useState({});
 
-    const validateStep = (step : number) => {
-        const newErrors : Record<string, string> = {};
+    const validateStep = (step: number) => {
+        const newErrors: Record<string, string> = {};
         console.log(JSON.stringify(formData));
         switch (step) {
             case 1:
@@ -270,7 +270,7 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel, initialData = null } :
                                 newErrors[`eventSeries.${index}.allocations`] = 'Asset allocations are required';
                             } else {
                                 // Filter out allocations for pre-tax investments
-                                const filteredAllocations : Record<string, string> = {};
+                                const filteredAllocations: Record<string, string> = {};
                                 Object.entries(event.allocations).forEach(([assetName, percentage]) => {
                                     // Check if this asset type exists in any pre-tax investment
                                     const isPreTax = formData.investments?.some(
@@ -294,7 +294,7 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel, initialData = null } :
                                 newErrors[`eventSeries.${index}.initialAllocations`] = 'Initial allocations are required';
                             } else {
                                 // Filter out allocations for pre-tax investments
-                                const filteredInitialAllocations : Record<string, string> = {};
+                                const filteredInitialAllocations: Record<string, string> = {};
                                 Object.entries(event.initialAllocations).forEach(([assetName, percentage]) => {
                                     // Check if this asset type exists in any pre-tax investment
                                     const isPreTax = formData.investments?.some(
@@ -316,7 +316,7 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel, initialData = null } :
                                 newErrors[`eventSeries.${index}.finalAllocations`] = 'Final allocations are required';
                             } else {
                                 // Filter out allocations for pre-tax investments
-                                const filteredFinalAllocations : Record<string, string> = {};
+                                const filteredFinalAllocations: Record<string, string> = {};
                                 Object.entries(event.finalAllocations).forEach(([assetName, percentage]) => {
                                     // Check if this asset type exists in any pre-tax investment
                                     const isPreTax = formData.investments?.some(
