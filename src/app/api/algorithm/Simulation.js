@@ -49,6 +49,15 @@ async function buildParams(state) {
   let curYearEarlyWithdrawals = 0;
   let prevYearEarlyWithdrawals = null;
 
+  // Initialize purchasePrice for all investments if not already set
+  state.investments.forEach(inv => {
+    if (inv.purchasePrice === undefined) {
+      // For initial investments, purchase price equals current value
+      inv.purchasePrice = inv.value;
+    }
+  });
+
+  // TODO: get the scraped RMD table III from the database
   let rmdTable = await loadRMD();
 
   let prevRMD = null; // store the previous year rmd value
@@ -415,8 +424,6 @@ export default async function runSimulation(initialState) {
         // compute capital gain on this sale:
         // if selling the entire investment, capital gain = (current value - purchasePrice)
         // otherwise, for a partial sale, capital gain = f * (current value - purchasePrice)
-
-        // TODO: figure out how purchasePrice is calculated/stored/updated
         let saleCapitalGain = 0;
         if (amountSold === inv.value) {
           saleCapitalGain = inv.value - inv.purchasePrice;
@@ -479,8 +486,8 @@ export default async function runSimulation(initialState) {
     for (let event of discretionaryEvents) {
       let expenseAmount = event.amount;
 
-      // get updated amount ofcurrent total assets
-      let totalAssets = computeTotalAssets(state);
+      // get updated amount of current total assets
+      let totalAssets = computeTotalAssets();
 
       // check if paying this entire expense would drop assets below the financial goal
       if (totalAssets - expenseAmount < financialGoal) {
@@ -561,11 +568,115 @@ export default async function runSimulation(initialState) {
 
     // Step 7: Run the invest event scheduled for the current year, if any, by using excess cash to buy investments included in the asset allocation in the invest event, 
     // apportioning the excess cash according to that asset allocation.
-    console.log("Running invest events...");
+
+    // Find active invest events for current year
+    let activeInvestEvents = state.eventSeries.filter(event =>
+      event.type === "invest" &&
+      params.curYear >= event.startYear &&
+      params.curYear <= event.endYear
+    );
+
+    for (let event of activeInvestEvents) {
+      // Calculate excess cash available for investment
+      let excessCash = Math.max(0, cash.value - event.cashBuffer);
+
+      if (excessCash <= 0) continue;
+
+      // Calculate total allocation percentage
+      let totalAllocation = event.assetAllocation.reduce((sum, alloc) => sum + alloc.percentage, 0);
+      if (totalAllocation === 0) continue;
+
+      // Process each allocation
+      for (let alloc of event.assetAllocation) {
+        let amountToBuy = (excessCash * alloc.percentage) / totalAllocation;
+        if (amountToBuy <= 0) continue;
+
+        // Find or create the target investment
+        let targetInvestment = state.investments.find(inv =>
+          inv.assetType === alloc.assetType &&
+          inv.taxStatus === alloc.taxStatus
+        );
+
+        if (!targetInvestment) {
+          // Create new investment
+          targetInvestment = {
+            assetType: alloc.assetType,
+            taxStatus: alloc.taxStatus,
+            value: 0,
+            purchasePrice: 0 // Initialize purchase price to 0 for new investments
+          };
+          state.investments.push(targetInvestment);
+        }
+
+        // Update investment value and purchase price
+        targetInvestment.value += amountToBuy;
+        targetInvestment.purchasePrice += amountToBuy; // Add to total cost basis
+        cash.value -= amountToBuy;
+      }
+    }
 
     // Step 8: Run rebalance events scheduled for the current year, by selling and buying the investments included in the specified asset allocation to achieve the specified ratios between their values.
-    console.log("Running rebalance events...");
 
+    // Find active rebalance events for current year
+    let activeRebalanceEvents = state.eventSeries.filter(event =>
+      event.type === "rebalance" &&
+      params.curYear >= event.startYear &&
+      params.curYear <= event.endYear
+    );
+
+    for (let event of activeRebalanceEvents) {
+      // Calculate total value of investments to rebalance
+      let totalValue = state.investments
+        .filter(inv => event.assetAllocation.some(alloc =>
+          alloc.assetType === inv.assetType &&
+          alloc.taxStatus === inv.taxStatus
+        ))
+        .reduce((sum, inv) => sum + inv.value, 0);
+
+      if (totalValue <= 0) continue;
+
+      // Process each allocation
+      for (let alloc of event.assetAllocation) {
+        let targetValue = (totalValue * alloc.percentage) / 100;
+
+        // Find the investment
+        let investment = state.investments.find(inv =>
+          inv.assetType === alloc.assetType &&
+          inv.taxStatus === alloc.taxStatus
+        );
+
+        if (!investment) continue;
+
+        let valueDiff = targetValue - investment.value;
+
+        if (valueDiff > 0) {
+          // Need to buy more
+          if (cash.value >= valueDiff) {
+            investment.value += valueDiff;
+            investment.purchasePrice += valueDiff; // Add to total cost basis
+            cash.value -= valueDiff;
+          }
+        } else if (valueDiff < 0) {
+          // Need to sell some
+          let amountToSell = Math.abs(valueDiff);
+          let fractionSold = amountToSell / investment.value;
+
+          // Calculate capital gain/loss
+          let saleCapitalGain = fractionSold * (investment.value - investment.purchasePrice);
+
+          if (investment.taxStatus !== "pretax-retirement") {
+            params.curYearGains += saleCapitalGain;
+          } else {
+            params.curYearIncome += amountToSell;
+          }
+
+          // Update investment value and purchase price
+          investment.value -= amountToSell;
+          investment.purchasePrice -= fractionSold * investment.purchasePrice;
+          cash.value += amountToSell;
+        }
+      }
+    }
 
     params.prevYearIncome = params.curYearIncome;
     params.prevYearSS = params.curYearSS;
