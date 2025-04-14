@@ -1,5 +1,3 @@
-// src/app/api/tax-brackets/route.js
-
 import { PrismaClient } from '@prisma/client';
 import { NextResponse } from 'next/server';
 import yaml from 'js-yaml'; // You'll need to install js-yaml

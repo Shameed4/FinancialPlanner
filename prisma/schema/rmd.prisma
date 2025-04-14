@@ -4,3 +4,11 @@ model RMD {
   age                Int
   distributionPeriod Float
 }
+
+model RMDTable {
+  id        Int      @id @default(autoincrement())
+  content   String   @db.Text
+  year      Int
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
