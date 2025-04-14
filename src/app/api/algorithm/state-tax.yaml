@@ -28,7 +28,7 @@ NY:
       max: null
       rate: "10.9%"
   married-separate:
-      - min: 0
+    - min: 0
       max: 8500
       rate: "4%"
     - min: 8501

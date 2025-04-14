@@ -1,5 +1,11 @@
 import { deepCopy, sampleNormal, sampleUniform } from './GlobalFunctions.js';
 import { PrismaClient } from '@prisma/client';
+import fs from 'fs';
+import yaml from 'yaml';
+import { fileURLToPath } from 'url';
+import path from 'path';
+import YAML from 'yaml';
+
 
 const prisma = new PrismaClient();
 
@@ -29,17 +35,71 @@ async function buildParams(state) {
     inflationRate = sampleUniform(state.inflationMin, state.inflationMax);
   }
 
-  // TODO: get the scraped federal tax brackets which should be stored in the database
-  let taxBrackets = {};
-
-  // TODO: get capital scraped gains tax rates/thresholds from databse
-  let capitalGainsTax = {}
-
-  // TODO: get scraped standard deductions from the databse
-  let standardDeductions = {}
-
-  // TODO: read this data from a YAML configuration file, only needs data for NY, NJ, or CT
-  let stateTaxBrackets = {}
+  // Get tax data from the database
+  const { taxBrackets, capitalGainsTax, standardDeductions, stateTaxBrackets } = await loadTaxData();
+  // Data Format:
+  /*
+{
+  taxBrackets: {
+    single: [
+      [Object], [Object],
+      [Object], [Object],
+      [Object], [Object],
+      [Object]
+    ],
+    'married-joint': [
+      [Object], [Object],
+      [Object], [Object],
+      [Object], [Object],
+      [Object]
+    ],
+    'married-separate': [
+      [Object], [Object],
+      [Object], [Object],
+      [Object], [Object],
+      [Object]
+    ],
+    'head-of-household': [
+      [Object], [Object],
+      [Object], [Object],
+      [Object], [Object],
+      [Object]
+    ]
+  },
+  capitalGainsTax: {
+    single: [ [Object], [Object], [Object] ],
+    'married-joint': [ [Object], [Object], [Object] ],
+    'married-separate': [ [Object], [Object], [Object] ],
+    'head-of-household': [ [Object], [Object], [Object] ]
+  },
+  standardDeductions: {
+    single: 14600,
+    'married-joint': 29200,
+    'married-separate': 14600,
+    'head-of-household': 21900
+  },
+  stateTaxBrackets: {
+    NY: {
+      single: [Array],
+      'married-separate': [Array],
+      'married-joint': [Array],
+      'head-of-household': [Array]
+    },
+    NJ: {
+      single: [Array],
+      'married-joint': [Array],
+      'married-separate': [Array],
+      'head-of-household': [Array]
+    },
+    CT: {
+      single: [Array],
+      'married-joint': [Array],
+      'married-separate': [Array],
+      'head-of-household': [Array]
+    }
+  }
+  }
+  */
 
   let afterTaxRetirementContributionLimit = state.initialAfterTaxRetirementContributionLimit;
 
@@ -53,7 +113,61 @@ async function buildParams(state) {
   let prevYearEarlyWithdrawals = null;
 
   // TODO: get the scraped RMD table III from the database
-  let rmdTable = {};
+  let rmdTable = await loadRMD();
+  // Data Format:
+  /*
+[
+  { age: 72, distributionPeriod: 27.4 },
+  { age: 97, distributionPeriod: 7.8 },
+  { age: 73, distributionPeriod: 26.5 },
+  { age: 98, distributionPeriod: 7.3 },
+  { age: 74, distributionPeriod: 25.5 },
+  { age: 99, distributionPeriod: 6.8 },
+  { age: 75, distributionPeriod: 24.6 },
+  { age: 100, distributionPeriod: 6.4 },
+  { age: 76, distributionPeriod: 23.7 },
+  { age: 101, distributionPeriod: 6 },
+  { age: 77, distributionPeriod: 22.9 },
+  { age: 102, distributionPeriod: 5.6 },
+  { age: 78, distributionPeriod: 22 },
+  { age: 103, distributionPeriod: 5.2 },
+  { age: 79, distributionPeriod: 21.1 },
+  { age: 104, distributionPeriod: 4.9 },
+  { age: 80, distributionPeriod: 20.2 },
+  { age: 105, distributionPeriod: 4.6 },
+  { age: 81, distributionPeriod: 19.4 },
+  { age: 106, distributionPeriod: 4.3 },
+  { age: 82, distributionPeriod: 18.5 },
+  { age: 107, distributionPeriod: 4.1 },
+  { age: 83, distributionPeriod: 17.7 },
+  { age: 108, distributionPeriod: 3.9 },
+  { age: 84, distributionPeriod: 16.8 },
+  { age: 109, distributionPeriod: 3.7 },
+  { age: 85, distributionPeriod: 16 },
+  { age: 110, distributionPeriod: 3.5 },
+  { age: 86, distributionPeriod: 15.2 },
+  { age: 111, distributionPeriod: 3.4 },
+  { age: 87, distributionPeriod: 14.4 },
+  { age: 112, distributionPeriod: 3.3 },
+  { age: 88, distributionPeriod: 13.7 },
+  { age: 113, distributionPeriod: 3.1 },
+  { age: 89, distributionPeriod: 12.9 },
+  { age: 114, distributionPeriod: 3 },
+  { age: 90, distributionPeriod: 12.2 },
+  { age: 115, distributionPeriod: 2.9 },
+  { age: 91, distributionPeriod: 11.5 },
+  { age: 116, distributionPeriod: 2.8 },
+  { age: 92, distributionPeriod: 10.8 },
+  { age: 117, distributionPeriod: 2.7 },
+  { age: 93, distributionPeriod: 10.1 },
+  { age: 118, distributionPeriod: 2.5 },
+  { age: 94, distributionPeriod: 9.5 },
+  { age: 119, distributionPeriod: 2.3 },
+  { age: 95, distributionPeriod: 8.9 },
+  { age: 120, distributionPeriod: 2 },
+  { age: 96, distributionPeriod: 8.4 }
+]
+  */
 
   let prevRMD = null; // store the previous year rmd value
 
@@ -122,7 +236,7 @@ export default async function runSimulation(initialState) {
     params.afterTaxRetirementContributionLimit = params.afterTaxRetirementContributionLimit * (1 + params.inflationRate / 100);
 
     // Step 1: run the income events, adding income to the cash investment
-    // TODO: There is a pre-defined investment named “cash” that is held in a non-retirement account. Basically a dedicated “bucket” for holding liquid funds that the simulation uses to represent available cash
+    // TODO: There is a pre-defined investment named "cash" that is held in a non-retirement account. Basically a dedicated "bucket" for holding liquid funds that the simulation uses to represent available cash
     // for each of the INCOME events, check the the current year is in the range of that event's [startYear, endYear] before proceeding with the step 2 logic
     let activeIncomeEvents = state.eventSeries.filter(event =>
       event.type === "income" &&
@@ -157,7 +271,7 @@ export default async function runSimulation(initialState) {
     });
 
     // Step 2: RMDs
-    // if the user’s age is at least 74 and at the end of the previous year, there is at least one investment with tax status = “pre-tax” and with a positive value
+    // if the user's age is at least 74 and at the end of the previous year, there is at least one investment with tax status = "pre-tax" and with a positive value
     if (params.userAge >= 73) {
       // pay RMD for previous year if it exists (user is age 74 or greater)
       if (params.useAge >= 74 && params.prevRMD) {
@@ -243,7 +357,7 @@ export default async function runSimulation(initialState) {
       investment.value += changeInValue;
       params.curYearGains += changeInValue;
 
-      // calculate this year’s expenses, using the average of the beginning-of-year and end-of-year values
+      // calculate this year's expenses, using the average of the beginning-of-year and end-of-year values
       // subtract the expenses from the investment value.
       let endingValue = investment.value;
       let averageValue = (startingValue + endingValue) / 2;
@@ -305,12 +419,12 @@ export default async function runSimulation(initialState) {
           // decrease the amount still to be converted
           remainingConversion -= transferAmount;
         }
-        // add the Roth conversion amount to this year’s income (bc converting pre-tax funds to Roth is a taxable event in the year of conversion)
+        // add the Roth conversion amount to this year's income (bc converting pre-tax funds to Roth is a taxable event in the year of conversion)
         params.curYearIncome += rc;
       }
     }
 
-    // Step 5: Pay non-discretionary expenses and the previous year’s taxes, i.e., subtract them from the cash investment. Perform additional withdrawals if needed to pay them.
+    // Step 5: Pay non-discretionary expenses and the previous year's taxes, i.e., subtract them from the cash investment. Perform additional withdrawals if needed to pay them.
     let prevYearFedTax = 0;
     let prevYearStateTax = 0;
     let prevYearCapitalGainsTax = 0;
@@ -430,7 +544,7 @@ export default async function runSimulation(initialState) {
       cash.value = 0;
     }
 
-    // Step 6: Pay discretionary expenses in the order given by the spending strategy, except stop if continuing would reduce the user’s total assets below the financial goal. 
+    // Step 6: Pay discretionary expenses in the order given by the spending strategy, except stop if continuing would reduce the user's total assets below the financial goal. 
     // The last discretionary expense to be paid can be partially paid, if incurring the entire expense would violate the financial goal. 
     // Perform additional withdrawals if needed to pay them.
     const financialGoal = state.financialGoal;
@@ -536,5 +650,82 @@ export default async function runSimulation(initialState) {
     params.prevYearSS = params.curYearSS;
     params.prevYearGains = params.curYearGains;
     params.prevYearEarlyWithdrawals = params.curYearEarlyWithdrawals;
+  }
+}
+
+export async function loadRMD() {
+  try {
+    const response = await fetch('http://localhost:3000/api/rmd-table');
+    const rmdData = await response.json();
+    const data = rmdData.lifetimeTable;
+
+    // Convert each object's properties from strings to numbers.
+    const transformedData = data.map((item) => {
+      // If the age string includes "120", "120 and over", or "120_and_more", return 120
+      let age;
+      if (item.age.toLowerCase().includes('120')) {
+        age = 120;
+      } else {
+        age = Number(item.age); // or parseInt(item.age, 10) if age values are integers
+      }
+
+      // Convert distributionPeriod string to a number (using parseFloat to capture decimals)
+      const distributionPeriod = parseFloat(item.distributionPeriod);
+
+      return { age, distributionPeriod };
+    });
+
+    return transformedData;
+  } catch (error) {
+    console.error('Error loading RMD data:', error);
+    return {};
+  }
+}
+
+
+export async function loadTaxData() {
+  try {
+    // Fetch the federal tax data from the API route.
+    const response = await fetch('http://localhost:3000/api/tax-brackets');
+    const federalTaxData = await response.json();
+    const data = federalTaxData.data;
+
+    // Dictionaries to store federal tax data by filing status.
+    let taxBrackets = {};
+    let capitalGainsTax = {};
+    let standardDeductions = {};
+
+    // Process each filing status: "single", "married-joint", "married-separate", "head-of-household"
+    const filingStatuses = ['single', 'married-joint', 'married-separate', 'head-of-household'];
+    filingStatuses.forEach(status => {
+      // Income Tax Brackets
+      taxBrackets[status] = data[status].income_tax.brackets;
+      // Capital Gains Tax Brackets
+      capitalGainsTax[status] = data[status].capital_gains.brackets;
+      // Standard Deductions
+      standardDeductions[status] = data[status].standard_deduction;
+    });
+
+    // ----- Load the State Tax Data from the YAML file (state-tax.yaml) -----
+    // Read the YAML file from disk.
+    const __filename = fileURLToPath(import.meta.url);
+    const __dirname = path.dirname(__filename);
+
+    const yamlFilePath = path.join(__dirname, 'state-tax.yaml');
+    const fileContents = fs.readFileSync(yamlFilePath, 'utf8');
+
+    const stateTaxData = YAML.parse(fileContents);
+
+    // Only keep tax data for NY, NJ, and CT.
+    const stateTaxBrackets = {
+      NY: stateTaxData.NY,
+      NJ: stateTaxData.NJ,
+      CT: stateTaxData.CT,
+    };
+
+    return { taxBrackets, capitalGainsTax, standardDeductions, stateTaxBrackets };
+  } catch (error) {
+    console.error('Error loading tax data:', error);
+    return { taxBrackets: {}, capitalGainsTax: {}, standardDeductions: {}, stateTaxBrackets: {} };
   }
 }
