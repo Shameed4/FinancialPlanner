@@ -29,7 +29,7 @@ export interface StringScenarioFormData {
 export interface AssetType {
   name: string;
   description?: string;
-  returnType?: 'fixed' | 'normal';
+  returnType: 'fixed' | 'normal' | 'uniform';
   fixedReturn?: string;
   normalReturnMean?: string;
   normalReturnStd?: string;
@@ -41,17 +41,17 @@ export interface AssetType {
 }
 
 export interface Investment {
-  assetType?: string;
-  value?: string;
-  taxStatus?: 'non-retirement' | 'pre-tax-retirement' | 'after-tax-retirement'
+  assetType: string;
+  value: string;
+  taxStatus: 'non-retirement' | 'pre-tax-retirement' | 'after-tax-retirement'
   withdrawalOrder?: number;
   rothConversionOrder?: number;
 }
 
 export interface Event {
-  name?: string;
-  type?: 'income' | 'expense' | 'invest' | 'rebalance';
-  startYearType?: 'fixed' | 'relative';
+  name: string;
+  type: 'income' | 'expense' | 'invest' | 'rebalance';
+  startYearType: 'fixed' | 'relative';
   startYear?: string;
   relativeStartYear?: string;
 

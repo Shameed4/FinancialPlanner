@@ -167,12 +167,28 @@ export function yamlToScenario(yaml : string) {
     res.assetTypes = jsonYaml.investmentTypes.map(asset => {
         return {
             name: asset.name,
-            expenseRatio: asset.expenseRatio,
+            expenseRatio: String(asset.expenseRatio),
             taxable: asset.taxability,
+            returnType: asset.returnDistribution.type,
             returnAmtOrPct: asset.returnAmtOrPct,
-            
+            incomeAmtOrPct: asset.incomeAmtOrPct,
         }
     })
+    res.investments = jsonYaml.investments.map(inv => {
+        return {
+            assetType: inv.investmentType,
+            value: String(inv.value),
+            taxStatus: inv.taxStatus == "pre-tax" ? "pre-tax-retirement" : inv.taxStatus == "after-tax" ? "after-tax-retirement" : "non-retirement"
+        }
+    })
+    // res.eventSeries = jsonYaml.eventSeries.map(es => {
+    //     return {
+    //         name: es.name,
+    //         ...{
+    //             startYearType: 
+    //         }
+    //     }
+    // })
     return res;
 }
 
