@@ -95,6 +95,21 @@ function computeTotalAssets(state) {
   return state.investments.reduce((acc, inv) => acc + inv.value, 0);
 }
 
+// Helper function to calculate marginal tax
+function calculateMarginalTax(taxableIncome, brackets) {
+  let totalTax = 0;
+  let remainingIncome = taxableIncome;
+
+  for (let i = 0; i < brackets.length && remainingIncome > 0; i++) {
+    const bracket = brackets[i];
+    const bracketSize = Math.min(remainingIncome, bracket.max - bracket.min);
+    totalTax += bracketSize * (bracket.rate / 100);
+    remainingIncome -= bracketSize;
+  }
+
+  return totalTax;
+}
+
 export default async function runSimulation(initialState) {
   let state = deepCopy(initialState);
   let params = await buildParams(state);
@@ -107,7 +122,7 @@ export default async function runSimulation(initialState) {
 
   // this while loop performs the simulation iteratively each year while at least one user is still alive
   while (params.userAlive || params.spouseAlive) {
-    params.curYear += 1
+    params.curYear += 1;
 
     // Age the user and update their alive status
     if (params.userAlive) {
@@ -121,9 +136,63 @@ export default async function runSimulation(initialState) {
       params.spouseAlive = params.spouseAge < params.spouseLifeExpectancy;
     }
 
-    // reset parameters that go back to the initial value at the beginning of each year
+    // Reset parameters that go back to the initial value at the beginning of each year
     params.curYearIncome = 0;
     params.curYearSS = 0;
+    params.curYearGains = 0;
+    params.curYearEarlyWithdrawals = 0;
+
+    // Re-sample inflation rate if using a probability distribution
+    if (state.inflationAssumption === 'normal') {
+      params.inflationRate = sampleNormal(state.inflationMean, state.inflationStd);
+    } else if (state.inflationAssumption === 'uniform') {
+      params.inflationRate = sampleUniform(state.inflationMin, state.inflationMax);
+    }
+
+    // Update current year's parameters based on previous year's values and current inflation
+    if (params.prevYearTaxBrackets) {
+      // Update federal tax brackets
+      params.taxBrackets = {};
+      for (const filingStatus of ['single', 'married-joint']) {
+        params.taxBrackets[filingStatus] = params.prevYearTaxBrackets[filingStatus].map(bracket => ({
+          min: bracket.min * (1 + params.inflationRate / 100),
+          max: bracket.max * (1 + params.inflationRate / 100),
+          rate: bracket.rate
+        }));
+      }
+
+      // Update state tax brackets
+      params.stateTaxBrackets = {};
+      for (const stateCode of Object.keys(params.prevYearStateTaxBrackets)) {
+        params.stateTaxBrackets[stateCode] = {};
+        for (const filingStatus of ['single', 'married-joint']) {
+          params.stateTaxBrackets[stateCode][filingStatus] = params.prevYearStateTaxBrackets[stateCode][filingStatus].map(bracket => ({
+            min: bracket.min * (1 + params.inflationRate / 100),
+            max: bracket.max * (1 + params.inflationRate / 100),
+            rate: bracket.rate
+          }));
+        }
+      }
+
+      // Update capital gains tax brackets
+      params.capitalGainsTax = {};
+      for (const filingStatus of ['single', 'married-joint']) {
+        params.capitalGainsTax[filingStatus] = params.prevYearCapitalGainsTax[filingStatus].map(bracket => ({
+          min: bracket.min * (1 + params.inflationRate / 100),
+          max: bracket.max * (1 + params.inflationRate / 100),
+          rate: bracket.rate
+        }));
+      }
+
+      // Update standard deductions
+      params.standardDeductions = {};
+      for (const filingStatus of ['single', 'married-joint']) {
+        params.standardDeductions[filingStatus] = params.prevYearStandardDeductions[filingStatus] * (1 + params.inflationRate / 100);
+      }
+
+      // Update after-tax retirement contribution limit
+      params.afterTaxRetirementContributionLimit = params.prevYearAfterTaxRetirementContributionLimit * (1 + params.inflationRate / 100);
+    }
 
     // some things need to be resampled each year
 
@@ -194,51 +263,58 @@ export default async function runSimulation(initialState) {
     });
 
     // Step 2: RMDs
-    // if the user's age is at least 74 and at the end of the previous year, there is at least one investment with tax status = "pre-tax" and with a positive value
     console.log("Running RMDs...");
     if (params.userAge >= 73) {
       // pay RMD for previous year if it exists (user is age 74 or greater)
-      if (params.useAge >= 74 && params.prevRMD) {
+      if (params.userAge >= 74 && params.prevRMD) {
         let remainingToTransfer = params.prevRMD;
 
-        // this loop assumes that in the investments object, they are ordered according to the expense withdrawal strategy
-        for (let i = 0; i < state.investments.length && remainingToTransfer > 0; i++) {
-          // Only consider investments with taxStatus "pre-tax" and with a positive value.
-          if (inv.taxStatus !== "pretax-retirement" || inv.value <= 0) {
-            continue;
+        // Create investment map for strategy-based ordering
+        const investmentMap = new Map(state.investments.map(inv => [inv.identifier, inv]));
+
+        // Process investments in RMD strategy order
+        for (const investmentId of state.rmdStrategy) {
+          if (remainingToTransfer <= 0) break;
+
+          const inv = investmentMap.get(investmentId);
+          if (!inv) continue;
+
+          // Only consider pre-tax retirement accounts with positive value
+          if (inv.taxStatus === "pretax-retirement" && inv.value > 0) {
+            // determine the transfer amount: either the full investment value or the remaining amount needed
+            let transferAmount = Math.min(inv.value, remainingToTransfer);
+
+            // reduce the source pre-tax investment by the transfer amount
+            inv.value -= transferAmount;
+
+            // look for an existing investment with the same type that has taxStatus "non-retirement"
+            let targetInvestment = state.investments.find(investment =>
+              investment.assetType === inv.assetType &&
+              investment.taxStatus === "non-retirement"
+            );
+
+            if (targetInvestment) {
+              targetInvestment.value += transferAmount;
+            } else {
+              let newInvestment = {
+                assetType: inv.assetType,
+                value: transferAmount,
+                taxStatus: "non-retirement",
+                identifier: `${inv.assetType}-non-retirement`
+              };
+              state.investments.push(newInvestment);
+            }
+
+            // deduct the transferred amount from the remaining amount
+            remainingToTransfer -= transferAmount;
           }
-
-          // determine the transfer amount: either the full investment value or the remaining amount needed.
-          let transferAmount = Math.min(inv.value, remainingToTransfer);
-
-          // reduce the source pre-tax investment by the transfer amount.
-          inv.value -= transferAmount;
-
-          // look for an existing investment with the same type that has taxStatus "non-retirement".
-          let targetInvestment = state.investments.find(investment => investment.assetType === inv.assetType && investment.taxStatus === "non-retirement");
-
-          // if it exists, add the transferred amount; otherwise, create a new investment record.
-          if (targetInvestment) {
-            targetInvestment.value += transferAmount;
-          }
-          else {
-            let newInvestment = {
-              assetType: inv.investmentType,
-              value: transferAmount,
-              taxStatus: "non-retirement",
-            };
-            // TODO: handle DB end of pushing this new investment 
-            // state.investments.push(newInvestment);
-          }
-
-          // deduct the transferred amount from the remaining amount.
-          remainingToTransfer -= transferAmount;
         }
-        // at this point, the previous RMD has been fully transferred in-kind.
       }
 
       // calculate RMD for current year
-      let pretaxInvestments = state.investments.filter(investment => investment.taxStatus === 'pretax-retirement');
+      let pretaxInvestments = state.investments.filter(investment =>
+        investment.taxStatus === 'pretax-retirement'
+      );
       let s = 0;
       pretaxInvestments.forEach(investment => {
         s += investment.value;
@@ -247,7 +323,6 @@ export default async function runSimulation(initialState) {
       let rmd = s / d;
 
       params.curYearIncome += rmd;
-
       params.prevRMD = rmd; // store current year RMD to be used in next year's computation
     }
 
@@ -257,14 +332,21 @@ export default async function runSimulation(initialState) {
       let type = investment.assetType;
       let assetType = state.assetTypes.find(at => at.name === type);
 
+      // Store starting value for expense calculation
+      let startingValue = investment.value;
+
+      // Calculate generated income
       let generatedIncome = investment.value * (sampleNormal(assetType.normalIncomeMean, assetType.normalIncomeStd ?? 0) / 100);
 
-      // add the generated income to curYearIncome, if the investment is non-retirement and taxable
-      if (investment.taxStatus === 'non-retirement') {
+      // Add generated income to investment value
+      investment.value += generatedIncome;
+
+      // Add the generated income to curYearIncome if the investment is non-retirement AND taxable
+      if (investment.taxStatus === 'non-retirement' && assetType.taxability === 'taxable') {
         params.curYearIncome += generatedIncome;
       }
 
-      // annual return specifies the change in value
+      // Calculate annual return based on starting value (before adding income)
       let annualReturnPercentage = 0;
       if (assetType.returnType === 'fixed') {
         annualReturnPercentage = assetType.fixedReturn;
@@ -272,49 +354,63 @@ export default async function runSimulation(initialState) {
       else if (assetType.returnType == 'normal') {
         annualReturnPercentage = sampleNormal(assetType.normalReturnMean, assetType.normalReturnStd);
       }
-      let changeInValue = investment.value * (annualReturnPercentage / 100);
+      let changeInValue = startingValue * (annualReturnPercentage / 100);
 
-      // add the generated income to the value of the investment
-      let startingValue = investment.value;  // we'll need this for expense calculation
-      investment.value += generatedIncome;
-
-      // add the change in value, using the specified distribution/percentage
-      // this models capital appreciation or depreciation
+      // Apply the change in value
       investment.value += changeInValue;
-      // Note: We no longer update curYearGains here as this is unrealized gain
 
-      // calculate this year's expenses, using the average of the beginning-of-year and end-of-year values
-      // subtract the expenses from the investment value
+      // Store ending value for expense calculation
       let endingValue = investment.value;
+
+      // Calculate expenses based on average value
       let averageValue = (startingValue + endingValue) / 2;
       let expenses = averageValue * assetType.expenseRatio;
 
+      // Subtract expenses
       investment.value -= expenses;
-    })
+    });
 
     // Step 4: Run the Roth conversion (RC) optimizer, if it is enabled
     if (state.rothOptimizationStartYear && state.rothOptimizationEndYear) {
       console.log("Running roth conversion optimizer...");
-      // user's taxable income for the year
-      let curYearFedTaxableIncome = params.curYearIncome - 0.85 * params.curYearSS;
 
-      // search for the tax bracket the user is in
-      let taxBracket = params.taxBrackets.federal.find(bracket => {
-        curYearFedTaxableIncome >= bracket.lower && curYearFedTaxableIncome <= bracket.upper
-      });
+      // Determine current filing status
+      const currentFilingStatus = params.hasSpouse && params.spouseAlive ? 'married-joint' : 'single';
 
-      // the difference between the user's taxable income and upper limit the tax bracket = the Roth conversion amount
-      let rothConversionAmount = taxBracket.upper - curYearFedTaxableIncome;
-      if (rothConversionAmount <= 0) { // no room in the bracket for a Roth conversion this year
+      // Get current year's standard deduction
+      const currentStdDed = params.standardDeductions[currentFilingStatus];
+
+      // Calculate taxable income for bracket checking (after standard deduction)
+      const taxableIncomeForBracketCheck = Math.max(0, params.curYearIncome - 0.85 * params.curYearSS - currentStdDed);
+
+      // Find the current tax bracket
+      const taxBracket = params.taxBrackets[currentFilingStatus].find(bracket =>
+        taxableIncomeForBracketCheck >= bracket.min && taxableIncomeForBracketCheck <= bracket.max
+      );
+
+      if (!taxBracket) {
+        console.warn("Could not find appropriate tax bracket for Roth conversion");
         return;
       }
 
-      let remainingConversion = rc;
-      // assuming that 'state.investments' is already in the desired order for Roth conversions
-      for (let i = 0; i < state.investments.length; i++) {
-        if (remainingConversion <= 0) break; // done converting
+      // Calculate the conversion amount to fill the bracket
+      const rothConversionAmount = taxBracket.max - taxableIncomeForBracketCheck;
+      if (rothConversionAmount <= 0) {
+        return; // No room in the bracket for a Roth conversion this year
+      }
 
-        let inv = state.investments[i];
+      // Initialize the amount remaining to convert
+      let remainingConversion = rothConversionAmount;
+
+      // Create investment map for strategy-based ordering
+      const investmentMap = new Map(state.investments.map(inv => [inv.identifier, inv]));
+
+      // Process investments in Roth conversion strategy order
+      for (const investmentId of state.rothConversionStrategy) {
+        if (remainingConversion <= 0) break;
+
+        const inv = investmentMap.get(investmentId);
+        if (!inv) continue;
 
         // only convert from pre-tax investments
         if (inv.taxStatus === 'pretax-retirement' && inv.value > 0) {
@@ -322,22 +418,22 @@ export default async function runSimulation(initialState) {
 
           // reduce the source investment by the transfer amount
           inv.value -= transferAmount;
-          if (params.userAge < 59) {
-            params.curYearEarlyWithdrawals += transferAmount;
-          }
 
           // find or create the corresponding after-tax retirement investment of the same type
-          let target = state.investments.find(t => t.assetType === inv.assetType && t.taxStatus === 'aftertax-retirement');
+          let target = state.investments.find(t =>
+            t.assetType === inv.assetType &&
+            t.taxStatus === 'aftertax-retirement'
+          );
 
           if (!target) {
             // create a new after-tax retirement investment
             let newInv = {
-              assetType: inv.investmentType,
+              assetType: inv.assetType,
               value: transferAmount,
               taxStatus: 'aftertax-retirement',
+              identifier: `${inv.assetType}-aftertax-retirement`
             };
-            // TODO: handle DB end of pushing this new investment 
-            // state.investments.push(newInv);
+            state.investments.push(newInv);
           } else {
             // increase the existing after-tax retirement investment
             target.value += transferAmount;
@@ -346,57 +442,70 @@ export default async function runSimulation(initialState) {
           // decrease the amount still to be converted
           remainingConversion -= transferAmount;
         }
-        // add the Roth conversion amount to this year's income (bc converting pre-tax funds to Roth is a taxable event in the year of conversion)
-        params.curYearIncome += rc;
       }
+
+      // Add the Roth conversion amount to this year's income
+      params.curYearIncome += rothConversionAmount;
     }
 
     // Step 5: Pay non-discretionary expenses and the previous year's taxes, i.e., subtract them from the cash investment. Perform additional withdrawals if needed to pay them.
     console.log("Running non-discretionary expense and tax processing...");
+
+    // Calculate previous year's taxes using marginal rates
     let prevYearFedTax = 0;
     let prevYearStateTax = 0;
     let prevYearCapitalGainsTax = 0;
     let earlyWithdrawalTax = 0;
 
-    let prevYearFedTaxableIncome = (params.prevYearIncome ?? 0) - 0.85 * (params.prevYearSS ?? 0);
+    // Get previous year's filing status
+    const prevYearFilingStatus = params.prevYearFilingStatus;
 
-    // calculate federal tax based on last year data
-    let lastYearFedBracket = params.taxBrackets.federal.find(bracket => prevYearFedTaxableIncome >= bracket.lower && prevYearFedTaxableIncome <= bracket.upper);
-    if (lastYearFedBracket) {
-      prevYearFedTax = prevYearFedTaxableIncome * (lastYearFedBracket.rate / 100);
+    // Calculate federal income tax
+    const fedStdDed = params.prevYearStandardDeductions[prevYearFilingStatus];
+    const fedTaxableInc = Math.max(0, params.prevYearIncome - 0.85 * params.prevYearSS - fedStdDed);
+    const fedBrackets = params.prevYearTaxBrackets[prevYearFilingStatus];
+    prevYearFedTax = calculateMarginalTax(fedTaxableInc, fedBrackets);
+
+    // Calculate state income tax
+    const stateBrackets = params.prevYearStateTaxBrackets[state.residenceState]?.[prevYearFilingStatus];
+    if (!stateBrackets) {
+      console.warn(`No state tax brackets found for ${state.residenceState} - state tax will be ignored`);
+      prevYearStateTax = 0;
+    } else {
+      // State tax uses federal taxable income before standard deduction
+      const stateTaxableInc = Math.max(0, params.prevYearIncome - 0.85 * params.prevYearSS);
+      prevYearStateTax = calculateMarginalTax(stateTaxableInc, stateBrackets);
+
+      // Warn about potential state tax on Social Security
+      if (params.prevYearSS > 0 && ['CT', 'NY', 'NJ'].includes(state.residenceState)) {
+        console.warn(`Note: State tax on Social Security benefits in ${state.residenceState} is not currently modeled`);
+      }
     }
 
-    // calculate state tax based on last year data
-    let lastYearStateBracket = params.taxBrackets.state.find(bracket => prevYearFedTaxableIncome >= bracket.lower && prevYearFedTaxableIncome <= bracket.upper);
-    if (lastYearStateBracket) {
-      prevYearStateTax = prevYearFedTaxableIncome * (lastYearStateBracket.rate / 100);
-    }
+    // Calculate capital gains tax
+    const capGainsBrackets = params.prevYearCapitalGainsTax[prevYearFilingStatus];
+    const taxableGains = Math.max(0, params.prevYearGains);
+    prevYearCapitalGainsTax = calculateMarginalTax(taxableGains, capGainsBrackets);
 
-    // calculate state tax based on last year data
-    let lastYearCapitalBracket = params.taxBrackets.capital.find(bracket => prevYearFedTaxableIncome >= bracket.lower && prevYearFedTaxableIncome <= bracket.upper);
-    if (lastYearCapitalBracket) {
-      // if net realized gains (prevYearGains) are negative, we tax 0.
-      prevYearCapitalGainsTax = Math.max(0, params.prevYearGains) * (lastYearCapitalBracket.rate / 100);
-    }
-
-    // calculate early withdrawal tax, which is withdrawals from retirement accounts (pre-tax or after-tax) taken before age 59.5
+    // Calculate early withdrawal tax
     earlyWithdrawalTax = (params.prevYearEarlyWithdrawals ?? 0) * 0.1;
 
-    // total up all four tax sources
-    let totalTaxes = prevYearFedTax + prevYearStateTax + capitalGainsTax + earlyWithdrawalTax;
+    // Total up all taxes
+    let totalTaxes = prevYearFedTax + prevYearStateTax + prevYearCapitalGainsTax + earlyWithdrawalTax;
 
+    // Sum non-discretionary expenses
     let nonDiscretionarySum = 0;
-    let nonDiscretionaryEvents = state.eventSeries.filter(event => {
-      event.type == "expense" &&
-        event.isDiscretionary === false &&
-        params.curYear >= event.startYear &&
-        params.curYear <= event.endYear
-    })
+    let nonDiscretionaryEvents = state.eventSeries.filter(event =>
+      event.type === "expense" &&
+      event.isDiscretionary === false &&
+      params.curYear >= event.startYear &&
+      params.curYear <= event.endYear
+    );
     nonDiscretionaryEvents.forEach(event => {
       nonDiscretionarySum += event.amount;
-    })
+    });
 
-    // total payment amount P = non-discretionary expenses + all taxes from last year
+    // Total payment amount P = non-discretionary expenses + all taxes from last year
     let totalPaymentAmount = nonDiscretionarySum + totalTaxes;
 
     // determine how much must be withdrawn from investments
@@ -409,8 +518,15 @@ export default async function runSimulation(initialState) {
     if (withdrawalAmount > 0) {
       let totalWithdrawn = 0;
 
-      for (let i = 0; i < state.investments.length && totalWithdrawn < withdrawalAmount; i++) {
-        let inv = state.investments[i];
+      // Create investment map for strategy-based ordering
+      const investmentMap = new Map(state.investments.map(inv => [inv.identifier, inv]));
+
+      // Process investments in expense withdrawal strategy order
+      for (const investmentId of state.expenseWithdrawalStrategy) {
+        if (totalWithdrawn >= withdrawalAmount) break;
+
+        const inv = investmentMap.get(investmentId);
+        if (!inv) continue;
 
         // skip the cash investments (already used) and investments with no value
         if (inv.assetType === "cash" || inv.value <= 0) continue;
@@ -422,36 +538,19 @@ export default async function runSimulation(initialState) {
         // calculate the fraction of the investment being sold
         let fractionSold = amountSold / inv.value;
 
-        // compute capital gain on this sale:
-        // if selling the entire investment, capital gain = (current value - purchasePrice)
-        // otherwise, for a partial sale, capital gain = f * (current value - purchasePrice)
-        let saleCapitalGain = 0;
-        if (amountSold === inv.value) {
-          saleCapitalGain = inv.value - inv.purchasePrice;
-        } else {
-          saleCapitalGain = fractionSold * (inv.value - inv.purchasePrice);
-        }
+        // compute capital gain on this sale
+        let saleCapitalGain = fractionSold * (inv.value - inv.purchasePrice);
 
-        // if the investment sold is NOT held in a pre-tax retirement account,
-        // record the realized capital gain (note: this gain may be negative)
         if (inv.taxStatus !== "pretax-retirement") {
           params.curYearGains += saleCapitalGain;
         } else {
-          // For pre-tax retirement accounts, treat the withdrawal as ordinary income
           params.curYearIncome += amountSold;
-        }
-
-        // if the investment is in a retirement account and the user is younger than 59,
-        // update the early withdrawal running total.
-        if ((inv.taxStatus === "pretax-retirement" || inv.taxStatus === "aftertax-retirement") && params.userAge < 59) {
-          params.curYearEarlyWithdrawals += amountSold;
         }
 
         // update the investment's value by subtracting the amount sold
         inv.value -= amountSold;
 
         // adjust the investment's purchasePrice proportionally
-        // this assumes that the purchasePrice is reduced in proportion to the sale
         inv.purchasePrice -= fractionSold * inv.purchasePrice;
 
         totalWithdrawn += amountSold;
@@ -477,14 +576,21 @@ export default async function runSimulation(initialState) {
     const financialGoal = state.financialGoal;
 
     // get the discretionary expense events for the current year
-    let discretionaryEvents = state.eventSeries.filter(event =>
+    let activeDiscretionaryEvents = state.eventSeries.filter(event =>
       event.type === "expense" &&
       event.isDiscretionary === true &&
       params.curYear >= event.startYear &&
       params.curYear <= event.endYear
     );
 
-    for (let event of discretionaryEvents) {
+    // Create event map for strategy-based ordering
+    const eventMap = new Map(activeDiscretionaryEvents.map(event => [event.identifier, event]));
+
+    // Process expenses in spending strategy order
+    for (const eventId of state.spendingStrategy) {
+      let event = eventMap.get(eventId);
+      if (!event) continue;
+
       let expenseAmount = event.amount;
 
       // get updated amount of current total assets
@@ -496,7 +602,6 @@ export default async function runSimulation(initialState) {
         expenseAmount = Math.max(0, totalAssets - financialGoal);
         // if expenseAmount is zero, we cannot pay any more discretionary expenses
         if (expenseAmount === 0) {
-          // paying more would violate the financial goal
           break;
         }
       }
@@ -508,9 +613,15 @@ export default async function runSimulation(initialState) {
 
         let totalWithdrawn = 0;
 
-        // iterate over investments in the order defined by the strategy
-        for (let i = 0; i < state.investments.length && totalWithdrawn < additionalWithdrawal; i++) {
-          let inv = state.investments[i];
+        // Create investment map for strategy-based ordering
+        const investmentMap = new Map(state.investments.map(inv => [inv.identifier, inv]));
+
+        // Process investments in expense withdrawal strategy order
+        for (const investmentId of state.expenseWithdrawalStrategy) {
+          if (totalWithdrawn >= additionalWithdrawal) break;
+
+          const inv = investmentMap.get(investmentId);
+          if (!inv) continue;
 
           // skip the cash bucket or investments with zero value
           if (inv.assetType === "cash" || inv.value <= 0) continue;
@@ -519,25 +630,18 @@ export default async function runSimulation(initialState) {
           let remainingToWithdraw = additionalWithdrawal - totalWithdrawn;
           let withdrawalAmount = Math.min(inv.value, remainingToWithdraw);
 
-          // the fraction of the investment sold
+          // calculate the fraction of the investment sold
           let fractionSold = withdrawalAmount / inv.value;
-          // calculate the realized capital gain: if the whole investment is sold, gain = (current market value - purchasePrice)
-          // for a partial sale, gain = fractionSold * (current market value - purchasePrice)
+          // calculate the realized capital gain
           let realizedGain = fractionSold * (inv.value - inv.purchasePrice);
 
-          // if the investment is not held in a pre-tax retirement account, record the realized gain
           if (inv.taxStatus !== "pretax-retirement") {
             params.curYearGains += realizedGain;
           } else {
-            // for pre-tax retirement accounts, the withdrawn amount is treated as ordinary income
             params.curYearIncome += withdrawalAmount;
           }
-          // for any retirement account withdrawals before age 59, update early withdrawals
-          if ((inv.taxStatus === "pretax-retirement" || inv.taxStatus === "aftertax-retirement") && params.userAge < 59) {
-            params.curYearEarlyWithdrawals += withdrawalAmount;
-          }
 
-          // adjust the investment's value
+          // update the investment's value
           inv.value -= withdrawalAmount;
 
           // adjust the cost basis (purchasePrice) proportionally
@@ -554,6 +658,7 @@ export default async function runSimulation(initialState) {
         // after the withdrawal process, increase cash by the withdrawn amount
         cash.value += totalWithdrawn;
       }
+
       // there is enough cash to pay expenseAmount
       cash.value -= expenseAmount;
 
@@ -562,12 +667,11 @@ export default async function runSimulation(initialState) {
 
       // check again if total assets are now at the financial goal
       if (totalAssets <= financialGoal) {
-        // financial goal violated
         break;
       }
     }
 
-    // Step 7: Run the invest event scheduled for the current year, if any, by using excess cash to buy investments included in the asset allocation in the invest event, 
+    // Step 7: Run the invest event scheduled for the current year, if any, by using excess cash to buy investments included in the asset allocation in the invest event,
     // apportioning the excess cash according to that asset allocation.
 
     // Find active invest events for current year
@@ -583,37 +687,115 @@ export default async function runSimulation(initialState) {
 
       if (excessCash <= 0) continue;
 
-      // Calculate total allocation percentage
-      let totalAllocation = event.assetAllocation.reduce((sum, alloc) => sum + alloc.percentage, 0);
-      if (totalAllocation === 0) continue;
+      // Get the current year's after-tax retirement contribution limit
+      const L = params.afterTaxRetirementContributionLimit;
 
-      // Process each allocation
-      for (let alloc of event.assetAllocation) {
-        let amountToBuy = (excessCash * alloc.percentage) / totalAllocation;
-        if (amountToBuy <= 0) continue;
+      // Calculate current allocation percentages based on glide path if applicable
+      let rawAllocation;
+      if (event.assetAllocation.isGlidePath) {
+        // Calculate progress through glide path (t)
+        const duration = event.endYear - event.startYear;
+        const t = duration === 0 ? 1 : Math.min(1, Math.max(0, (params.curYear - event.startYear) / duration));
+
+        // Calculate current percentages by interpolating between initial and final
+        rawAllocation = event.assetAllocation.initialPercentages.map((initial, i) => {
+          const final = event.assetAllocation.finalPercentages[i];
+          return {
+            assetType: initial.assetType,
+            taxStatus: initial.taxStatus,
+            percentage: initial.percentage * (1 - t) + final.percentage * t
+          };
+        });
+      } else {
+        rawAllocation = event.assetAllocation.percentages;
+      }
+
+      // Filter out pretax-retirement targets as per requirements
+      const currentAllocation = rawAllocation.filter(alloc =>
+        alloc.taxStatus === 'non-retirement' || alloc.taxStatus === 'aftertax-retirement'
+      );
+
+      if (currentAllocation.length === 0) {
+        console.log(`No valid investment targets found for invest event in year ${params.curYear}`);
+        continue;
+      }
+
+      // Calculate total allocation percentage from filtered list
+      let totalAllocation = currentAllocation.reduce((sum, alloc) => sum + alloc.percentage, 0);
+      if (totalAllocation === 0) {
+        console.log(`Total allocation percentage is 0 for invest event in year ${params.curYear}`);
+        continue;
+      }
+
+      // Step 1: Calculate planned purchases based on filtered allocation
+      const plannedPurchases = currentAllocation.map(alloc => ({
+        assetType: alloc.assetType,
+        taxStatus: alloc.taxStatus,
+        percentage: alloc.percentage,
+        amountToBuy: (excessCash * alloc.percentage) / totalAllocation
+      }));
+
+      // Step 2: Calculate planned after-tax total (B)
+      const B = plannedPurchases
+        .filter(p => p.taxStatus === 'aftertax-retirement')
+        .reduce((sum, p) => sum + p.amountToBuy, 0);
+
+      // Step 3: Check limit and adjust planned purchases if needed
+      if (B > L) {
+        // Calculate scaling factor for after-tax accounts
+        const scaleFactor = L / B;
+
+        // Calculate total amount to be reduced from after-tax accounts
+        const reductionAmount = B - L;
+
+        // Calculate sum of percentages allocated to non-retirement investments
+        const totalNonRetirementPercentage = currentAllocation
+          .filter(alloc => alloc.taxStatus === 'non-retirement')
+          .reduce((sum, alloc) => sum + alloc.percentage, 0);
+
+        // Adjust planned purchases
+        plannedPurchases.forEach(planned => {
+          if (planned.taxStatus === 'aftertax-retirement') {
+            // Scale down after-tax retirement purchases
+            planned.amountToBuy *= scaleFactor;
+          } else if (planned.taxStatus === 'non-retirement' && totalNonRetirementPercentage > 0) {
+            // Add portion of reduction to non-retirement accounts
+            const increaseAmount = reductionAmount * (planned.percentage / totalNonRetirementPercentage);
+            planned.amountToBuy += increaseAmount;
+          }
+        });
+      }
+
+      // Step 4: Execute purchases and track total amount invested
+      let totalAmountInvested = 0;
+      for (const planned of plannedPurchases) {
+        if (planned.amountToBuy <= 0) continue;
 
         // Find or create the target investment
         let targetInvestment = state.investments.find(inv =>
-          inv.assetType === alloc.assetType &&
-          inv.taxStatus === alloc.taxStatus
+          inv.assetType === planned.assetType &&
+          inv.taxStatus === planned.taxStatus
         );
 
         if (!targetInvestment) {
           // Create new investment
           targetInvestment = {
-            assetType: alloc.assetType,
-            taxStatus: alloc.taxStatus,
+            assetType: planned.assetType,
+            taxStatus: planned.taxStatus,
             value: 0,
-            purchasePrice: 0 // Initialize purchase price to 0 for new investments
+            purchasePrice: 0
           };
           state.investments.push(targetInvestment);
         }
 
         // Update investment value and purchase price
-        targetInvestment.value += amountToBuy;
-        targetInvestment.purchasePrice += amountToBuy; // Add to total cost basis
-        cash.value -= amountToBuy;
+        targetInvestment.value += planned.amountToBuy;
+        targetInvestment.purchasePrice += planned.amountToBuy;
+        totalAmountInvested += planned.amountToBuy;
       }
+
+      // Reduce cash by the total amount actually invested
+      cash.value -= totalAmountInvested;
     }
 
     // Step 8: Run rebalance events scheduled for the current year, by selling and buying the investments included in the specified asset allocation to achieve the specified ratios between their values.
@@ -626,9 +808,29 @@ export default async function runSimulation(initialState) {
     );
 
     for (let event of activeRebalanceEvents) {
+      // Calculate current allocation percentages based on glide path if applicable
+      let currentAllocation;
+      if (event.assetAllocation.isGlidePath) {
+        // Calculate progress through glide path (t)
+        const duration = event.endYear - event.startYear;
+        const t = duration === 0 ? 1 : Math.min(1, Math.max(0, (params.curYear - event.startYear) / duration));
+
+        // Calculate current percentages by interpolating between initial and final
+        currentAllocation = event.assetAllocation.initialPercentages.map((initial, i) => {
+          const final = event.assetAllocation.finalPercentages[i];
+          return {
+            assetType: initial.assetType,
+            taxStatus: initial.taxStatus,
+            percentage: initial.percentage * (1 - t) + final.percentage * t
+          };
+        });
+      } else {
+        currentAllocation = event.assetAllocation.percentages;
+      }
+
       // Calculate total value of investments to rebalance
       let totalValue = state.investments
-        .filter(inv => event.assetAllocation.some(alloc =>
+        .filter(inv => currentAllocation.some(alloc =>
           alloc.assetType === inv.assetType &&
           alloc.taxStatus === inv.taxStatus
         ))
@@ -637,7 +839,7 @@ export default async function runSimulation(initialState) {
       if (totalValue <= 0) continue;
 
       // Process each allocation
-      for (let alloc of event.assetAllocation) {
+      for (let alloc of currentAllocation) {
         let targetValue = (totalValue * alloc.percentage) / 100;
 
         // Find the investment
@@ -656,6 +858,8 @@ export default async function runSimulation(initialState) {
             investment.value += valueDiff;
             investment.purchasePrice += valueDiff; // Add to total cost basis
             cash.value -= valueDiff;
+          } else {
+            console.warn(`Insufficient cash for rebalancing: needed ${valueDiff}, have ${cash.value}`);
           }
         } else if (valueDiff < 0) {
           // Need to sell some
@@ -678,6 +882,13 @@ export default async function runSimulation(initialState) {
         }
       }
     }
+
+    // Store current year's tax brackets and deductions for next year's tax calculations
+    params.prevYearTaxBrackets = JSON.parse(JSON.stringify(params.taxBrackets));
+    params.prevYearStateTaxBrackets = JSON.parse(JSON.stringify(params.stateTaxBrackets));
+    params.prevYearCapitalGainsTax = JSON.parse(JSON.stringify(params.capitalGainsTax));
+    params.prevYearStandardDeductions = JSON.parse(JSON.stringify(params.standardDeductions));
+    params.prevYearFilingStatus = currentFilingStatus;
 
     params.prevYearIncome = params.curYearIncome;
     params.prevYearSS = params.curYearSS;
