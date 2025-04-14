@@ -10,3 +10,11 @@ datasource db {
   provider = "mysql"
   url      = env("DATABASE_URL")
 }
+
+model TaxBrackets {
+  id        Int      @id @default(autoincrement())
+  content   String   @db.Text
+  year      Int
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}

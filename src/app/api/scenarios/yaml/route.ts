@@ -119,30 +119,30 @@ export async function POST(request: NextRequest) {
   try {
     // The request body should be YAML content
     const yamlContent = await request.text();
-    
+
     // Parse YAML to JSON
     const scenarioData = yamlToJson(yamlContent);
-    
+
     // Validate the scenario data
     validateScenario(scenarioData);
-    
+
     // Extract user email from query parameters
     const searchParams = request.nextUrl.searchParams;
     const userEmail = searchParams.get('userEmail');
-    
+
     if (!userEmail) {
       return NextResponse.json({
         status: 400,
         error: 'Missing user email',
       });
     }
-    
+
     // Add user email to scenario data
     const scenarioWithOwner = {
       ...scenarioData,
       userEmail,
     };
-    
+
     // Call the standard scenarios API to create the scenario
     const response = await fetch(`${request.url.split('/yaml')[0]}`, {
       method: 'POST',
@@ -151,9 +151,9 @@ export async function POST(request: NextRequest) {
       },
       body: JSON.stringify(scenarioWithOwner),
     });
-    
+
     const result = await response.json();
-    
+
     return NextResponse.json(result);
   } catch (error: any) {
     console.error('Error importing scenario from YAML:', error);
