@@ -202,15 +202,7 @@ export default function runSimulation(initialState) {
       let type = investment.assetType;
       let assetType = state.assetTypes.find(at => at.name === type);
 
-      let annualReturnPercentage = 0;
-      if (assetType.returnType === 'fixed') {
-        annualReturnPercentage = assetType.fixedReturn;
-      }
-      else if (assetType.returnType == 'normal') {
-        annualReturnPercentage = sampleNormal(assetType.normalReturnMean, assetType.normalReturnStd);
-      }
-
-      let generatedIncome = investment.value * (annualReturnPercentage / 100);
+      let generatedIncome = investment.value * (sampleNormal(assetType.normalIncomeMean, assetType.normalIncomeStd ?? 0) / 100);
 
       // add the generated income to curYearIncome, if the investment is non-retirement and taxable.
       if (investment.taxStatus === 'non-retirement') {
@@ -221,8 +213,17 @@ export default function runSimulation(initialState) {
       let startingValue = investment.value;  // we'll need this for expense calculation
       investment.value += generatedIncome;
 
+      // annual return specifies the change in value
+      let annualReturnPercentage = 0;
+      if (assetType.returnType === 'fixed') {
+        annualReturnPercentage = assetType.fixedReturn;
+      }
+      else if (assetType.returnType == 'normal') {
+        annualReturnPercentage = sampleNormal(assetType.normalReturnMean, assetType.normalReturnStd);
+      }
+      let changeInValue = investment.value * (annualReturnPercentage / 100);
+
       // calculate the change in value, using the specified distribution/percentage, this models capital appreciation or depreciation.
-      let changeInValue = investment.value * (sampleNormal(assetType.normalIncomeMean, assetType.normalIncomeStd) / 100)
       investment.value += changeInValue;
       params.curYearGains += changeInValue;
 
@@ -508,7 +509,6 @@ export default function runSimulation(initialState) {
         break;
       }
     }
-
 
     // Step 7: Run the invest event scheduled for the current year, if any, by using excess cash to buy investments included in the asset allocation in the invest event, 
     // apportioning the excess cash according to that asset allocation.
