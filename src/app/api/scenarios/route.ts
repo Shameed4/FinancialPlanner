@@ -891,7 +891,7 @@ export async function POST(request: NextRequest) {
         normalIncomeStd: at.normalIncomeStd,
         taxable: at.taxability.toLowerCase() === 'taxable',
         returnAmtOrPct: at.returnAmtOrPct,
-        incomeAmtOrPct: at.incomeAmtOrPct
+        incomeAmtOrPct: at.incomeAmtOrPct,
       }));
 
     const responseData = {
@@ -1179,6 +1179,7 @@ export async function PUT(request: NextRequest) {
     });
 
     const transformedScenario = transformScenarioForFrontend(completeScenario);
+    console.log("Tranformed scenario", transformedScenario);
 
     // If the transformed scenario doesn't have all the asset types, add them manually.
     const transformedAssetTypeNames = transformedScenario.assetTypes.map(at => at.name);
