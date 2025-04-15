@@ -35,6 +35,7 @@ export interface AssetType {
   normalReturnStd?: string;
   expenseRatio: string;
   normalIncomeMean?: string;
+  normalIncomeStd?: string;
   taxable: boolean;
   returnAmtOrPct: 'amount' | 'percent';
   incomeAmtOrPct: 'amount' | 'percent';
@@ -51,8 +52,13 @@ export interface Investment {
 export interface Event {
   name: string;
   type: 'income' | 'expense' | 'invest' | 'rebalance';
-  startYearType: 'fixed' | 'relative';
+  startYearType: 'fixed' | 'uniform' | 'normal' | 'withEvent' | 'afterEvent';
   startYear?: string;
+  startYearMin?: string,
+  startYearMax?: string,
+  startYearMean?: string,
+  startYearStd?: string,
+
   relativeStartYear?: string;
 
   durationType?: 'fixed' | 'uniform' | 'normal';
@@ -69,13 +75,13 @@ export interface Event {
   allocations?: Record<string, string>;
   initialAllocations?: Record<string, string>;
   finalAllocations?: Record<string, string>;
-  maxCashValue: string;
+  maxCashValue?: string;
   
-  changeAmtOrPct: 'amount' | 'percent';
-  annualChangeType: 'normal' | 'fixed' | 'uniform';
-  annualChange: string; // Can be a fixed amount or percentage for fixed
-  annualChangeMin: string; // for random_uniform
-  annualChangeMax: string; // for random_uniform
-  annualChangeMean: string; // for random_normal
-  annualChangeStd: string; // for random_normal
+  changeAmtOrPct?: 'amount' | 'percent';
+  annualChangeType?: 'normal' | 'fixed' | 'uniform';
+  annualChange?: string; // Can be a fixed amount or percentage for fixed
+  annualChangeMin?: string; // for random_uniform
+  annualChangeMax?: string; // for random_uniform
+  annualChangeMean?: string; // for random_normal
+  annualChangeStd?: string; // for random_normal
 }

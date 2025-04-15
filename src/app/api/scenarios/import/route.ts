@@ -144,10 +144,10 @@ financialGoal: 10000
 residenceState: NY  # states are identified by standard 2-letter abbreviations
 `
 
-export function yamlToScenario(yaml : string) {
+export function yamlToScenario(yaml: string) {
     yaml = yaml || starterYaml
-    const jsonYaml : YamlScenario = yamlToJson(yaml);
-    const res : StringScenarioFormData = {
+    const jsonYaml: YamlScenario = yamlToJson(yaml);
+    const res: StringScenarioFormData = {
         name: jsonYaml.name,
         userLifeExpectancyMean: String(jsonYaml.lifeExpectancy[0].type == 'fixed' ? jsonYaml.lifeExpectancy[0].value : jsonYaml.lifeExpectancy[0].mean),
         userLifeExpectancyStd: String(jsonYaml.lifeExpectancy[0].type == 'fixed' ? 0 : jsonYaml.lifeExpectancy[0].stdev),
@@ -155,8 +155,8 @@ export function yamlToScenario(yaml : string) {
         userBirthYear: String(jsonYaml.birthYears[0]),
         financialGoal: String(jsonYaml.financialGoal),
         ...(jsonYaml.lifeExpectancy.length == 1 ?
-            {forIndividual: true} :
-            {forIndividual: false, spouseBirthYear: String(jsonYaml.birthYears[1]), spouseLifeExpectancyStd: String(jsonYaml.lifeExpectancy[1].type == 'fixed' ? 0 : jsonYaml.lifeExpectancy[1].stdev)}
+            { forIndividual: true } :
+            { forIndividual: false, spouseBirthYear: String(jsonYaml.birthYears[1]), spouseLifeExpectancyStd: String(jsonYaml.lifeExpectancy[1].type == 'fixed' ? 0 : jsonYaml.lifeExpectancy[1].stdev) }
         ),
         inflationAssumption: jsonYaml.inflationAssumption.type,
         assetTypes: [],
@@ -167,9 +167,16 @@ export function yamlToScenario(yaml : string) {
     res.assetTypes = jsonYaml.investmentTypes.map(asset => {
         return {
             name: asset.name,
-            expenseRatio: String(asset.expenseRatio),
-            taxable: asset.taxability,
+            description: asset.description,
             returnType: asset.returnDistribution.type,
+            ...(asset.returnDistribution.type == "fixed" ? { fixedReturn: String(asset.returnDistribution.value) }
+                : asset.returnDistribution.type == "normal" ? { normalReturnMean: String(asset.returnDistribution.mean), normalReturnStd: String(asset.returnDistribution.stdev) }
+                    : {}
+            ),
+            expenseRatio: String(asset.expenseRatio),
+            normalIncomeMean: String(asset.incomeDistribution.type == "normal" ? asset.incomeDistribution.mean : asset.incomeDistribution.type == "fixed" ? asset.incomeDistribution.value : 0),
+            normalIncomeStd: String(asset.incomeDistribution.type == "normal" ? asset.incomeDistribution.stdev : "0"),
+            taxable: asset.taxability,
             returnAmtOrPct: asset.returnAmtOrPct,
             incomeAmtOrPct: asset.incomeAmtOrPct,
         }
@@ -181,14 +188,31 @@ export function yamlToScenario(yaml : string) {
             taxStatus: inv.taxStatus == "pre-tax" ? "pre-tax-retirement" : inv.taxStatus == "after-tax" ? "after-tax-retirement" : "non-retirement"
         }
     })
-    // res.eventSeries = jsonYaml.eventSeries.map(es => {
-    //     return {
-    //         name: es.name,
-    //         ...{
-    //             startYearType: 
-    //         }
-    //     }
-    // })
+    res.eventSeries = jsonYaml.eventSeries.map(es => {
+        return {
+            name: es.name,
+            type: es.type,
+            startYearType: es.start.type === "startWith" ? "withEvent" :
+                    es.start.type === "startAfter" ? "afterEvent" :
+                    es.start.type,
+
+            ...(es.start.type == "fixed" ? { startYear: String(es.start.value) } :
+                    es.start.type == "uniform" ? { startYearMin: String(es.start.lower), startYearMax: String(es.start.upper) } :
+                    es.start.type == "normal" ? { startYearMean: String(es.start.mean), startYearStd: String(es.start.stdev) } :
+                    es.start.type == "startWith" || es.start.type == "startAfter" ? { relativeStartYear: String(es.start.eventSeries) } :
+                    { error: "ERROR" }
+            ),
+            durationType: es.duration.type,
+            ...(es.duration.type == "fixed" ? { durationFixed: String(es.duration.value) } :
+                    es.duration.type == "uniform" ? { durationMin: String(es.duration.lower), durationMax: String(es.duration.upper) } :
+                    es.duration.type == "normal" ? { durationMean: String(es.duration.mean), durationYearStd: String(es.duration.stdev) } :
+                    {}
+            ),
+            // ...(es.type == "income" || es.type == "expense" ? {
+            //     initialAmount: 
+            // } : {})
+        }
+    })
     return res;
 }
 

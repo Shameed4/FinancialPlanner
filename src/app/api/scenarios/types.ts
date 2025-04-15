@@ -53,17 +53,14 @@ type YamlFixedDistribution = {
   type YamlStartDate =
     | { type: "fixed"; value: number }
     | { type: "startWith"; eventSeries: string }
-    | { type: "uniform"; lower: number; upper: number };
-  
-  type YamlDuration = {
-    type: "fixed";
-    value: number;
-  };
+    | { type: "startAfter"; eventSeries: string}
+    | { type: "uniform"; lower: number; upper: number }
+    | { type: "normal"; mean: number, stdev: number }
   
   type YamlEventSeriesBase = {
     name: string;
     start: YamlStartDate;
-    duration: YamlDuration;
+    duration: YamlDistribution;
     type: string;
   };
   
