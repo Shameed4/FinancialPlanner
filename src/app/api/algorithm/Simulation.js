@@ -102,6 +102,7 @@ export default async function runSimulation(initialState) {
 
   // console.log(params);
   // console.log(state);
+  // console.log(params.taxBrackets['married-joint']);
 
   // this while loop performs the simulation iteratively each year while at least one user is still alive
   while (params.userAlive || params.spouseAlive) {
@@ -119,6 +120,11 @@ export default async function runSimulation(initialState) {
     if (params.hasSpouse && params.spouseAlive) {
       params.spouseAge += 1;
       params.spouseAlive = params.spouseAge < params.spouseLifeExpectancy;
+    }
+
+    if (!(params.userAlive || params.spouseAlive)) {
+      console.log("Simulation complete. The user and/or spouse has reached their life expectancy");
+      continue;
     }
 
     // Reset parameters that go back to the initial value at the beginning of each year
@@ -167,7 +173,7 @@ export default async function runSimulation(initialState) {
     params.afterTaxRetirementContributionLimit = params.afterTaxRetirementContributionLimit * (1 + params.inflationRate / 100);
 
     // Step 1: run the income events, adding income to the cash investment
-    console.log("Running income events...");
+    console.log("1. Running income events...");
     let activeIncomeEvents = state.eventSeries.filter(event =>
       event.type === "income" &&
       params.curYear >= event.startYear &&
@@ -203,7 +209,7 @@ export default async function runSimulation(initialState) {
 
     // Step 2: RMDs
     // if the user's age is at least 74 and at the end of the previous year, there is at least one investment with tax status = "pre-tax" and with a positive value
-    console.log("Running RMDs...");
+    console.log("2. Running RMDs...");
     if (params.userAge >= 73) {
       // pay RMD for previous year if it exists (user is age 74 or greater)
       if (params.userAge >= 74 && params.prevRMD) {
@@ -260,7 +266,7 @@ export default async function runSimulation(initialState) {
     }
 
     // Step 3: Update the values of investments, reflecting expected annual return, reinvestment of generated income, and subtraction of expenses.
-    console.log("Running investment updates...");
+    console.log("3. Running investment updates...");
     state.investments.forEach(investment => {
       let type = investment.assetType;
       let assetType = state.assetTypes.find(at => at.name === type);
@@ -305,7 +311,7 @@ export default async function runSimulation(initialState) {
 
     // Step 4: Run the Roth conversion (RC) optimizer, if it is enabled
     if (state.rothOptimizationStartYear && state.rothOptimizationEndYear) {
-      console.log("Running roth conversion optimizer...");
+      console.log("4. Running roth conversion optimizer...");
 
       // Calculate the user's federal taxable income for the year.
       // This subtracts 85% of Social Security from the total income.
@@ -313,19 +319,20 @@ export default async function runSimulation(initialState) {
 
       // Determine the correct tax bracket based on filing status.
       let taxBracket;
+      // If the user is alive but there is no spouse or the spouse is deceased,
+      // use the single filer brackets.
       if (params.userAlive && !(params.hasSpouse && params.spouseAlive)) {
-        // For single filers.
-        taxBracket = params.taxBrackets.single.find(bracket => {
-          return curYearFedTaxableIncome >= bracket.min && curYearFedTaxableIncome <= bracket.max;
-        });
-      } else if (params.userAlive && params.hasSpouse && params.spouseAlive) {
-        // For married joint filers.
-        taxBracket = params.taxBrackets['married-joint'].find(bracket => {
-          return curYearFedTaxableIncome >= bracket.min && curYearFedTaxableIncome <= bracket.max;
-        });
+        taxBracket = params.taxBrackets.single.find(bracket =>
+          curYearFedTaxableIncome >= bracket.min && curYearFedTaxableIncome <= bracket.max
+        );
       }
-
-      // console.log("Identified tax bracket:", taxBracket);
+      // If the user is alive with a living spouse OR the user is deceased but the spouse is alive,
+      // assume married joint filing.
+      else if ((params.userAlive && params.hasSpouse && params.spouseAlive) || (!params.userAlive && params.spouseAlive)) {
+        taxBracket = params.taxBrackets['married-joint'].find(bracket =>
+          curYearFedTaxableIncome >= bracket.min && curYearFedTaxableIncome <= bracket.max
+        );
+      }
 
       // Compute the available room for a Roth conversion:
       // the difference between the upper limit of the tax bracket and the user's current taxable income.
@@ -386,7 +393,7 @@ export default async function runSimulation(initialState) {
 
     // Step 5: Pay non-discretionary expenses and the previous year's taxes,
     // i.e., subtract them from the cash investment. Perform additional withdrawals if needed to pay them.
-    console.log("Running non-discretionary expense and tax processing...");
+    console.log("5. Running non-discretionary expense and tax processing...");
 
     let prevYearFedTax = 0;
     let prevYearStateTax = 0;
@@ -519,7 +526,7 @@ export default async function runSimulation(initialState) {
     // except stop if continuing would reduce the user's total assets below the financial goal.
     // The last discretionary expense to be paid can be partially paid if incurring the entire expense would violate the financial goal.
     // Perform additional withdrawals if needed to pay them.
-    console.log("Running discretionary expense processing...");
+    console.log("6. Running discretionary expense processing...");
 
     const financialGoal = state.financialGoal;
 
@@ -610,7 +617,7 @@ export default async function runSimulation(initialState) {
     // Step 7: Run the invest event scheduled for the current year, if any, by using excess cash to buy investments included in the asset allocation in the invest event,
     // apportioning the excess cash according to that asset allocation.
     // Find active invest events for current year
-    console.log("Running invest events...");
+    console.log("7. Running invest events...");
     let activeInvestEvents = state.eventSeries.filter(event =>
       event.type === "invest" &&
       params.curYear >= event.startYear &&
@@ -736,7 +743,7 @@ export default async function runSimulation(initialState) {
 
     // Step 8: Run rebalance events scheduled for the current year, by selling and buying the investments included in the specified asset allocation to achieve the specified ratios between their values.
     // Find active rebalance events for current year
-    console.log("Running rebalance events");
+    console.log("8. Running rebalance events");
     let activeRebalanceEvents = state.eventSeries.filter(event =>
       event.type === "rebalance" &&
       params.curYear >= event.startYear &&
@@ -829,12 +836,16 @@ export default async function runSimulation(initialState) {
     params.prevYearSS = params.curYearSS;
     params.prevYearGains = params.curYearGains;
     params.prevYearEarlyWithdrawals = params.curYearEarlyWithdrawals;
-    
-    iteration += 1;
 
+    iteration += 1;
   }
   console.log("simulation done");
-  console.log(computeTotalAssets(state) <= state.financialGoal);
+  if (computeTotalAssets(state) >= state.financialGoal) {
+    console.log("Financial goal was met");
+  }
+  else {
+    console.log("Financial goal was not met");
+  }
 }
 
 export async function loadRMD() {
