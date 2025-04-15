@@ -39,16 +39,21 @@ const ScenarioCard = ({ scenario, onEdit }) => {
     // Handle download scenario as YAML
     const handleDownload = async () => {
         try {
-            // Call the YAML API endpoint
-            const response = await fetch(`/api/scenarios/yaml?id=${scenario.id}&userEmail=${userEmail}`);
+            // Call the import API with direct save flag
+            const response = await fetch('/api/scenarios/export', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    scenario: scenario
+                }),
+            });
 
-            if (!response.ok) {
-                const errorData = await response.json();
-                throw new Error(errorData.error || 'Failed to download scenario');
-            }
+            const data = await response.json();
 
             // Get the YAML content
-            const yamlContent = await response.text();
+            const yamlContent = data.data;
 
             // Create a blob with the YAML content
             const blob = new Blob([yamlContent], { type: 'text/yaml' });

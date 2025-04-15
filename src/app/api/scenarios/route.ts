@@ -316,8 +316,8 @@ async function createAssetTypes(assetTypes: any[]) {
 
     let createdAssetType;
     try {
-      console.log("---")
-      console.log(assetType);
+      // console.log("---")
+      // console.log(assetType);
       createdAssetType = await prisma.assetType.create({
         data: {
           name: assetType.name,
@@ -683,7 +683,7 @@ export async function GET(request: NextRequest) {
         }
       };
     });
-
+    console.log("GET results", transformedResults.map(res => res.assetTypes));
     return NextResponse.json({ status: 200, result: transformedResults });
   }
 
@@ -725,6 +725,8 @@ export async function GET(request: NextRequest) {
         readwritePrivilege: { select: { id: true } }
       }
     });
+
+    console.log("GET Request results", results);
     return NextResponse.json({ status: 200, result: results });
   }
 
@@ -887,7 +889,9 @@ export async function POST(request: NextRequest) {
         expenseRatio: at.expenseRatio,
         normalIncomeMean: at.normalIncomeMean,
         normalIncomeStd: at.normalIncomeStd,
-        taxable: at.taxability.toLowerCase() === 'taxable'
+        taxable: at.taxability.toLowerCase() === 'taxable',
+        returnAmtOrPct: at.returnAmtOrPct,
+        incomeAmtOrPct: at.incomeAmtOrPct
       }));
 
     const responseData = {

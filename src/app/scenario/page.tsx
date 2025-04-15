@@ -62,8 +62,8 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel, initialData = null }: 
         if (initialData) {
             return {
                 ...initialData,
-                assetTypes: initialData.assetTypes || [{ name: "Cash", description: "Pre-defined", returnType: "fixed", expenseRatio: "", incomeAmtOrPct: "amount", returnAmtOrPct: "amount" }],
-                investments: initialData.investments || [{ assetType: "Cash", value: "0", taxStatus: "non-retirement" }],
+                assetTypes: initialData.assetTypes,
+                investments: initialData.investments,
                 eventSeries: initialData.eventSeries || [],
                 userBirthYear: initialData.userBirthYear?.toString() || '',
                 userLifeExpectancyMean: initialData.userLifeExpectancyMean?.toString() || '',
@@ -2337,6 +2337,7 @@ const ScenarioPage = () => {
 
             if (data.status === 200) {
                 console.log(`Setting scenarios to ${data.result}`);
+                // console.log(data.result);
                 setScenarios(data.result);
             } else {
                 setError(data.error || 'Failed to fetch scenarios');
