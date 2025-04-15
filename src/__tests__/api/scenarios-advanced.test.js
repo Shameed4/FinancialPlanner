@@ -1,6 +1,17 @@
 // Used Cursor AI for help with test setup and mocking strategy
 import { NextRequest } from 'next/server';
 
+// Mock NextRequest
+jest.mock('next/server', () => ({
+    NextRequest: jest.fn().mockImplementation((url, init) => ({
+        url,
+        method: init?.method || 'GET',
+        body: init?.body,
+        json: async () => JSON.parse(init?.body || '{}'),
+        headers: new Map(Object.entries(init?.headers || {}))
+    }))
+}));
+
 // Define mock enums
 const DistributionType = {
     fixed: 'fixed',
