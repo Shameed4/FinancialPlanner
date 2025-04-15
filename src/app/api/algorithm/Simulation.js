@@ -140,9 +140,7 @@ export default async function runSimulation(initialState) {
       params.inflationRate = sampleUniform(state.inflationMin, state.inflationMax);
     }
 
-    // some things need to be resampled each year
-
-    // apply inflation to: federal tax brackets, capital gains tax brackets, standard deductions, annual limits on retirement accounts contributions
+    // apply inflation to: federal tax brackets, capital gains tax brackets, state tax brackets, standard deductions, annual limits on retirement accounts contributions
     params.taxBrackets.single.forEach(bracket => {
       bracket.min = bracket.min * (1 + params.inflationRate / 100);
       bracket.max = bracket.max * (1 + params.inflationRate / 100);

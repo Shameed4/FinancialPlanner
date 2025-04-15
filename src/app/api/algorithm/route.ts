@@ -7,7 +7,6 @@ export async function POST(request: Request) {
     const simulationData = await request.json();
     const { scenario, numberOfSimulations } = simulationData;
 
-    console.log("hi");
     console.log(numberOfSimulations);
     console.log(scenario);
 
