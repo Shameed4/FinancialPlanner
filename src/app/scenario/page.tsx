@@ -1651,7 +1651,7 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel, initialData = null }: 
                                                 </div>
                                             )}
                                             <div>
-                                                <label className="block text-sm font-medium text-gray-700 mb-1">Annual Change Type</label>
+                                                <label className="block text-sm font-medium text-gray-700 mb-1">Annual Change Amount or Percent</label>
                                                 <select
                                                     value={event.changeAmtOrPct}
                                                     onChange={(e) => {
@@ -1681,15 +1681,12 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel, initialData = null }: 
                                                     }}
                                                     className={`${getInputClassName('inflationAssumption')} text-black`}
                                                 >
+                                                    <option value="" disabled>Select change type...</option>
                                                     <option value="fixed">Fixed</option>
                                                     <option value="uniform">Uniform Distribution</option>
                                                     <option value="normal">Normal Distribution</option>
                                                 </select>
                                             </div>
-
-
-
-
 
                                             {event.annualChangeType === 'fixed' && (
                                                 <div>
@@ -2014,6 +2011,7 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel, initialData = null }: 
                                         durationMean: '',
                                         durationStd: '',
                                         type: '',
+                                        annualChangeType: 'fixed',
                                         changeAmtOrPct: 'amount',
                                         inflationAdjusted: false
                                     }]

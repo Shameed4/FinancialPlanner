@@ -146,7 +146,6 @@ import prisma from '@/app/lib/prisma';
 // `
 
 export function yamlToScenario(yaml: string) {
-  yaml = yaml;
   const jsonYaml: YamlScenario = yamlToJson(yaml);
   const res: StringScenarioFormData = {
     name: jsonYaml.name,
