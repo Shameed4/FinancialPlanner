@@ -134,9 +134,9 @@ const ScenarioCard = ({ scenario, onEdit }) => {
 
                 <div>
                     <p className="font-medium mb-2">Investments</p>
-                    {formatInvestments().map((investment, index) => (
+                    {scenario.investments.map((investment, index) => (
                         <div key={index} className="ml-4 mb-2">
-                            <p>{investment.assetType.name}</p>
+                            <p>{investment.assetType}</p>
                             <p className="text-sm">Value: ${investment.value.toLocaleString()}</p>
                             <p className="text-sm">Tax Status: {investment.taxStatus.replace(/_/g, ' ').toLowerCase()}</p>
                             {investment.rothConversionOrder && (
