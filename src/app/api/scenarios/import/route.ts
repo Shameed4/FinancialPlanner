@@ -208,6 +208,7 @@ export function yamlToScenario(yaml: string) {
                     es.duration.type == "normal" ? { durationMean: String(es.duration.mean), durationYearStd: String(es.duration.stdev) } :
                     {}
             ),
+            
             // ...(es.type == "income" || es.type == "expense" ? {
             //     initialAmount: 
             // } : {})
