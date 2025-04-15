@@ -70,7 +70,7 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel, initialData = null }: 
                 userLifeExpectancyStd: initialData.userLifeExpectancyStd?.toString() || '',
                 spouseBirthYear: initialData.spouseBirthYear?.toString(),
                 spouseLifeExpectancyMean: initialData.spouseLifeExpectancyMean?.toString(),
-                spouseLifeExpectancyStd: initialData.spouseLifeExpectancyStd?.toString(),
+                spouseLifeExpectancyStd: initialData.spouseLifeExpectancyStd?.toString() || '',
                 financialGoal: initialData.financialGoal?.toString() || '',
                 initialAfterTaxRetirementContributionLimit:
                     initialData.initialAfterTaxRetirementContributionLimit?.toString() || '',
