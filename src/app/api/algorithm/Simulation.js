@@ -170,7 +170,7 @@ export default async function runSimulation(initialState) {
     for (let sd in params.standardDeductions) {
       params.standardDeductions[sd] *= (1 + params.inflationRate / 100);
     }
-    params.afterTaxRetirementContributionLimit = params.afterTaxRetirementContributionLimit * (1 + params.inflationRate / 100);
+      params.afterTaxRetirementContributionLimit = params.afterTaxRetirementContributionLimit * (1 + params.inflationRate / 100);
 
     // Step 2: run the income events, adding income to the cash investment
     console.log("1. Running income events...");
@@ -196,7 +196,11 @@ export default async function runSimulation(initialState) {
 
       if (params.hasSpouse && params.spouseAlive === false) {
         // if the user has a spouse who is deceased, consider only the user's percentage
-        event.amount *= event.userPercentage;
+        event.amount *= event.userPercentage / 100;
+      }
+      else if (params.hasSpouse && params.userAlive === false) {
+        // if the user is deceased and has a spouse who isn't, consider only the spouse's percentage
+        event.amount *= 1 - (event.userPercentage / 100);
       }
 
       // Add the amount to cash and update income tracking
