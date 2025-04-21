@@ -106,6 +106,8 @@ export default async function runSimulation(initialState) {
 
   // this while loop performs the simulation iteratively each year while at least one user is still alive
   while (params.userAlive || params.spouseAlive) {
+    // Step 1: Preprocessing and Preliminaries
+
     params.curYear += 1;
     console.log(`[----------------------------------------------------]`)
     console.log(`Iteration ${iteration}`)
@@ -170,7 +172,7 @@ export default async function runSimulation(initialState) {
     }
     params.afterTaxRetirementContributionLimit = params.afterTaxRetirementContributionLimit * (1 + params.inflationRate / 100);
 
-    // Step 1: run the income events, adding income to the cash investment
+    // Step 2: run the income events, adding income to the cash investment
     console.log("1. Running income events...");
     let activeIncomeEvents = state.eventSeries.filter(event =>
       event.type === "income" &&
@@ -205,7 +207,7 @@ export default async function runSimulation(initialState) {
       }
     });
 
-    // Step 2: RMDs
+    // Step 3: RMDs
     // if the user's age is at least 74 and at the end of the previous year, there is at least one investment with tax status = "pre-tax" and with a positive value
     console.log("2. Running RMDs...");
     if (params.userAge >= 73) {
@@ -263,7 +265,7 @@ export default async function runSimulation(initialState) {
       params.prevRMD = rmd; // store current year RMD to be used in next year's computation
     }
 
-    // Step 3: Update the values of investments, reflecting expected annual return, reinvestment of generated income, and subtraction of expenses.
+    // Step 4: Update the values of investments, reflecting expected annual return, reinvestment of generated income, and subtraction of expenses.
     console.log("3. Running investment updates...");
     state.investments.forEach(investment => {
       let type = investment.assetType;
@@ -307,7 +309,7 @@ export default async function runSimulation(initialState) {
       investment.value -= expenses;
     });
 
-    // Step 4: Run the Roth conversion (RC) optimizer, if it is enabled
+    // Step 5: Run the Roth conversion (RC) optimizer, if it is enabled
     if (state.rothOptimizationStartYear && state.rothOptimizationEndYear) {
       console.log("4. Running roth conversion optimizer...");
 
@@ -389,7 +391,7 @@ export default async function runSimulation(initialState) {
       }
     }
 
-    // Step 5: Pay non-discretionary expenses and the previous year's taxes,
+    // Step 6: Pay non-discretionary expenses and the previous year's taxes,
     // i.e., subtract them from the cash investment. Perform additional withdrawals if needed to pay them.
     console.log("5. Running non-discretionary expense and tax processing...");
 
@@ -520,7 +522,7 @@ export default async function runSimulation(initialState) {
       cash.value = 0;
     }
 
-    // Step 6: Pay discretionary expenses in the order given by the spending strategy,
+    // Step 7: Pay discretionary expenses in the order given by the spending strategy,
     // except stop if continuing would reduce the user's total assets below the financial goal.
     // The last discretionary expense to be paid can be partially paid if incurring the entire expense would violate the financial goal.
     // Perform additional withdrawals if needed to pay them.
@@ -612,7 +614,7 @@ export default async function runSimulation(initialState) {
     }
 
 
-    // Step 7: Run the invest event scheduled for the current year, if any, by using excess cash to buy investments included in the asset allocation in the invest event,
+    // Step 8: Run the invest event scheduled for the current year, if any, by using excess cash to buy investments included in the asset allocation in the invest event,
     // apportioning the excess cash according to that asset allocation.
     // Find active invest events for current year
     console.log("7. Running invest events...");
@@ -739,7 +741,7 @@ export default async function runSimulation(initialState) {
       cash.value -= totalAmountInvested;
     }
 
-    // Step 8: Run rebalance events scheduled for the current year, by selling and buying the investments included in the specified asset allocation to achieve the specified ratios between their values.
+    // Step 9: Run rebalance events scheduled for the current year, by selling and buying the investments included in the specified asset allocation to achieve the specified ratios between their values.
     // Find active rebalance events for current year
     console.log("8. Running rebalance events");
     let activeRebalanceEvents = state.eventSeries.filter(event =>
