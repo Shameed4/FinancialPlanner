@@ -170,7 +170,7 @@ export default async function runSimulation(initialState) {
     for (let sd in params.standardDeductions) {
       params.standardDeductions[sd] *= (1 + params.inflationRate / 100);
     }
-      params.afterTaxRetirementContributionLimit = params.afterTaxRetirementContributionLimit * (1 + params.inflationRate / 100);
+    params.afterTaxRetirementContributionLimit = params.afterTaxRetirementContributionLimit * (1 + params.inflationRate / 100);
 
     // Step 2: run the income events, adding income to the cash investment
     console.log("1. Running income events...");
@@ -322,10 +322,12 @@ export default async function runSimulation(initialState) {
       const curYearFedTaxableIncome = params.curYearIncome - 0.85 * params.curYearSS;
 
       // Determine the correct tax bracket based on filing status.
+      let filingStatus;
       let taxBracket;
       // If the user is alive but there is no spouse or the spouse is deceased,
       // use the single filer brackets.
       if (params.userAlive && !(params.hasSpouse && params.spouseAlive)) {
+        filingStatus = 'single';
         taxBracket = params.taxBrackets.single.find(bracket =>
           curYearFedTaxableIncome >= bracket.min && curYearFedTaxableIncome <= bracket.max
         );
@@ -333,14 +335,30 @@ export default async function runSimulation(initialState) {
       // If the user is alive with a living spouse OR the user is deceased but the spouse is alive,
       // assume married joint filing.
       else if ((params.userAlive && params.hasSpouse && params.spouseAlive) || (!params.userAlive && params.spouseAlive)) {
+        filingStatus = 'married-joint';
         taxBracket = params.taxBrackets['married-joint'].find(bracket =>
           curYearFedTaxableIncome >= bracket.min && curYearFedTaxableIncome <= bracket.max
         );
       }
 
-      // Compute the available room for a Roth conversion:
-      // the difference between the upper limit of the tax bracket and the user's current taxable income.
-      let rothConversionAmount = taxBracket.max - curYearFedTaxableIncome;
+      if (!taxBracket) {
+        console.log(`Could not determine tax bracket for Roth Conversion in year ${params.curYear}. Skipping.`);
+        return;
+      }
+
+      // Get the standard deduction for the current filing status
+      const currentStandardDeduction = params.standardDeductions[filingStatus];
+
+      // Calculate income after standard deduction
+      const incomeAfterDeduction = curYearFedTaxableIncome - currentStandardDeduction;
+
+      // Compute the available room for a Roth conversion using the correct formula:
+      // rc = u - (curYearFedTaxableIncome - standardDeduction)
+      let rothConversionAmount = taxBracket.max - incomeAfterDeduction;
+
+      // Ensure we don't have a negative conversion amount
+      rothConversionAmount = Math.max(0, rothConversionAmount);
+
       if (rothConversionAmount <= 0) {
         // No room in the bracket for a Roth conversion this year.
         return;
@@ -594,7 +612,7 @@ export default async function runSimulation(initialState) {
             params.curYearEarlyWithdrawals += withdrawalAmount;
           }
 
-          // Adjust the investment’s value and cost basis proportionally.
+          // Adjust the investment's value and cost basis proportionally.
           inv.value -= withdrawalAmount;
           inv.purchasePrice -= fractionSold * inv.purchasePrice;
 
