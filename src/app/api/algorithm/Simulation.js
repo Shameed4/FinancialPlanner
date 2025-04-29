@@ -182,11 +182,21 @@ export default async function runSimulation(initialState) {
 
     activeIncomeEvents.forEach(event => {
       // Apply annual change first (without inflation adjustment)
-      if (event.changeType == 'fixed') {
+      if (event.changeType === 'fixed') {
         event.amount += event.annualChange;
       }
-      else if (event.changeType == 'percentage') {
+      else if (event.changeType === 'percentage') {
         event.amount = event.amount * (1 + event.annualChange / 100);
+      }
+      else if (event.changeType === 'normal') {
+        // Sample from normal distribution for this year's change
+        const sampledChangeAmount = sampleNormal(event.annualChangeMean, event.annualChangeStd);
+        event.amount += sampledChangeAmount;
+      }
+      else if (event.changeType === 'uniform') {
+        // Sample from uniform distribution for this year's change percentage
+        const sampledChangePercentage = sampleUniform(event.annualChangeMin, event.annualChangeMax);
+        event.amount = event.amount * (1 + sampledChangePercentage / 100);
       }
 
       // Then apply inflation adjustment if needed
@@ -921,7 +931,16 @@ export async function loadTaxData() {
       }
     }
 
+    // Add debug logging
+    console.log('Tax data received:', data);
+    console.log('Filing statuses:', filingStatuses);
+
     filingStatuses.forEach(status => {
+      if (!data[status]) {
+        console.error(`Missing data for filing status: ${status}`);
+        return;
+      }
+
       const incomeBrackets = data[status].income_tax.brackets;
       const capitalBrackets = data[status].capital_gains.brackets;
 
