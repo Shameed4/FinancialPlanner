@@ -11,7 +11,7 @@ export interface StringScenarioFormData {
   spouseBirthYear?: string;
   spouseLifeExpectancyMean?: string;
   spouseLifeExpectancyStd?: string;
-  inflationAssumption: 'fixed' | 'uniform' | 'normal';
+  inflationAssumption: 'fixed' | 'random_uniform' | 'random_normal';
   inflation?: string;
   inflationMin?: string;
   inflationMax?: string;
@@ -29,7 +29,7 @@ export interface StringScenarioFormData {
 export interface AssetType {
   name: string;
   description?: string;
-  returnType: 'fixed' | 'normal' | 'uniform';
+  returnType: 'fixed' | 'random_normal' | 'random_uniform';
   fixedReturn?: string;
   normalReturnMean?: string;
   normalReturnStd?: string;
@@ -52,16 +52,17 @@ export interface Investment {
 export interface Event {
   name: string;
   type: 'income' | 'expense' | 'invest' | 'rebalance';
-  startYearType: 'fixed' | 'uniform' | 'normal' | 'withEvent' | 'afterEvent';
+  startYearType: 'fixed' | 'random_uniform' | 'random_normal' | 'same_as' | 'after';
   startYear?: string;
   startYearMin?: string,
   startYearMax?: string,
   startYearMean?: string,
   startYearStd?: string,
+  startOnOtherSeries?: string,
 
   relativeStartYear?: string;
 
-  durationType?: 'fixed' | 'uniform' | 'normal';
+  durationType?: 'fixed' | 'random_uniform' | 'random_normal';
   durationFixed?: string;
   durationMin?: string;
   durationMax?: string;
@@ -78,7 +79,7 @@ export interface Event {
   maxCashValue?: string;
   
   changeAmtOrPct?: 'amount' | 'percent';
-  annualChangeType?: 'normal' | 'fixed' | 'uniform';
+  annualChangeType?: 'random_normal' | 'fixed' | 'random_uniform';
   annualChange?: string; // Can be a fixed amount or percentage for fixed
   annualChangeMin?: string; // for random_uniform
   annualChangeMax?: string; // for random_uniform

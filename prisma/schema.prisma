@@ -1,3 +1,24 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["prismaSchemaFolder"]
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+model TaxBrackets {
+  id        Int      @id @default(autoincrement())
+  content   String   @db.Text
+  year      Int
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
 model EventSeries {
   id          Int      @id @default(autoincrement())
   name        String
@@ -136,4 +157,192 @@ model AssetAllocation {
   finalAllocation         Float?
 
   // @@unique([investmentId, rebalanceEventDetailsId, investEventDetailsId])
+}
+
+model AssetType {
+  id          Int    @id @default(autoincrement())
+  name        String
+  description String
+
+  returnType          ReturnType
+  fixedReturn         Float? // for fixed
+  normalReturnMean    Float? // for normal
+  normalReturnStd     Float? // for normal
+  returnAmtOrPct      AmountOrPercent
+
+  expectedAnnualIncomeType ReturnType
+  fixedIncome              Float?
+  normalIncomeMean         Float?
+  normalIncomeStd          Float?
+  gbmIncomeDrift           Float?
+  gbmIncomeVolatility      Float?
+  incomeAmtOrPct      AmountOrPercent
+
+  expenseRatio Float
+  taxability   Taxability
+  investments  Investment[]
+}
+
+model Investment {
+  id                     Int                  @id @default(autoincrement())
+  assetType              AssetType            @relation(fields: [assetTypeId], references: [id])
+  assetTypeId            Int
+  value                  Float
+  taxStatus              TaxStatus
+  rothConversionStrategy Int? // for pre tax investments
+  assetAllocations       AssetAllocation[]
+  investmentScenario     InvestmentScenario[]
+}
+
+enum ReturnType {
+  FIXED
+  NORMAL
+}
+
+enum TaxStatus {
+  NON_RETIREMENT
+  PRE_TAX_RETIREMENT
+  AFTER_TAX_RETIREMENT
+}
+
+enum Taxability {
+  TAXABLE
+  TAX_EXEMPT
+}
+
+model RMD {
+  id                 Int   @id @default(autoincrement())
+  year               Int
+  age                Int
+  distributionPeriod Float
+}
+
+model Scenario {
+  id                       Int     @id @default(autoincrement())
+  name                     String
+  financialGoal            Int
+  forIndividual            Boolean
+  userBirthYear            Int
+  userLifeExpectancyMean   Float
+  userLifeExpectancyStd    Float @default(0)
+  spouseBirthYear          Int?
+  spouseLifeExpectancyMean Int?
+  spouseLifeExpectancyStd  Float?
+
+  investmentScenario InvestmentScenario[]
+  eventSeries        EventSeries[]
+
+  inflationAssumption DistributionType
+  inflation           Int? // for fixed
+  inflationMin        Int? // for random_uniform
+  inflationMax        Int? // for random_uniform
+  inflationMean       Float? // for random_normal
+  inflationStd        Float? // for random_normal
+
+  ownerPrivilege     User   @relation("owner", fields: [ownerId], references: [id], onDelete: Cascade)
+  ownerId            String
+  readonlyPrivilege  User[] @relation("readonly")
+  readwritePrivilege User[] @relation("readwrite")
+
+  initialAfterTaxRetirementContributionLimit Int
+
+  rothOptimizationStartYear Int?
+  rothOptimizationEndYear   Int?
+
+  residenceState State
+}
+
+model InvestmentScenario {
+  investment   Investment @relation(fields: [investmentId], references: [id], onDelete: Cascade)
+  investmentId Int
+  scenario     Scenario   @relation(fields: [scenarioId], references: [id], onDelete: Cascade)
+  scenarioId   Int
+
+  @@id([investmentId, scenarioId])
+}
+
+model User {
+  id              String         @id // id
+  googleId           String
+  stateBrackets      StateBracket[] @relation("userBrackets")
+  ownedScenarios     Scenario[]     @relation("owner")
+  readonlyScenarios  Scenario[]     @relation("readonly")
+  readwriteScenarios Scenario[]     @relation("readwrite")
+}
+
+model StateBracket {
+  id      Int   @id @default(autoincrement())
+  state   State
+  bracket Int
+  User    User  @relation("userBrackets", fields: [userId], references: [id], onDelete: Cascade)
+  userId  String
+  rate    Float
+
+  @@unique([state, bracket, userId])
+}
+
+enum AmountOrPercent {
+  amount
+  percent
+}
+
+model RMDTable {
+  id        Int      @id @default(autoincrement())
+  content   String   @db.Text
+  year      Int
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+enum State {
+  AL
+  AK
+  AZ
+  AR
+  CA
+  CO
+  CT
+  DE
+  FL
+  GA
+  HI
+  ID
+  IL
+  IN
+  IA
+  KS
+  KY
+  LA
+  ME
+  MD
+  MA
+  MI
+  MN
+  MS
+  MO
+  MT
+  NE
+  NV
+  NH
+  NJ
+  NM
+  NY
+  NC
+  ND
+  OH
+  OK
+  OR
+  PA
+  RI
+  SC
+  SD
+  TN
+  TX
+  UT
+  VT
+  VA
+  WA
+  WV
+  WI
+  WY
 }

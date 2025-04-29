@@ -140,14 +140,14 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel, initialData = null }: 
                                 newErrors.inflation = 'Valid fixed inflation rate is required';
                             }
                             break;
-                        case 'uniform':
+                        case 'random_uniform':
                             if (!formData.inflationMin || !formData.inflationMax ||
                                 isNaN(Number(formData.inflationMin)) || isNaN(Number(formData.inflationMax)) ||
                                 parseFloat(formData.inflationMin) < 0 || parseFloat(formData.inflationMax) < parseFloat(formData.inflationMin)) {
                                 newErrors.inflationMin = 'Valid uniform distribution range is required';
                             }
                             break;
-                        case 'normal':
+                        case 'random_normal':
                             if (!formData.inflationMean || !formData.inflationStd ||
                                 isNaN(Number(formData.inflationMean)) || isNaN(Number(formData.inflationStd)) ||
                                 parseFloat(formData.inflationMean) < 0 || parseFloat(formData.inflationStd) <= 0) {
@@ -193,7 +193,10 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel, initialData = null }: 
             case 3:
                 formData.investments.forEach((investment, index) => {
                     if (!investment.assetType) newErrors[`investments.${index}.assetType`] = 'Asset type is required';
-                    if (!investment.value) newErrors[`investments.${index}.value`] = 'Value is required';
+                    if (investment.value === "") {
+                        console.log(investment.value);
+                        newErrors[`investments.${index}.value`] = 'Value is required';
+                    }
                     if (!investment.taxStatus) newErrors[`investments.${index}.taxStatus`] = 'Tax status is required';
 
                     // Validate that the selected asset type exists
@@ -230,14 +233,14 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel, initialData = null }: 
                                     newErrors[`eventSeries.${index}.durationFixed`] = 'Duration must be a positive number';
                                 }
                                 break;
-                            case 'uniform':
+                            case 'random_uniform':
                                 if (!event.durationMin || !event.durationMax ||
                                     isNaN(Number(event.durationMin)) || isNaN(Number(event.durationMax)) ||
                                     parseFloat(event.durationMin) <= 0 || parseFloat(event.durationMax) < parseFloat(event.durationMin)) {
                                     newErrors[`eventSeries.${index}.durationMin`] = 'Invalid uniform duration range';
                                 }
                                 break;
-                            case 'normal':
+                            case 'random_normal':
                                 if (!event.durationMean || !event.durationStd ||
                                     isNaN(Number(event.durationMean)) || isNaN(Number(event.durationStd)) ||
                                     parseFloat(event.durationMean) <= 0 || parseFloat(event.durationStd) < 0) {
@@ -775,20 +778,20 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel, initialData = null }: 
                                     onChange={(e) => {
                                         setFormData({
                                             ...formData,
-                                            inflationAssumption: e.target.value as "fixed" | "uniform" | "normal",
+                                            inflationAssumption: e.target.value as "fixed" | "random_uniform" | "random_normal",
                                             inflation: e.target.value === 'fixed' ? formData.inflation : undefined,
-                                            inflationMin: e.target.value === 'uniform' ? formData.inflationMin : undefined,
-                                            inflationMax: e.target.value === 'uniform' ? formData.inflationMax : undefined,
-                                            inflationMean: e.target.value === 'normal' ? formData.inflationMean : undefined,
-                                            inflationStd: e.target.value === 'normal' ? formData.inflationStd : undefined
+                                            inflationMin: e.target.value === 'random_uniform' ? formData.inflationMin : undefined,
+                                            inflationMax: e.target.value === 'random_uniform' ? formData.inflationMax : undefined,
+                                            inflationMean: e.target.value === 'random_normal' ? formData.inflationMean : undefined,
+                                            inflationStd: e.target.value === 'random_normal' ? formData.inflationStd : undefined
                                         });
                                     }}
                                     className={`${getInputClassName('inflationAssumption')} text-black`}
                                 >
                                     <option value="">Select an option...</option>
                                     <option value="fixed">Fixed Percentage</option>
-                                    <option value="uniform">Uniform Distribution</option>
-                                    <option value="normal">Normal Distribution</option>
+                                    <option value="random_uniform">Uniform Distribution</option>
+                                    <option value="random_normal">Normal Distribution</option>
                                 </select>
                             </div>
 
@@ -808,7 +811,7 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel, initialData = null }: 
                                 </div>
                             )}
 
-                            {formData.inflationAssumption === 'uniform' && (
+                            {formData.inflationAssumption === 'random_uniform' && (
                                 <>
                                     <div>
                                         <label className="block text-sm font-medium text-gray-700 mb-1">Minimum Rate (%)</label>
@@ -839,7 +842,7 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel, initialData = null }: 
                                 </>
                             )}
 
-                            {formData.inflationAssumption === 'normal' && (
+                            {formData.inflationAssumption === 'random_normal' && (
                                 <>
                                     <div>
                                         <label className="block text-sm font-medium text-gray-700 mb-1">Mean Rate (%)</label>
@@ -907,13 +910,13 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel, initialData = null }: 
                                             value={asset.returnType}
                                             onChange={(e) => {
                                                 const newAssetTypes = [...formData.assetTypes];
-                                                newAssetTypes[index].returnType = e.target.value as "fixed" | "normal";
+                                                newAssetTypes[index].returnType = e.target.value as "fixed" | "random_normal";
                                                 // Reset return values when switching types
                                                 if (e.target.value === 'fixed') {
                                                     newAssetTypes[index].fixedReturn = '';
                                                     newAssetTypes[index].normalReturnMean = undefined;
                                                     newAssetTypes[index].normalReturnStd = undefined;
-                                                } else if (e.target.value === 'normal') {
+                                                } else if (e.target.value === 'random_normal') {
                                                     newAssetTypes[index].fixedReturn = undefined;
                                                     newAssetTypes[index].normalReturnMean = '';
                                                     newAssetTypes[index].normalReturnStd = '';
@@ -924,7 +927,7 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel, initialData = null }: 
                                         >
                                             <option value="" disabled>Select Option...</option>
                                             <option value="fixed">Fixed</option>
-                                            <option value="normal">Normal Distribution</option>
+                                            <option value="random_normal">Normal Distribution</option>
                                         </select>
                                         {errors[`assetTypes.${index}.returnType`] && (
                                             <p className="mt-1 text-sm text-red-600">{errors[`assetTypes.${index}.returnType`]}</p>
@@ -1143,7 +1146,7 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel, initialData = null }: 
                                     assetTypes: [...assetTypes, {
                                         name: '',
                                         description: '',
-                                        returnType: 'normal',
+                                        returnType: 'random_normal',
                                         fixedReturn: '',
                                         normalReturnMean: '',
                                         normalReturnStd: '',
@@ -1330,10 +1333,10 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel, initialData = null }: 
                                         >
                                             <option value="">Select start year type...</option>
                                             <option value="fixed">Fixed Value</option>
-                                            <option value="uniform">Uniform Distribution</option>
-                                            <option value="normal">Normal Distribution</option>
-                                            <option value="withEvent">Start with Another Event</option>
-                                            <option value="afterEvent">Start After Another Event</option>
+                                            <option value="random_uniform">Uniform Distribution</option>
+                                            <option value="random_normal">Normal Distribution</option>
+                                            <option value="same_as">Start with Another Event</option>
+                                            <option value="after">Start After Another Event</option>
                                         </select>
                                         {errors[`eventSeries.${index}.startYearType`] && (
                                             <p className="mt-1 text-sm text-red-600">{errors[`eventSeries.${index}.startYearType`]}</p>
@@ -1361,7 +1364,7 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel, initialData = null }: 
                                         </div>
                                     )}
 
-                                    {event.startYearType === 'uniform' && (
+                                    {event.startYearType === 'random_uniform' && (
                                         <>
                                             <div>
                                                 <label className="block text-sm font-medium text-gray-700 mb-1">Min Year</label>
@@ -1397,7 +1400,7 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel, initialData = null }: 
                                         </>
                                     )}
 
-                                    {event.startYearType === 'normal' && (
+                                    {event.startYearType === 'random_normal' && (
                                         <>
                                             <div>
                                                 <label className="block text-sm font-medium text-gray-700 mb-1">Mean Year</label>
@@ -1435,25 +1438,25 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel, initialData = null }: 
                                         </>
                                     )}
 
-                                    {(event.startYearType === 'withEvent' || event.startYearType === 'afterEvent') && (
+                                    {(event.startYearType === 'same_as' || event.startYearType === 'after') && (
                                         <div>
                                             <label className="block text-sm font-medium text-gray-700 mb-1">Reference Event</label>
                                             <select
-                                                value={event.startYearEvent || ''}
+                                                value={event.startOnOtherSeries || ''}
                                                 onChange={(e) => {
                                                     const newEventSeries = [...formData.eventSeries];
-                                                    newEventSeries[index].startYearEvent = e.target.value;
+                                                    newEventSeries[index].startOnOtherSeries = e.target.value;
                                                     setFormData({ ...formData, eventSeries: newEventSeries });
                                                 }}
-                                                className={`${getInputClassName(`eventSeries.${index}.startYearEvent`)} text-black`}
+                                                className={`${getInputClassName(`eventSeries.${index}.startOnOtherSeries`)} text-black`}
                                             >
                                                 <option value="">Select reference event...</option>
                                                 {formData.eventSeries.map((e, i) => i !== index && (
                                                     <option key={i} value={e.name}>{e.name}</option>
                                                 ))}
                                             </select>
-                                            {errors[`eventSeries.${index}.startYearEvent`] && (
-                                                <p className="mt-1 text-sm text-red-600">{errors[`eventSeries.${index}.startYearEvent`]}</p>
+                                            {errors[`eventSeries.${index}.startOnOtherSeries`] && (
+                                                <p className="mt-1 text-sm text-red-600">{errors[`eventSeries.${index}.startOnOtherSeries`]}</p>
                                             )}
                                         </div>
                                     )}
@@ -1471,8 +1474,8 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel, initialData = null }: 
                                         >
                                             <option value="">Select duration type...</option>
                                             <option value="fixed">Fixed</option>
-                                            <option value="uniform">Uniform</option>
-                                            <option value="normal">Normal</option>
+                                            <option value="random_uniform">Uniform</option>
+                                            <option value="random_normal">Normal</option>
                                         </select>
                                     </div>
 
@@ -1498,7 +1501,7 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel, initialData = null }: 
                                         </div>
                                     )}
 
-                                    {event.durationType === 'uniform' && (
+                                    {event.durationType === 'random_uniform' && (
                                         <>
                                             <div>
                                                 <label className="block text-sm font-medium text-gray-700 mb-1">Minimum Duration (years)</label>
@@ -1536,7 +1539,7 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel, initialData = null }: 
                                         </>
                                     )}
 
-                                    {event.durationType === 'normal' && (
+                                    {event.durationType === 'random_normal' && (
                                         <>
                                             <div>
                                                 <label className="block text-sm font-medium text-gray-700 mb-1">Duration Mean (years)</label>
@@ -1683,8 +1686,8 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel, initialData = null }: 
                                                 >
                                                     <option value="" disabled>Select change type...</option>
                                                     <option value="fixed">Fixed</option>
-                                                    <option value="uniform">Uniform Distribution</option>
-                                                    <option value="normal">Normal Distribution</option>
+                                                    <option value="random_uniform">Uniform Distribution</option>
+                                                    <option value="random_normal">Normal Distribution</option>
                                                 </select>
                                             </div>
 
@@ -1707,7 +1710,7 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel, initialData = null }: 
                                                 </div>
                                             )}
 
-                                            {event.annualChangeType === 'uniform' && (
+                                            {event.annualChangeType === 'random_uniform' && (
                                                 <>
                                                     <div>
                                                         <label className="block text-sm font-medium text-gray-700 mb-1">Uniform Change Min</label>
@@ -1744,7 +1747,7 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel, initialData = null }: 
                                                 </>
                                             )}
 
-                                            {event.annualChangeType === 'normal' && (
+                                            {event.annualChangeType === 'random_normal' && (
                                                 <>
                                                     <div>
                                                         <label className="block text-sm font-medium text-gray-700 mb-1">Normal Change Mean</label>
@@ -2008,6 +2011,7 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel, initialData = null }: 
                                         name: '',
                                         description: '',
                                         startYearType: '',
+                                        startOnOtherSeries: '',
                                         durationMean: '',
                                         durationStd: '',
                                         type: '',
@@ -2039,18 +2043,18 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel, initialData = null }: 
                                             ...formData,
                                             inflationAssumption: e.target.value,
                                             inflation: e.target.value === 'fixed' ? formData.inflation : undefined,
-                                            inflationMin: e.target.value === 'uniform' ? formData.inflationMin : undefined,
-                                            inflationMax: e.target.value === 'uniform' ? formData.inflationMax : undefined,
-                                            inflationMean: e.target.value === 'normal' ? formData.inflationMean : undefined,
-                                            inflationStd: e.target.value === 'normal' ? formData.inflationStd : undefined
+                                            inflationMin: e.target.value === 'random_uniform' ? formData.inflationMin : undefined,
+                                            inflationMax: e.target.value === 'random_uniform' ? formData.inflationMax : undefined,
+                                            inflationMean: e.target.value === 'random_normal' ? formData.inflationMean : undefined,
+                                            inflationStd: e.target.value === 'random_normal' ? formData.inflationStd : undefined
                                         });
                                     }}
                                     className={`${getInputClassName('inflationAssumption')} text-black`}
                                 >
                                     <option value="" disabled>Select an inflation option...</option>
                                     <option value="fixed">Fixed Percentage</option>
-                                    <option value="uniform">Uniform Distribution</option>
-                                    <option value="normal">Normal Distribution</option>
+                                    <option value="random_uniform">Uniform Distribution</option>
+                                    <option value="random_normal">Normal Distribution</option>
                                 </select>
                             </div>
 
@@ -2070,7 +2074,7 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel, initialData = null }: 
                                 </div>
                             )}
 
-                            {formData.inflationAssumption === 'uniform' && (
+                            {formData.inflationAssumption === 'random_uniform' && (
                                 <>
                                     <div>
                                         <label className="block text-sm font-medium text-gray-700 mb-1">Minimum Rate (%)</label>
@@ -2101,7 +2105,7 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel, initialData = null }: 
                                 </>
                             )}
 
-                            {formData.inflationAssumption === 'normal' && (
+                            {formData.inflationAssumption === 'random_normal' && (
                                 <>
                                     <div>
                                         <label className="block text-sm font-medium text-gray-700 mb-1">Mean Rate (%)</label>
@@ -2356,7 +2360,7 @@ const ScenarioPage = () => {
         }
     }, [userEmail, session?.user?.email]);
 
-    const handleScenarioCreate = async (newScenario) => {
+    const handleScenarioCreate = async (newScenario: any) => {
         try {
             setIsLoading(true);
             const scenarioData = {
