@@ -164,11 +164,11 @@ model AssetType {
   name        String
   description String
 
-  returnType          ReturnType
-  fixedReturn         Float? // for fixed
-  normalReturnMean    Float? // for normal
-  normalReturnStd     Float? // for normal
-  returnAmtOrPct      AmountOrPercent
+  returnType       ReturnType
+  fixedReturn      Float? // for fixed
+  normalReturnMean Float? // for normal
+  normalReturnStd  Float? // for normal
+  returnAmtOrPct   AmountOrPercent
 
   expectedAnnualIncomeType ReturnType
   fixedIncome              Float?
@@ -176,7 +176,7 @@ model AssetType {
   normalIncomeStd          Float?
   gbmIncomeDrift           Float?
   gbmIncomeVolatility      Float?
-  incomeAmtOrPct      AmountOrPercent
+  incomeAmtOrPct           AmountOrPercent
 
   expenseRatio Float
   taxability   Taxability
@@ -184,14 +184,15 @@ model AssetType {
 }
 
 model Investment {
-  id                     Int                  @id @default(autoincrement())
-  assetType              AssetType            @relation(fields: [assetTypeId], references: [id])
-  assetTypeId            Int
-  value                  Float
-  taxStatus              TaxStatus
-  rothConversionStrategy Int? // for pre tax investments
-  assetAllocations       AssetAllocation[]
-  investmentScenario     InvestmentScenario[]
+  id                        Int                  @id @default(autoincrement())
+  assetType                 AssetType            @relation(fields: [assetTypeId], references: [id])
+  assetTypeId               Int
+  value                     Float
+  taxStatus                 TaxStatus
+  rothConversionStrategy    Int? // for pre tax investments
+  expenseWithdrawalStrategy Int?
+  assetAllocations          AssetAllocation[]
+  investmentScenario        InvestmentScenario[]
 }
 
 enum ReturnType {
@@ -224,7 +225,7 @@ model Scenario {
   forIndividual            Boolean
   userBirthYear            Int
   userLifeExpectancyMean   Float
-  userLifeExpectancyStd    Float @default(0)
+  userLifeExpectancyStd    Float   @default(0)
   spouseBirthYear          Int?
   spouseLifeExpectancyMean Int?
   spouseLifeExpectancyStd  Float?
@@ -262,7 +263,7 @@ model InvestmentScenario {
 }
 
 model User {
-  id              String         @id // id
+  id                 String         @id // id
   googleId           String
   stateBrackets      StateBracket[] @relation("userBrackets")
   ownedScenarios     Scenario[]     @relation("owner")
@@ -271,10 +272,10 @@ model User {
 }
 
 model StateBracket {
-  id      Int   @id @default(autoincrement())
+  id      Int    @id @default(autoincrement())
   state   State
   bracket Int
-  User    User  @relation("userBrackets", fields: [userId], references: [id], onDelete: Cascade)
+  User    User   @relation("userBrackets", fields: [userId], references: [id], onDelete: Cascade)
   userId  String
   rate    Float
 

@@ -340,7 +340,8 @@ async function createInvestments(scenarioId: number, investments: any[], assetTy
         assetTypeId: assetTypeId,
         value: investment.value,
         taxStatus: taxStatus,
-        rothConversionStrategy: investment.rothConversionStrategy
+        rothConversionStrategy: investment.rothConversionStrategy,
+        expenseWithdrawalStrategy: investment.expenseWithdrawalStrategy
       },
       include: {
         assetType: true
@@ -357,6 +358,8 @@ async function createInvestments(scenarioId: number, investments: any[], assetTy
 
     createdInvestments.push(createdInvestment);
   }
+  console.log("Investments", investments);
+  console.log("Created investments", createdInvestments);
 
   return createdInvestments;
 }
@@ -542,12 +545,13 @@ const transformScenarioForFrontend = (scenario: any) => {
   // Convert map values to array
   const transformedAssetTypes = Array.from(assetTypeMap.values());
 
+  console.log("InvestmentScenario: ", scenario.investmentScenario);
   const transformedInvestments = scenario.investmentScenario?.map((is: any) => ({
     assetType: is.investment.assetType.name,
     value: is.investment.value,
     taxStatus: is.investment.taxStatus.toLowerCase().replace(/_/g, '-'),
-    withdrawalOrder: is.investment.withdrawalOrder,
-    rothConversionOrder: is.investment.rothConversionOrder
+    expenseWithdrawalStrategy: is.investment.expenseWithdrawalStrategy,
+    rothConversionStrategy: is.investment.rothConversionStrategy
   })) || [];
 
   return {
@@ -661,7 +665,7 @@ export async function GET(request: NextRequest) {
         }
       };
     });
-    console.log("GET results", transformedResults.map(res => res.assetTypes));
+    // console.log("GET results", transformedResults.map(res => res.assetTypes));
     return NextResponse.json({ status: 200, result: transformedResults });
   }
 

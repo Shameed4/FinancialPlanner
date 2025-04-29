@@ -358,14 +358,14 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel, initialData = null }: 
 
                 // Validate withdrawal strategy
                 if (formData.investments?.length > 0) {
-                    const withdrawalOrders = formData.investments
-                        .map(inv => inv.withdrawalOrder)
+                    const expenseWithdrawalStrategys = formData.investments
+                        .map(inv => inv.expenseWithdrawalStrategy)
                         .filter(order => order !== undefined && order !== null);
 
-                    if (withdrawalOrders.length > 0) {
-                        const uniqueOrders = new Set(withdrawalOrders);
-                        if (withdrawalOrders.length !== uniqueOrders.size) {
-                            newErrors.withdrawalStrategy = 'Each investment must have a unique withdrawal order';
+                    if (expenseWithdrawalStrategys.length > 0) {
+                        const uniqueOrders = new Set(expenseWithdrawalStrategys);
+                        if (expenseWithdrawalStrategys.length !== uniqueOrders.size) {
+                            newErrors.expenseWithdrawalStrategy = 'Each investment must have a unique withdrawal order';
                         }
                     }
                 }
@@ -374,7 +374,7 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel, initialData = null }: 
                 const preTaxInvestments = formData.investments?.filter(inv => inv.taxStatus === 'pre-tax-retirement');
                 if (preTaxInvestments?.length > 0) {
                     const conversionOrders = preTaxInvestments
-                        .map(inv => inv.rothConversionOrder)
+                        .map(inv => inv.rothConversionStrategy)
                         .filter(order => order !== undefined && order !== null);
 
                     if (conversionOrders.length > 0) {
@@ -395,7 +395,7 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel, initialData = null }: 
             if (currentStep < 5) {
                 setCurrentStep(currentStep + 1);
             } else {
-                // Ensure withdrawalOrder and rothConversionOrder are properly assigned
+                // Ensure expenseWithdrawalStrategy and rothConversionStrategy are properly assigned
                 const processedFormData = { ...formData };
 
                 // Normalize withdrawal orders (ensure consecutive 1-n)
@@ -405,13 +405,13 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel, initialData = null }: 
                         .map((inv, idx) => ({
                             ...inv,
                             originalIndex: idx,
-                            withdrawalOrder: inv.withdrawalOrder || idx + 1
+                            expenseWithdrawalStrategy: inv.expenseWithdrawalStrategy || idx + 1
                         }))
-                        .sort((a, b) => a.withdrawalOrder - b.withdrawalOrder);
+                        .sort((a, b) => a.expenseWithdrawalStrategy - b.expenseWithdrawalStrategy);
 
                     // Reassign sequential orders (1, 2, 3, ...)
                     sortedInvestments.forEach((inv, idx) => {
-                        processedFormData.investments[inv.originalIndex].withdrawalOrder = idx + 1;
+                        processedFormData.investments[inv.originalIndex].expenseWithdrawalStrategy = idx + 1;
                     });
 
                     // Normalize Roth conversion orders for pre-tax investments
@@ -422,13 +422,13 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel, initialData = null }: 
                             originalIndex: processedFormData.investments.findIndex(
                                 item => item.assetType === inv.assetType
                             ),
-                            rothConversionOrder: inv.rothConversionOrder || idx
+                            rothConversionStrategy: inv.rothConversionStrategy || idx
                         }))
-                        .sort((a, b) => a.rothConversionOrder - b.rothConversionOrder);
+                        .sort((a, b) => a.rothConversionStrategy - b.rothConversionStrategy);
 
                     // Reassign sequential orders (1, 2, 3, ...)
                     preTaxInvestments.forEach((inv, idx) => {
-                        processedFormData.investments[inv.originalIndex].rothConversionOrder = idx + 1;
+                        processedFormData.investments[inv.originalIndex].rothConversionStrategy = idx + 1;
                     });
                 }
 
@@ -461,7 +461,7 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel, initialData = null }: 
                         if (path.match(/^assetTypes\.\d+\.(fixedReturn|normalReturnMean|normalReturnStd|expenseRatio|fixedIncome|normalIncomeMean|normalIncomeStd|percentage|value|fee|minAllocation|maxAllocation|targetAllocation)$/)) return true;
 
                         // Investments
-                        if (path.match(/^investments\.\d+\.(value|withdrawalOrder|rothConversionOrder)$/)) return true;
+                        if (path.match(/^investments\.\d+\.(value|expenseWithdrawalStrategy|rothConversionStrategy)$/)) return true;
 
                         // Event series
                         if (path != 'annualChangeType' && path.match(/^eventSeries\.\d+\.(startYear|startYearMin|startYearMax|startYearMean|startYearStd|durationFixed|durationMin|durationMax|durationMean|durationStd|amount|userPercentage|maxCashValue|annualChange.*)$/)) return true;
@@ -2202,7 +2202,7 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel, initialData = null }: 
                                         type="number"
                                         min="1"
                                         max={formData.investments?.length || 1}
-                                        value={investment.withdrawalOrder || index + 1}
+                                        value={investment.expenseWithdrawalStrategy || index + 1}
                                         onChange={(e) => {
                                             const newInvestments = [...formData.investments];
                                             const newOrder = parseInt(e.target.value);
@@ -2214,16 +2214,16 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel, initialData = null }: 
 
                                             // Check if another investment already has this order number
                                             const existingIndex = newInvestments.findIndex(
-                                                (inv, idx) => idx !== index && parseInt(inv.withdrawalOrder) === newOrder
+                                                (inv, idx) => idx !== index && parseInt(inv.expenseWithdrawalStrategy) === newOrder
                                             );
 
                                             // If there's a conflict, swap the order numbers
                                             if (existingIndex !== -1) {
-                                                newInvestments[existingIndex].withdrawalOrder = investment.withdrawalOrder;
+                                                newInvestments[existingIndex].expenseWithdrawalStrategy = investment.expenseWithdrawalStrategy;
                                             }
 
                                             // Set the new order
-                                            newInvestments[index].withdrawalOrder = newOrder;
+                                            newInvestments[index].expenseWithdrawalStrategy = newOrder;
                                             setFormData({ ...formData, investments: newInvestments });
                                         }}
                                         className="w-20 p-1 border rounded text-black"
@@ -2247,7 +2247,7 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel, initialData = null }: 
                                             type="number"
                                             min="1"
                                             max={formData.investments?.filter(inv => inv.taxStatus === 'pre-tax-retirement').length || 1}
-                                            value={investment.rothConversionOrder || index + 1}
+                                            value={investment.rothConversionStrategy || index + 1}
                                             onChange={(e) => {
                                                 const newInvestments = [...formData.investments];
                                                 const investmentIndex = newInvestments.findIndex(inv => inv.assetType === investment.assetType);
@@ -2258,23 +2258,14 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel, initialData = null }: 
 
                                                 // Ensure the order is a valid number in range
                                                 if (isNaN(newOrder) || newOrder < 1 || newOrder > preTaxInvestments.length) {
+                                                    console.log("Invalid");
                                                     return;
                                                 }
-
-                                                // Check if another pre-tax investment already has this order number
-                                                const existingIndex = newInvestments.findIndex(
-                                                    (inv, idx) => idx !== investmentIndex &&
-                                                        inv.taxStatus === 'pre-tax-retirement' &&
-                                                        parseInt(inv.rothConversionOrder) === newOrder
-                                                );
-
-                                                // If there's a conflict, swap the order numbers
-                                                if (existingIndex !== -1) {
-                                                    newInvestments[existingIndex].rothConversionOrder = parseInt(newInvestments[investmentIndex].rothConversionOrder);
-                                                }
+                                                console.log(`Valid ${newOrder}`);
 
                                                 // Set the new order
-                                                newInvestments[investmentIndex].rothConversionOrder = newOrder;
+                                                newInvestments[investmentIndex].rothConversionStrategy = newOrder;
+                                                console.log(newInvestments);
                                                 setFormData({ ...formData, investments: newInvestments });
                                             }}
                                             className="w-20 p-1 border rounded"

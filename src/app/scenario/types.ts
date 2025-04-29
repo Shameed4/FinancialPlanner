@@ -1,5 +1,3 @@
-
-
 export interface StringScenarioFormData {
   name: string;
   userBirthYear: string;
@@ -45,8 +43,8 @@ export interface Investment {
   assetType: string;
   value: string;
   taxStatus: 'non-retirement' | 'pre-tax-retirement' | 'after-tax-retirement'
-  withdrawalOrder?: number;
-  rothConversionOrder?: number;
+  expenseWithdrawalStrategy?: number;
+  rothConversionStrategy?: number;
 }
 
 export interface Event {

@@ -142,6 +142,7 @@ CREATE TABLE `Investment` (
     `value` DOUBLE NOT NULL,
     `taxStatus` ENUM('NON_RETIREMENT', 'PRE_TAX_RETIREMENT', 'AFTER_TAX_RETIREMENT') NOT NULL,
     `rothConversionStrategy` INTEGER NULL,
+    `expenseWithdrawalStrategy` INTEGER NULL,
 
     PRIMARY KEY (`id`)
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
