@@ -98,6 +98,34 @@ function computeTotalAssets(state) {
   return state.investments.reduce((acc, inv) => acc + inv.value, 0);
 }
 
+// Helper function to calculate marginal tax
+function calculateMarginalTax(taxableIncome, brackets) {
+  if (!brackets || brackets.length === 0 || taxableIncome <= 0) {
+    return 0;
+  }
+
+  let totalTax = 0;
+
+  // Iterate through each tax bracket
+  for (const bracket of brackets) {
+    // If income is below this bracket's minimum, we're done
+    if (taxableIncome <= bracket.min) {
+      break;
+    }
+
+    // Calculate income falling within this bracket
+    const incomeInBracket = Math.min(taxableIncome, bracket.max) - bracket.min;
+
+    // Calculate tax for this portion of income
+    const taxForBracket = incomeInBracket * (bracket.rate / 100);
+
+    // Add to total tax
+    totalTax += taxForBracket;
+  }
+
+  return totalTax;
+}
+
 export default async function runSimulation(initialState) {
   let state = deepCopy(initialState);
   let params = await buildParams(state);
@@ -304,14 +332,15 @@ export default async function runSimulation(initialState) {
               assetType: inv.assetType, // Use the proper asset type from the investment.
               value: transferAmount,
               taxStatus: 'aftertax-retirement',
+              purchasePrice: transferAmount,
             };
             // TODO: Handle database updates for the new investment.
             state.investments.push(newInv);
           } else {
             // Increase the value of the existing after-tax retirement investment.
             target.value += transferAmount;
+            target.purchasePrice = (target.purchasePrice ?? 0) + transferAmount;
           }
-
           // Reduce the remaining conversion amount.
           remainingConversion -= transferAmount;
 
@@ -463,31 +492,37 @@ export default async function runSimulation(initialState) {
     // --- Federal Income Tax Calculation ---
     // Use previous year's tax brackets
     const previousFedBrackets = params.prevYearTaxBrackets ?? {};
-    let lastYearFedBracket = previousFedBrackets[filingStatus]?.find(
-      bracket => prevYearFedTaxableIncome >= bracket.min && prevYearFedTaxableIncome <= bracket.max
-    );
-    if (lastYearFedBracket) {
-      prevYearFedTax = prevYearFedTaxableIncome * (lastYearFedBracket.rate / 100);
+    const fedBracketsForStatus = previousFedBrackets[filingStatus];
+
+    if (fedBracketsForStatus && fedBracketsForStatus.length > 0) {
+      prevYearFedTax = calculateMarginalTax(prevYearFedTaxableIncome, fedBracketsForStatus);
+    } else {
+      prevYearFedTax = 0;
+      console.warn(`Year ${params.curYear}: Missing or empty federal tax brackets for status ${filingStatus} for previous year tax calculation.`);
     }
 
     // --- State Income Tax Calculation ---
     // Use previous year's state tax brackets
     const previousStateBrackets = params.prevYearStateTaxBrackets ?? {};
-    let lastYearStateBracket = previousStateBrackets[state.residenceState]?.[filingStatus]?.find(
-      bracket => prevYearFedTaxableIncome >= bracket.min && prevYearFedTaxableIncome <= bracket.max
-    );
-    if (lastYearStateBracket) {
-      prevYearStateTax = prevYearFedTaxableIncome * (lastYearStateBracket.rate / 100);
+    const stateBracketsForStatus = previousStateBrackets[state.residenceState]?.[filingStatus];
+
+    if (stateBracketsForStatus && stateBracketsForStatus.length > 0) {
+      prevYearStateTax = calculateMarginalTax(prevYearFedTaxableIncome, stateBracketsForStatus);
+    } else {
+      prevYearStateTax = 0;
+      console.warn(`Year ${params.curYear}: Missing or empty state tax brackets for ${state.residenceState} ${filingStatus} for previous year tax calculation.`);
     }
 
     // --- Capital Gains Tax Calculation ---
     // Use previous year's capital gains tax brackets
     const previousCapitalGainsBrackets = params.prevYearCapitalGainsTax ?? {};
-    let lastYearCapitalBracket = previousCapitalGainsBrackets[filingStatus]?.find(
-      bracket => prevYearFedTaxableIncome >= bracket.min && prevYearFedTaxableIncome <= bracket.max
-    );
-    if (lastYearCapitalBracket) {
-      prevYearCapitalGainsTax = Math.max(0, params.prevYearGains ?? 0) * (lastYearCapitalBracket.rate / 100);
+    const capitalGainsBracketsForStatus = previousCapitalGainsBrackets[filingStatus];
+
+    if (capitalGainsBracketsForStatus && capitalGainsBracketsForStatus.length > 0) {
+      prevYearCapitalGainsTax = calculateMarginalTax(Math.max(0, params.prevYearGains ?? 0), capitalGainsBracketsForStatus);
+    } else {
+      prevYearCapitalGainsTax = 0;
+      console.warn(`Year ${params.curYear}: Missing or empty capital gains tax brackets for status ${filingStatus} for previous year tax calculation.`);
     }
 
     // Early withdrawal penalty
@@ -567,10 +602,9 @@ export default async function runSimulation(initialState) {
         }
 
         // For non-pre-tax retirement accounts, record the realized capital gain.
-        if (inv.taxStatus !== "pretax-retirement") {
+        if (inv.taxStatus !== "non-retirement") {
           params.curYearGains += saleCapitalGain;
-        } else {
-          // For pre-tax retirement accounts, treat the sale amount as ordinary income.
+        } else if (inv.taxStatus === "pretax-retirement") {
           params.curYearIncome += amountSold;
         }
 
@@ -659,10 +693,10 @@ export default async function runSimulation(initialState) {
 
           // If the investment is not held in a pre-tax retirement account, record the realized gain.
           // Otherwise, treat the withdrawn amount as ordinary income.
-          if (inv.taxStatus !== "pretax-retirement") {
-            params.curYearGains += realizedGain;
-          } else {
-            params.curYearIncome += withdrawalAmount;
+          if (inv.taxStatus !== "non-retirement") {
+            params.curYearGains += saleCapitalGain;
+          } else if (inv.taxStatus === "pretax-retirement") {
+            params.curYearIncome += amountSold;
           }
 
           // For retirement accounts and if the user is under 59, record early withdrawals.
@@ -892,10 +926,10 @@ export default async function runSimulation(initialState) {
           // Calculate capital gain/loss
           let saleCapitalGain = fractionSold * (investment.value - investment.purchasePrice);
 
-          if (investment.taxStatus !== "pretax-retirement") {
+          if (inv.taxStatus !== "non-retirement") {
             params.curYearGains += saleCapitalGain;
-          } else {
-            params.curYearIncome += amountToSell;
+          } else if (inv.taxStatus === "pretax-retirement") {
+            params.curYearIncome += amountSold;
           }
 
           // Update investment value and purchase price
