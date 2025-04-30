@@ -43,29 +43,15 @@ export interface Investment {
   assetType: string;
   value: string;
   taxStatus: 'non-retirement' | 'pre-tax-retirement' | 'after-tax-retirement'
-  expenseWithdrawalStrategy?: number;
-  rothConversionStrategy?: number;
+  expenseWithdrawalStrategy?: string;
+  rothConversionStrategy?: string;
 }
 
-export interface Event {
+export type Event = {
   name: string;
   type: 'income' | 'expense' | 'invest' | 'rebalance';
-  startYearType: 'fixed' | 'random_uniform' | 'random_normal' | 'same_as' | 'after';
-  startYear?: string;
-  startYearMin?: string,
-  startYearMax?: string,
-  startYearMean?: string,
-  startYearStd?: string,
-  startOnOtherSeries?: string,
 
   relativeStartYear?: string;
-
-  durationType?: 'fixed' | 'random_uniform' | 'random_normal';
-  durationFixed?: string;
-  durationMin?: string;
-  durationMax?: string;
-  durationMean?: string;
-  durationStd?: string;
 
   amount?: string;
   userPercentage?: string;
@@ -75,12 +61,24 @@ export interface Event {
   initialAllocations?: Record<string, string>;
   finalAllocations?: Record<string, string>;
   maxCashValue?: string;
-  
+
   changeAmtOrPct?: 'amount' | 'percent';
-  annualChangeType?: 'random_normal' | 'fixed' | 'random_uniform';
-  annualChange?: string; // Can be a fixed amount or percentage for fixed
-  annualChangeMin?: string; // for random_uniform
-  annualChangeMax?: string; // for random_uniform
-  annualChangeMean?: string; // for random_normal
-  annualChangeStd?: string; // for random_normal
+} & (
+  | { startYearType: 'fixed'; startYear: string }
+  | { startYearType: 'random_uniform'; startYearMin: string; startYearMax: string }
+  | { startYearType: 'random_normal'; startYearMean: string; startYearStd: string }
+  | { startYearType: 'same_as'; startOnOtherSeries: string }
+  | { startYearType: 'after'; startOnOtherSeries: string }
+) & (
+  | { durationType: 'fixed'; durationFixed: string }
+  | { durationType: 'random_uniform'; durationMin: string; durationMax: string }
+  | { durationType: 'random_normal'; durationMean: string; durationStd: string }
+) & (
+  | { annualChangeType: 'fixed'; annualChange: string }
+  | { annualChangeType: 'random_uniform'; annualChangeMin: string; annualChangeMax: string }
+  | { annualChangeType: 'random_normal'; annualChangeMean: string; annualChangeStd: string }
+);
+
+export type IncomeEvent = {
+  {  }
 }

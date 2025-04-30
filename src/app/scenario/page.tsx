@@ -1809,7 +1809,7 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel, initialData = null }: 
                                                         step="1"
                                                         min="0"
                                                         max="100"
-                                                        value={event.userPercentage || '100'}
+                                                        value={event.userPercentage}
                                                         onChange={(e) => {
                                                             const newEventSeries = [...formData.eventSeries];
                                                             newEventSeries[index].userPercentage = e.target.value;
@@ -1866,7 +1866,7 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel, initialData = null }: 
                                                                     step="0.1"
                                                                     min="0"
                                                                     max="100"
-                                                                    value={event.allocations?.[asset.name] || '0'}
+                                                                    value={event.allocations?.[asset.name] || ''}
                                                                     onChange={(e) => {
                                                                         const newEventSeries = [...formData.eventSeries];
                                                                         if (!newEventSeries[index].allocations) {
@@ -2202,28 +2202,24 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel, initialData = null }: 
                                         type="number"
                                         min="1"
                                         max={formData.investments?.length || 1}
-                                        value={investment.expenseWithdrawalStrategy || index + 1}
+                                        value={investment.expenseWithdrawalStrategy || ""}
                                         onChange={(e) => {
                                             const newInvestments = [...formData.investments];
+
+                                            if (e.target.value === "") {
+                                                newInvestments[index].expenseWithdrawalStrategy = "";
+                                                setFormData({ ...formData, investments: newInvestments });
+                                                return;
+                                            }
                                             const newOrder = parseInt(e.target.value);
 
                                             // Ensure the order is a valid number in range
-                                            if (isNaN(newOrder) || newOrder < 1 || newOrder > newInvestments.length) {
+                                            if ((isNaN(newOrder) || newOrder < 1 || newOrder > newInvestments.length)) {
                                                 return;
                                             }
 
-                                            // Check if another investment already has this order number
-                                            const existingIndex = newInvestments.findIndex(
-                                                (inv, idx) => idx !== index && parseInt(inv.expenseWithdrawalStrategy) === newOrder
-                                            );
-
-                                            // If there's a conflict, swap the order numbers
-                                            if (existingIndex !== -1) {
-                                                newInvestments[existingIndex].expenseWithdrawalStrategy = investment.expenseWithdrawalStrategy;
-                                            }
-
                                             // Set the new order
-                                            newInvestments[index].expenseWithdrawalStrategy = newOrder;
+                                            newInvestments[index].expenseWithdrawalStrategy = newOrder + "";
                                             setFormData({ ...formData, investments: newInvestments });
                                         }}
                                         className="w-20 p-1 border rounded text-black"
@@ -2247,10 +2243,17 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel, initialData = null }: 
                                             type="number"
                                             min="1"
                                             max={formData.investments?.filter(inv => inv.taxStatus === 'pre-tax-retirement').length || 1}
-                                            value={investment.rothConversionStrategy || index + 1}
+                                            value={investment.rothConversionStrategy || ''}
                                             onChange={(e) => {
                                                 const newInvestments = [...formData.investments];
                                                 const investmentIndex = newInvestments.findIndex(inv => inv.assetType === investment.assetType);
+                                                console.log(e.target.value);
+                                                if (e.target.value == '') {
+                                                    newInvestments[investmentIndex].rothConversionStrategy = '';
+                                                    setFormData({ ...formData, investments: newInvestments });
+                                                    return;
+                                                }
+             
                                                 const newOrder = parseInt(e.target.value);
 
                                                 // Get all pre-tax investments
@@ -2258,13 +2261,12 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel, initialData = null }: 
 
                                                 // Ensure the order is a valid number in range
                                                 if (isNaN(newOrder) || newOrder < 1 || newOrder > preTaxInvestments.length) {
-                                                    console.log("Invalid");
                                                     return;
                                                 }
                                                 console.log(`Valid ${newOrder}`);
 
                                                 // Set the new order
-                                                newInvestments[investmentIndex].rothConversionStrategy = newOrder;
+                                                newInvestments[investmentIndex].rothConversionStrategy = newOrder + '';
                                                 console.log(newInvestments);
                                                 setFormData({ ...formData, investments: newInvestments });
                                             }}
