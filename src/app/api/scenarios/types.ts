@@ -87,15 +87,19 @@ type YamlFixedDistribution = {
   type YamlInvestEventSeries = YamlEventSeriesBase & {
     type: "invest";
     assetAllocation: Record<string, number>;
-    glidePath: boolean;
-    assetAllocation2: Record<string, number>;
     maxCash: number;
-  };
+  } & (
+    | { glidePath: true; assetAllocation2: Record<string, number>; }
+    | { glidePath: false; }
+  );
   
   type YamlRebalanceEventSeries = YamlEventSeriesBase & {
     type: "rebalance";
     assetAllocation: Record<string, number>;
-  };
+  } & (
+    | { glidePath: true; assetAllocation2: Record<string, number>; }
+    | { glidePath: false; }
+  );;
   
   type YamlEventSeries =
     | YamlIncomeEventSeries

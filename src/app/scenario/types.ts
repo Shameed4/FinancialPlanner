@@ -38,9 +38,6 @@ interface SharedScenarioFields {
 // Single-user version
 export type IndividualScenarioFormData = SharedScenarioFields & {
   forIndividual: true;
-  spouseBirthYear: "";
-  spouseLifeExpectancyMean: "";
-  spouseLifeExpectancyStd: "";
 } & Inflation;
 
 // Joint-user version
