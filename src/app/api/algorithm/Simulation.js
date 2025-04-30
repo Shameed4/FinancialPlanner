@@ -222,16 +222,17 @@ export default async function runSimulation(initialState) {
     });
 
     // Step 3: RMDs
-    // if the user's age is at least 74 and at the end of the previous year, there is at least one investment with tax status = "pre-tax" and with a positive value
     console.log("2. Running RMDs...");
     if (params.userAge >= 73) {
       // pay RMD for previous year if it exists (user is age 74 or greater)
-      if (params.userAge >= 74 && params.prevRMD) {
+      if (params.userAge >= 74 && params.prevRMD && params.prevRMD > 0) {
         let remainingToTransfer = params.prevRMD;
 
         // this loop assumes that in the investments object, they are ordered according to the expense withdrawal strategy
         for (let i = 0; i < state.investments.length && remainingToTransfer > 0; i++) {
-          // Only consider investments with taxStatus "pre-tax" and with a positive value.
+          let inv = state.investments[i];
+
+          // Skip if not a positive-value pre-tax retirement account
           if (inv.taxStatus !== "pretax-retirement" || inv.value <= 0) {
             continue;
           }
@@ -243,26 +244,33 @@ export default async function runSimulation(initialState) {
           inv.value -= transferAmount;
 
           // look for an existing investment with the same type that has taxStatus "non-retirement".
-          let targetInvestment = state.investments.find(investment => investment.assetType === inv.assetType && investment.taxStatus === "non-retirement");
+          let targetInvestment = state.investments.find(investment =>
+            investment.assetType === inv.assetType &&
+            investment.taxStatus === "non-retirement"
+          );
 
           // if it exists, add the transferred amount; otherwise, create a new investment record.
           if (targetInvestment) {
             targetInvestment.value += transferAmount;
-          }
-          else {
+            targetInvestment.purchasePrice = (targetInvestment.purchasePrice || 0) + transferAmount;
+          } else {
             let newInvestment = {
-              assetType: inv.investmentType,
+              assetType: inv.assetType, // Fixed: Use assetType instead of investmentType
               value: transferAmount,
               taxStatus: "non-retirement",
+              purchasePrice: transferAmount
             };
-            // TODO: handle DB end of pushing this new investment 
             state.investments.push(newInvestment);
           }
 
           // deduct the transferred amount from the remaining amount.
           remainingToTransfer -= transferAmount;
         }
-        // at this point, the previous RMD has been fully transferred in-kind.
+
+        // Check if RMD was fully covered
+        if (remainingToTransfer > 0) {
+          console.warn(`Year ${params.curYear}: Could not fully transfer previous year's RMD. Shortfall: ${remainingToTransfer}`);
+        }
       }
 
       // calculate RMD for current year
