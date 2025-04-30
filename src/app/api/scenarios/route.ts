@@ -103,7 +103,7 @@ async function createEventSeries(scenarioId: number, eventSeries: any[], investm
             inflationAdjustment: event.inflationAdjusted,
             userPercentage: event.userPercentage ? parseFloat(event.userPercentage) : null,
             isDiscretionary: event.isDiscretionary || false,
-            order: event.order,
+            expenseWithdrawalStrategy: event.isDiscretionary ? parseInt(event.expenseWithdrawalStrategy) : null,
             changeAmtOrPct: event.changeAmtOrPct
           }
         });
@@ -114,7 +114,6 @@ async function createEventSeries(scenarioId: number, eventSeries: any[], investm
           data: {
             eventSeriesId: createdEvent.id,
             maxCash: event.maxCashValue || null,
-            order: event.order,
             initialAllocation: 0 // default
           }
         });
@@ -296,8 +295,6 @@ async function createAssetTypes(assetTypes: any[]) {
           fixedIncome: assetType.fixedIncome,
           normalIncomeMean: assetType.normalIncomeMean,
           normalIncomeStd: assetType.normalIncomeStd,
-          gbmIncomeDrift: assetType.gbmIncomeDrift,
-          gbmIncomeVolatility: assetType.gbmIncomeVolatility,
           expenseRatio: assetType.expenseRatio || 0,
           taxability: taxability,
           incomeAmtOrPct: assetType.incomeAmtOrPct,
@@ -341,7 +338,7 @@ async function createInvestments(scenarioId: number, investments: any[], assetTy
         value: investment.value,
         taxStatus: taxStatus,
         rothConversionStrategy: investment.rothConversionStrategy,
-        expenseWithdrawalStrategy: investment.expenseWithdrawalStrategy
+        rmdStrategy: investment.rmdStrategy
       },
       include: {
         assetType: true
@@ -509,7 +506,8 @@ const transformScenarioForFrontend = (scenario: any) => {
         changeAmtOrPct: es.expenseEventDetails.changeAmtOrPct,
         inflationAdjusted: es.expenseEventDetails.inflationAdjustment,
         userPercentage: es.expenseEventDetails.userPercentage,
-        isDiscretionary: es.expenseEventDetails.isDiscretionary
+        isDiscretionary: es.expenseEventDetails.isDiscretionary,
+        expenseWithdrawalStrategy: es.expenseEventDetails.expenseWithdrawalStrategy
       };
     }
 
@@ -550,7 +548,7 @@ const transformScenarioForFrontend = (scenario: any) => {
     assetType: is.investment.assetType.name,
     value: is.investment.value,
     taxStatus: is.investment.taxStatus.toLowerCase().replace(/_/g, '-'),
-    expenseWithdrawalStrategy: is.investment.expenseWithdrawalStrategy,
+    rmdStrategy: is.investment.rmdStrategy,
     rothConversionStrategy: is.investment.rothConversionStrategy
   })) || [];
 

@@ -22,7 +22,7 @@ import { jsonToYaml, yamlToJson, validateScenario } from '@/utils/scenarioConver
 import pageVariants from "../components/PageAnimation";
 import ShareScenarioModal from './ShareScenarioModal';
 import ScenarioCard from './ScenarioCard.js';
-import { StringScenarioFormData } from './types';
+import { ExpenseEvent, StringScenarioFormData } from './types';
 
 const FormSection = ({ title, children, isActive, errors = {} }: { title: string, children: ReactNode, isActive: boolean, errors: any }) => {
     if (!isActive) return null;
@@ -356,16 +356,16 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel, initialData = null }: 
                     }
                 }
 
-                // Validate withdrawal strategy
+                // Validate RMD strategy
                 if (formData.investments?.length > 0) {
-                    const expenseWithdrawalStrategys = formData.investments
-                        .map(inv => inv.expenseWithdrawalStrategy)
+                    const rmdStrategys = formData.investments
+                        .map(inv => inv.rmdStrategy)
                         .filter(order => order !== undefined && order !== null);
 
-                    if (expenseWithdrawalStrategys.length > 0) {
-                        const uniqueOrders = new Set(expenseWithdrawalStrategys);
-                        if (expenseWithdrawalStrategys.length !== uniqueOrders.size) {
-                            newErrors.expenseWithdrawalStrategy = 'Each investment must have a unique withdrawal order';
+                    if (rmdStrategys.length > 0) {
+                        const uniqueOrders = new Set(rmdStrategys);
+                        if (rmdStrategys.length !== uniqueOrders.size) {
+                            newErrors.rmdStrategy = 'Each investment must have a unique RMD order';
                         }
                     }
                 }
@@ -395,7 +395,7 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel, initialData = null }: 
             if (currentStep < 5) {
                 setCurrentStep(currentStep + 1);
             } else {
-                // Ensure expenseWithdrawalStrategy and rothConversionStrategy are properly assigned
+                // Ensure rmdStrategy and rothConversionStrategy are properly assigned
                 const processedFormData = { ...formData };
 
                 // Normalize withdrawal orders (ensure consecutive 1-n)
@@ -405,13 +405,13 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel, initialData = null }: 
                         .map((inv, idx) => ({
                             ...inv,
                             originalIndex: idx,
-                            expenseWithdrawalStrategy: inv.expenseWithdrawalStrategy || idx + 1
+                            rmdStrategy: inv.rmdStrategy || idx + 1
                         }))
-                        .sort((a, b) => a.expenseWithdrawalStrategy - b.expenseWithdrawalStrategy);
+                        .sort((a, b) => a.rmdStrategy - b.rmdStrategy);
 
                     // Reassign sequential orders (1, 2, 3, ...)
                     sortedInvestments.forEach((inv, idx) => {
-                        processedFormData.investments[inv.originalIndex].expenseWithdrawalStrategy = idx + 1;
+                        processedFormData.investments[inv.originalIndex].rmdStrategy = idx + 1;
                     });
 
                     // Normalize Roth conversion orders for pre-tax investments
@@ -461,7 +461,7 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel, initialData = null }: 
                         if (path.match(/^assetTypes\.\d+\.(fixedReturn|normalReturnMean|normalReturnStd|expenseRatio|fixedIncome|normalIncomeMean|normalIncomeStd|percentage|value|fee|minAllocation|maxAllocation|targetAllocation)$/)) return true;
 
                         // Investments
-                        if (path.match(/^investments\.\d+\.(value|expenseWithdrawalStrategy|rothConversionStrategy)$/)) return true;
+                        if (path.match(/^investments\.\d+\.(value|rmdStrategy|rothConversionStrategy)$/)) return true;
 
                         // Event series
                         if (path != 'annualChangeType' && path.match(/^eventSeries\.\d+\.(startYear|startYearMin|startYearMax|startYearMean|startYearStd|durationFixed|durationMin|durationMax|durationMean|durationStd|amount|userPercentage|maxCashValue|annualChange.*)$/)) return true;
@@ -2192,41 +2192,46 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel, initialData = null }: 
                     </div>
 
                     <div className="mb-4">
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Expense Withdrawal Strategy</label>
-                        <p className="text-sm text-gray-500 mb-2">Order your investments for withdrawal (1 = first, 2 = second, etc.)</p>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">RMD</label>
+                        <p className="text-sm text-gray-500 mb-2">Order your investments for RMDs (1 = first, 2 = second, etc.)</p>
                         <div className="space-y-2">
-                            {formData.investments?.map((investment, index) => (
-                                <div key={index} className="flex items-center gap-2 bg-gray-50 p-2 rounded">
-                                    <span className="flex-1 text-black">{investment.assetType} ({investment.taxStatus})</span>
-                                    <input
-                                        type="number"
-                                        min="1"
-                                        max={formData.investments?.length || 1}
-                                        value={investment.expenseWithdrawalStrategy || ""}
-                                        onChange={(e) => {
-                                            const newInvestments = [...formData.investments];
+                            {formData.investments?.filter(inv => inv.taxStatus === 'pre-tax-retirement').map((investment) => {
+                                const investmentIndex = formData.investments.findIndex(inv => inv.assetType === investment.assetType);
 
-                                            if (e.target.value === "") {
-                                                newInvestments[index].expenseWithdrawalStrategy = "";
+                                return (
+                                    <div key={investment.assetType} className="flex items-center gap-2 bg-gray-50 p-2 rounded">
+                                        <span className="flex-1 text-black">
+                                            {investment.assetType} ({investment.taxStatus})
+                                        </span>
+                                        <input
+                                            type="number"
+                                            min="1"
+                                            max={formData.investments?.filter(inv => inv.taxStatus === 'pre-tax-retirement').length || 1}
+                                            value={investment.rmdStrategy || ""}
+                                            onChange={(e) => {
+                                                const newInvestments = [...formData.investments];
+
+                                                if (e.target.value === "") {
+                                                    newInvestments[investmentIndex].rmdStrategy = "";
+                                                    setFormData({ ...formData, investments: newInvestments });
+                                                    return;
+                                                }
+
+                                                const newOrder = parseInt(e.target.value);
+
+                                                if (isNaN(newOrder) || newOrder < 1 || newOrder > formData.investments.filter(inv => inv.taxStatus === 'pre-tax-retirement').length) {
+                                                    return;
+                                                }
+
+                                                newInvestments[investmentIndex].rmdStrategy = newOrder + "";
                                                 setFormData({ ...formData, investments: newInvestments });
-                                                return;
-                                            }
-                                            const newOrder = parseInt(e.target.value);
-
-                                            // Ensure the order is a valid number in range
-                                            if ((isNaN(newOrder) || newOrder < 1 || newOrder > newInvestments.length)) {
-                                                return;
-                                            }
-
-                                            // Set the new order
-                                            newInvestments[index].expenseWithdrawalStrategy = newOrder + "";
-                                            setFormData({ ...formData, investments: newInvestments });
-                                        }}
-                                        className="w-20 p-1 border rounded text-black"
-                                        placeholder="Order"
-                                    />
-                                </div>
-                            ))}
+                                            }}
+                                            className="w-20 p-1 border rounded text-black"
+                                            placeholder="Order"
+                                        />
+                                    </div>
+                                );
+                            })}
                         </div>
                     </div>
 
@@ -2236,45 +2241,92 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel, initialData = null }: 
                         <div className="space-y-2">
                             {formData.investments
                                 ?.filter(inv => inv.taxStatus === 'pre-tax-retirement')
-                                .map((investment, index) => (
-                                    <div key={index} className="flex items-center gap-2 bg-gray-50 p-2 rounded">
-                                        <span className="flex-1 text-gray-500">{investment.assetType}</span>
-                                        <input
-                                            type="number"
-                                            min="1"
-                                            max={formData.investments?.filter(inv => inv.taxStatus === 'pre-tax-retirement').length || 1}
-                                            value={investment.rothConversionStrategy || ''}
-                                            onChange={(e) => {
-                                                const newInvestments = [...formData.investments];
-                                                const investmentIndex = newInvestments.findIndex(inv => inv.assetType === investment.assetType);
-                                                console.log(e.target.value);
-                                                if (e.target.value == '') {
-                                                    newInvestments[investmentIndex].rothConversionStrategy = '';
+                                .map((investment) => {
+                                    const investmentIndex = formData.investments.findIndex(inv => inv.assetType === investment.assetType);
+
+                                    return (
+                                        <div key={investment.assetType} className="flex items-center gap-2 bg-gray-50 p-2 rounded">
+                                            <span className="flex-1 text-gray-500">{investment.assetType}</span>
+                                            <input
+                                                type="number"
+                                                min="1"
+                                                max={formData.investments?.filter(inv => inv.taxStatus === 'pre-tax-retirement').length || 1}
+                                                value={investment.rothConversionStrategy || ''}
+                                                onChange={(e) => {
+                                                    const newInvestments = [...formData.investments];
+
+                                                    if (e.target.value === '') {
+                                                        newInvestments[investmentIndex].rothConversionStrategy = '';
+                                                        setFormData({ ...formData, investments: newInvestments });
+                                                        return;
+                                                    }
+
+                                                    const newOrder = parseInt(e.target.value);
+
+                                                    const preTaxInvestments = newInvestments.filter(inv => inv.taxStatus === 'pre-tax-retirement');
+
+                                                    if (isNaN(newOrder) || newOrder < 1 || newOrder > preTaxInvestments.length) {
+                                                        return;
+                                                    }
+
+                                                    newInvestments[investmentIndex].rothConversionStrategy = newOrder + '';
                                                     setFormData({ ...formData, investments: newInvestments });
-                                                    return;
-                                                }
-             
-                                                const newOrder = parseInt(e.target.value);
+                                                }}
+                                                className="w-20 p-1 border rounded"
+                                                placeholder="Order"
+                                            />
+                                        </div>
+                                    );
+                                })}
+                        </div>
+                    </div>
+                    
+                    <div className="mb-4">
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Expense Strategy</label>
+                        <p className="text-sm text-gray-500 mb-2">
+                            Order your discretionary expenses (1 = first, 2 = second, etc.)
+                        </p>
+                        <div className="space-y-2">
+                            {formData.eventSeries
+                                ?.filter(es => es.type === 'expense' && es.isDiscretionary)
+                                .map((es) => {
+                                    const eventIndex = formData.eventSeries.findIndex(event => event.name === es.name);
 
-                                                // Get all pre-tax investments
-                                                const preTaxInvestments = newInvestments.filter(inv => inv.taxStatus === 'pre-tax-retirement');
+                                    return (
+                                        <div key={es.name} className="flex items-center gap-2 bg-gray-50 p-2 rounded">
+                                            <span className="flex-1 text-black">
+                                                {es.name}
+                                            </span>
+                                            <input
+                                                type="number"
+                                                min="1"
+                                                max={formData.eventSeries.filter(e => e.type === 'expense' && e.isDiscretionary).length || 1}
+                                                value={es.expenseWithdrawalStrategy || ''}
+                                                onChange={(e) => {
+                                                    const newEventSeries = [...formData.eventSeries];
 
-                                                // Ensure the order is a valid number in range
-                                                if (isNaN(newOrder) || newOrder < 1 || newOrder > preTaxInvestments.length) {
-                                                    return;
-                                                }
-                                                console.log(`Valid ${newOrder}`);
+                                                    if (e.target.value === '') {
+                                                        newEventSeries[eventIndex].expenseWithdrawalStrategy = '';
+                                                        setFormData({ ...formData, eventSeries: newEventSeries });
+                                                        return;
+                                                    }
 
-                                                // Set the new order
-                                                newInvestments[investmentIndex].rothConversionStrategy = newOrder + '';
-                                                console.log(newInvestments);
-                                                setFormData({ ...formData, investments: newInvestments });
-                                            }}
-                                            className="w-20 p-1 border rounded"
-                                            placeholder="Order"
-                                        />
-                                    </div>
-                                ))}
+                                                    const newOrder = parseInt(e.target.value);
+                                                    const discretionaryCount = newEventSeries.filter(e => e.type === 'expense' && e.isDiscretionary).length;
+
+                                                    if (isNaN(newOrder) || newOrder < 1 || newOrder > discretionaryCount) {
+                                                        return;
+                                                    }
+
+                                                    newEventSeries[eventIndex].expenseWithdrawalStrategy = newOrder + '';
+                                                    setFormData({ ...formData, eventSeries: newEventSeries });
+                                                }}
+                                                className="w-20 p-1 border rounded text-black"
+                                                placeholder="Order"
+                                            />
+                                        </div>
+                                    );
+                                })}
                         </div>
                     </div>
                 </div>

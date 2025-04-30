@@ -71,7 +71,7 @@ CREATE TABLE `ExpenseEventDetails` (
     `userPercentage` DOUBLE NULL,
     `spousePercentage` DOUBLE NULL,
     `isDiscretionary` BOOLEAN NOT NULL,
-    `order` INTEGER NULL,
+    `expenseWithdrawalStrategy` INTEGER NULL,
     `eventSeriesId` INTEGER NOT NULL,
 
     UNIQUE INDEX `ExpenseEventDetails_eventSeriesId_key`(`eventSeriesId`),
@@ -82,7 +82,6 @@ CREATE TABLE `ExpenseEventDetails` (
 CREATE TABLE `InvestEventDetails` (
     `id` INTEGER NOT NULL AUTO_INCREMENT,
     `maxCash` DOUBLE NOT NULL,
-    `order` INTEGER NULL,
     `initialAllocation` DOUBLE NOT NULL,
     `finalAllocation` DOUBLE NULL,
     `eventSeriesId` INTEGER NOT NULL,
@@ -126,8 +125,6 @@ CREATE TABLE `AssetType` (
     `fixedIncome` DOUBLE NULL,
     `normalIncomeMean` DOUBLE NULL,
     `normalIncomeStd` DOUBLE NULL,
-    `gbmIncomeDrift` DOUBLE NULL,
-    `gbmIncomeVolatility` DOUBLE NULL,
     `incomeAmtOrPct` ENUM('amount', 'percent') NOT NULL,
     `expenseRatio` DOUBLE NOT NULL,
     `taxability` ENUM('TAXABLE', 'TAX_EXEMPT') NOT NULL,
@@ -142,7 +139,7 @@ CREATE TABLE `Investment` (
     `value` DOUBLE NOT NULL,
     `taxStatus` ENUM('NON_RETIREMENT', 'PRE_TAX_RETIREMENT', 'AFTER_TAX_RETIREMENT') NOT NULL,
     `rothConversionStrategy` INTEGER NULL,
-    `expenseWithdrawalStrategy` INTEGER NULL,
+    `rmdStrategy` INTEGER NULL,
 
     PRIMARY KEY (`id`)
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;

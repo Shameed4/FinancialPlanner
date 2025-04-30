@@ -117,7 +117,7 @@ model ExpenseEventDetails {
   spousePercentage    Float?
 
   isDiscretionary Boolean
-  order           Int? // for the spending strategy of discretionary expenses
+  expenseWithdrawalStrategy           Int? // for the spending strategy of discretionary expenses
 
   // Relation to EventSeries
   eventSeries   EventSeries @relation(fields: [eventSeriesId], references: [id], onDelete: Cascade)
@@ -127,7 +127,6 @@ model ExpenseEventDetails {
 model InvestEventDetails {
   id                Int    @id @default(autoincrement())
   maxCash           Float
-  order             Int? // for expense withdrawal strategy
   initialAllocation Float // used for both fixed and glide paths
   finalAllocation   Float? // used only for glide paths
 
@@ -174,8 +173,6 @@ model AssetType {
   fixedIncome              Float?
   normalIncomeMean         Float?
   normalIncomeStd          Float?
-  gbmIncomeDrift           Float?
-  gbmIncomeVolatility      Float?
   incomeAmtOrPct           AmountOrPercent
 
   expenseRatio Float
@@ -184,15 +181,15 @@ model AssetType {
 }
 
 model Investment {
-  id                        Int                  @id @default(autoincrement())
-  assetType                 AssetType            @relation(fields: [assetTypeId], references: [id])
-  assetTypeId               Int
-  value                     Float
-  taxStatus                 TaxStatus
-  rothConversionStrategy    Int? // for pre tax investments
-  expenseWithdrawalStrategy Int?
-  assetAllocations          AssetAllocation[]
-  investmentScenario        InvestmentScenario[]
+  id                     Int                  @id @default(autoincrement())
+  assetType              AssetType            @relation(fields: [assetTypeId], references: [id])
+  assetTypeId            Int
+  value                  Float
+  taxStatus              TaxStatus
+  rothConversionStrategy Int? // for pre tax investments
+  rmdStrategy            Int?
+  assetAllocations       AssetAllocation[]
+  investmentScenario     InvestmentScenario[]
 }
 
 enum ReturnType {

@@ -1,20 +1,31 @@
-export interface StringScenarioFormData {
+// Shared inflation union
+type FixedInflation = {
+  inflationAssumption: 'fixed';
+  inflation: string;
+};
+
+type UniformInflation = {
+  inflationAssumption: 'random_uniform';
+  inflationMin: string;
+  inflationMax: string;
+};
+
+type NormalInflation = {
+  inflationAssumption: 'random_normal';
+  inflationMean: string;
+  inflationStd: string;
+};
+
+type Inflation = FixedInflation | UniformInflation | NormalInflation;
+
+// Shared base
+interface SharedScenarioFields {
   name: string;
   userBirthYear: string;
   userLifeExpectancyMean: string;
   userLifeExpectancyStd: string;
   residenceState: string;
   financialGoal: string;
-  forIndividual: boolean;
-  spouseBirthYear?: string;
-  spouseLifeExpectancyMean?: string;
-  spouseLifeExpectancyStd?: string;
-  inflationAssumption: 'fixed' | 'random_uniform' | 'random_normal';
-  inflation?: string;
-  inflationMin?: string;
-  inflationMax?: string;
-  inflationMean?: string;
-  inflationStd?: string;
   initialAfterTaxRetirementContributionLimit?: string;
   assetTypes: AssetType[];
   investments: Investment[];
@@ -24,10 +35,30 @@ export interface StringScenarioFormData {
   rothOptimizationEndYear?: string;
 }
 
-export interface AssetType {
+// Single-user version
+export type IndividualScenarioFormData = SharedScenarioFields & {
+  forIndividual: true;
+  spouseBirthYear: "";
+  spouseLifeExpectancyMean: "";
+  spouseLifeExpectancyStd: "";
+} & Inflation;
+
+// Joint-user version
+export type JointScenarioFormData = SharedScenarioFields & {
+  forIndividual: false;
+  spouseBirthYear: string;
+  spouseLifeExpectancyMean: string;
+  spouseLifeExpectancyStd: string;
+} & Inflation;
+
+// Final discriminated union
+export type StringScenarioFormData =
+  | IndividualScenarioFormData
+  | JointScenarioFormData;
+
+export type AssetType = {
   name: string;
   description?: string;
-  returnType: 'fixed' | 'random_normal' | 'random_uniform';
   fixedReturn?: string;
   normalReturnMean?: string;
   normalReturnStd?: string;
@@ -35,22 +66,25 @@ export interface AssetType {
   normalIncomeMean?: string;
   normalIncomeStd?: string;
   taxable: boolean;
-  returnAmtOrPct: 'amount' | 'percent';
-  incomeAmtOrPct: 'amount' | 'percent';
-}
+  returnAmtOrPct: AmountOrPercent;
+  incomeAmtOrPct: AmountOrPercent;
+} & (
+  | { returnType: 'fixed'; fixedReturn: 'string'; }
+  | { returnType: 'random_normal'; normalReturnMean: string; normalReturnStd: string; }
+)
 
-export interface Investment {
+export type Investment = {
   assetType: string;
   value: string;
-  taxStatus: 'non-retirement' | 'pre-tax-retirement' | 'after-tax-retirement'
-  expenseWithdrawalStrategy?: string;
   rothConversionStrategy?: string;
-}
+  rmdStrategy?: string;
+} & (
+  | { taxStatus: 'non-retirement' | 'after-tax-retirement'}
+  | { taxStatus: 'pre-tax-retirement', rothConversionStrategy: string, rmdStrategy: string; }
+)
 
 export type Event = {
   name: string;
-  type: 'income' | 'expense' | 'invest' | 'rebalance';
-
   relativeStartYear?: string;
 
   amount?: string;
@@ -77,8 +111,58 @@ export type Event = {
   | { annualChangeType: 'fixed'; annualChange: string }
   | { annualChangeType: 'random_uniform'; annualChangeMin: string; annualChangeMax: string }
   | { annualChangeType: 'random_normal'; annualChangeMean: string; annualChangeStd: string }
+) & (
+  | IncomeEvent
+  | ExpenseEvent
+  | InvestEvent
+  | RebalanceEvent
 );
 
-export type IncomeEvent = {
-  {  }
+// Shared across income/expense
+type AnnualChange =
+  | { annualChangeType: 'fixed'; annualChange: string }
+  | { annualChangeType: 'random_uniform'; annualChangeMin: string; annualChangeMax: string }
+  | { annualChangeType: 'random_normal'; annualChangeMean: string; annualChangeStd: string }
+  | { annualChangeType?: undefined };
+
+type AmountOrPercent = 'amount' | 'percent';
+
+interface BaseIncomeExpense {
+  amount: string;
+  changeAmtOrPct: AmountOrPercent;
+  inflationAdjusted: boolean;
+  userPercentage?: string;
 }
+
+export type IncomeEvent = {
+  type: 'income';
+  isSocialSecurity: boolean;
+} & BaseIncomeExpense & AnnualChange;
+
+export type ExpenseEvent = {
+  type: 'expense';
+} & BaseIncomeExpense & AnnualChange & (
+  | { isDiscretionary: true; expenseWithdrawalStrategy: number }
+  | { isDiscretionary: false }
+);
+
+// Asset Allocation Types
+type FixedAllocation = {
+  allocationType: 'fixed';
+  allocations: Record<string, string>;
+};
+
+type GlideAllocation = {
+  allocationType: 'glide';
+  initialAllocations: Record<string, string>;
+  finalAllocations: Record<string, string>;
+};
+
+export type InvestEvent = {
+  type: 'invest';
+  maxCashValue?: string;
+} & (FixedAllocation | GlideAllocation );
+
+export type RebalanceEvent = {
+  type: 'rebalance';
+} & (FixedAllocation | GlideAllocation );
