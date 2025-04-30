@@ -152,6 +152,161 @@ export default async function runSimulation(initialState) {
   let iteration = 1;
   let resObject = {}
 
+  // Preprocess event timings for this simulation run
+  console.log("Preprocessing event timings for this simulation run...");
+
+  // Process all non-dependent events
+  state.eventSeries.forEach(event => {
+    if (event.startYearType !== 'same_as' && event.startYearType !== 'after') {
+      let calculatedStartYear;
+      let calculatedDuration;
+      let actualDuration;
+
+      // --- Determine Start Year ---
+      const startMode = event.startYearType ?? 'fixed';
+
+      switch (startMode) {
+        case 'random_normal':
+          if (!event.startMean || !event.startStd) {
+            console.warn(`Event '${event.name}': Missing required parameters for random_normal start year. Using current year.`);
+            calculatedStartYear = params.curYear;
+          } else {
+            calculatedStartYear = Math.round(sampleNormal(event.startMean, event.startStd));
+          }
+          break;
+
+        case 'random_uniform':
+          if (!event.startMin || !event.startMax) {
+            console.warn(`Event '${event.name}': Missing required parameters for random_uniform start year. Using current year.`);
+            calculatedStartYear = params.curYear;
+          } else {
+            calculatedStartYear = Math.round(sampleUniform(event.startMin, event.startMax));
+          }
+          break;
+
+        case 'fixed':
+        default:
+          calculatedStartYear = event.startYear ?? params.curYear;
+          break;
+      }
+
+      // Store the determined start year
+      event.startYear = calculatedStartYear;
+
+      // --- Determine Duration ---
+      const durationMode = event.durationType ?? 'fixed';
+
+      switch (durationMode) {
+        case 'random_normal':
+          if (!event.durationMean || !event.durationStd) {
+            console.warn(`Event '${event.name}': Missing required parameters for random_normal duration. Using 1 year.`);
+            calculatedDuration = 1;
+          } else {
+            calculatedDuration = Math.round(sampleNormal(event.durationMean, event.durationStd));
+          }
+          break;
+
+        case 'random_uniform':
+          if (!event.durationMin || !event.durationMax) {
+            console.warn(`Event '${event.name}': Missing required parameters for random_uniform duration. Using 1 year.`);
+            calculatedDuration = 1;
+          } else {
+            calculatedDuration = Math.round(sampleUniform(event.durationMin, event.durationMax));
+          }
+          break;
+
+        case 'fixed':
+        default:
+          // If duration is not specified but endYear exists, calculate from endYear
+          if (!event.duration && event.endYear) {
+            calculatedDuration = event.endYear - event.startYear + 1;
+          } else {
+            calculatedDuration = event.duration ?? 1;
+          }
+          break;
+      }
+
+      // Ensure duration is at least 1 year
+      actualDuration = Math.max(1, calculatedDuration);
+
+      // Calculate and store end year
+      event.endYear = event.startYear + actualDuration - 1;
+
+      // Log the calculated timing for debugging
+      console.log(`Event '${event.name}': Type S:${startMode}/D:${durationMode} -> Start: ${event.startYear}, End: ${event.endYear} (Duration: ${actualDuration})`);
+    }
+  });
+
+  // Process dependent events ('same_as' and 'after')
+  state.eventSeries.forEach(event => {
+    if (event.startYearType === 'same_as' || event.startYearType === 'after') {
+      if (!event.startOnOtherSeriesId) {
+        console.warn(`Event '${event.name}': Missing startOnOtherSeriesId for ${event.startYearType} timing. Using current year.`);
+        event.startYear = params.curYear;
+        return;
+      }
+
+      // Find the referenced event
+      const referencedEvent = state.eventSeries.find(e => e.id === event.startOnOtherSeriesId);
+      if (!referencedEvent) {
+        console.warn(`Event '${event.name}': Referenced event ${event.startOnOtherSeriesId} not found. Using current year.`);
+        event.startYear = params.curYear;
+        return;
+      }
+
+      // Calculate start year based on the referenced event
+      if (event.startYearType === 'same_as') {
+        event.startYear = referencedEvent.startYear;
+      } else { // 'after'
+        event.startYear = referencedEvent.endYear + 1;
+      }
+
+      // --- Determine Duration ---
+      const durationMode = event.durationType ?? 'fixed';
+      let calculatedDuration;
+      let actualDuration;
+
+      switch (durationMode) {
+        case 'random_normal':
+          if (!event.durationMean || !event.durationStd) {
+            console.warn(`Event '${event.name}': Missing required parameters for random_normal duration. Using 1 year.`);
+            calculatedDuration = 1;
+          } else {
+            calculatedDuration = Math.round(sampleNormal(event.durationMean, event.durationStd));
+          }
+          break;
+
+        case 'random_uniform':
+          if (!event.durationMin || !event.durationMax) {
+            console.warn(`Event '${event.name}': Missing required parameters for random_uniform duration. Using 1 year.`);
+            calculatedDuration = 1;
+          } else {
+            calculatedDuration = Math.round(sampleUniform(event.durationMin, event.durationMax));
+          }
+          break;
+
+        case 'fixed':
+        default:
+          // If duration is not specified but endYear exists, calculate from endYear
+          if (!event.duration && event.endYear) {
+            calculatedDuration = event.endYear - event.startYear + 1;
+          } else {
+            calculatedDuration = event.duration ?? 1;
+          }
+          break;
+      }
+
+      // Ensure duration is at least 1 year
+      actualDuration = Math.max(1, calculatedDuration);
+
+      // Calculate and store end year
+      event.endYear = event.startYear + actualDuration - 1;
+
+      // Log the calculated timing for debugging
+      console.log(`Event '${event.name}': Type S:${event.startYearType}/D:${durationMode} -> Start: ${event.startYear}, End: ${event.endYear} (Duration: ${actualDuration})`);
+    }
+  });
+
   // Setup logging
   const userId = initialState.userId || 'anonymous';
   const dtString = new Date().toISOString().replace(/[:.]/g, '-');
