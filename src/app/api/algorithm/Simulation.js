@@ -172,7 +172,7 @@ export default async function runSimulation(initialState) {
     }
     params.afterTaxRetirementContributionLimit = params.afterTaxRetirementContributionLimit * (1 + params.inflationRate / 100);
 
-    // Step 2: run the income events, adding income to the cash investment
+    // Step 1: run the income events, adding income to the cash investment
     console.log("1. Running income events...");
     let activeIncomeEvents = state.eventSeries.filter(event =>
       event.type === "income" &&
@@ -221,111 +221,9 @@ export default async function runSimulation(initialState) {
       }
     });
 
-    // Step 3: RMDs
-    // if the user's age is at least 74 and at the end of the previous year, there is at least one investment with tax status = "pre-tax" and with a positive value
-    console.log("2. Running RMDs...");
-    if (params.userAge >= 73) {
-      // pay RMD for previous year if it exists (user is age 74 or greater)
-      if (params.userAge >= 74 && params.prevRMD) {
-        let remainingToTransfer = params.prevRMD;
-
-        // this loop assumes that in the investments object, they are ordered according to the expense withdrawal strategy
-        for (let i = 0; i < state.investments.length && remainingToTransfer > 0; i++) {
-          // Only consider investments with taxStatus "pre-tax" and with a positive value.
-          if (inv.taxStatus !== "pretax-retirement" || inv.value <= 0) {
-            continue;
-          }
-
-          // determine the transfer amount: either the full investment value or the remaining amount needed.
-          let transferAmount = Math.min(inv.value, remainingToTransfer);
-
-          // reduce the source pre-tax investment by the transfer amount.
-          inv.value -= transferAmount;
-
-          // look for an existing investment with the same type that has taxStatus "non-retirement".
-          let targetInvestment = state.investments.find(investment => investment.assetType === inv.assetType && investment.taxStatus === "non-retirement");
-
-          // if it exists, add the transferred amount; otherwise, create a new investment record.
-          if (targetInvestment) {
-            targetInvestment.value += transferAmount;
-          }
-          else {
-            let newInvestment = {
-              assetType: inv.investmentType,
-              value: transferAmount,
-              taxStatus: "non-retirement",
-            };
-            // TODO: handle DB end of pushing this new investment 
-            state.investments.push(newInvestment);
-          }
-
-          // deduct the transferred amount from the remaining amount.
-          remainingToTransfer -= transferAmount;
-        }
-        // at this point, the previous RMD has been fully transferred in-kind.
-      }
-
-      // calculate RMD for current year
-      let pretaxInvestments = state.investments.filter(investment => investment.taxStatus === 'pretax-retirement');
-      let s = 0;
-      pretaxInvestments.forEach(investment => {
-        s += investment.value;
-      });
-      let d = params.rmdTable.find(entry => entry.age === params.userAge).distributionPeriod;
-      let rmd = s / d;
-
-      params.curYearIncome += rmd;
-
-      params.prevRMD = rmd; // store current year RMD to be used in next year's computation
-    }
-
-    // Step 4: Update the values of investments, reflecting expected annual return, reinvestment of generated income, and subtraction of expenses.
-    console.log("3. Running investment updates...");
-    state.investments.forEach(investment => {
-      let type = investment.assetType;
-      let assetType = state.assetTypes.find(at => at.name === type);
-
-      // Store starting value for expense calculation
-      let startingValue = investment.value;
-
-      // Calculate generated income
-      let generatedIncome = investment.value * (sampleNormal(assetType.normalIncomeMean, assetType.normalIncomeStd ?? 0) / 100);
-
-      // Add generated income to investment value
-      investment.value += generatedIncome;
-
-      // Add the generated income to curYearIncome if the investment is non-retirement AND taxable
-      if (investment.taxStatus === 'non-retirement' && assetType.taxability === 'taxable') {
-        params.curYearIncome += generatedIncome;
-      }
-
-      // Calculate annual return based on starting value (before adding income)
-      let annualReturnPercentage = 0;
-      if (assetType.returnType === 'fixed') {
-        annualReturnPercentage = assetType.fixedReturn;
-      }
-      else if (assetType.returnType == 'normal') {
-        annualReturnPercentage = sampleNormal(assetType.normalReturnMean, assetType.normalReturnStd);
-      }
-      let changeInValue = startingValue * (annualReturnPercentage / 100);
-
-      // Apply the change in value
-      investment.value += changeInValue;
-
-      // Store ending value for expense calculation
-      let endingValue = investment.value;
-
-      // Calculate expenses based on average value
-      let averageValue = (startingValue + endingValue) / 2;
-      let expenses = averageValue * assetType.expenseRatio;
-
-      // Subtract expenses
-      investment.value -= expenses;
-    });
-
-    // Step 5: Run the Roth conversion (RC) optimizer, if it is enabled
+    // Step 2: Run the Roth conversion (RC) optimizer, if it is enabled
     if (state.rothOptimizationStartYear && state.rothOptimizationEndYear) {
-      console.log("4. Running roth conversion optimizer...");
+      console.log("2. Running roth conversion optimizer...");
 
       // Calculate the user's federal taxable income for the year.
       // This subtracts 85% of Social Security from the total income.
@@ -423,6 +321,116 @@ export default async function runSimulation(initialState) {
       }
     }
 
+    // Step 3: RMDs
+    console.log("3. Running RMDs...");
+    if (params.userAge >= 73) {
+      // pay RMD for previous year if it exists (user is age 74 or greater)
+      if (params.userAge >= 74 && params.prevRMD && params.prevRMD > 0) {
+        let remainingToTransfer = params.prevRMD;
+
+        // this loop assumes that in the investments object, they are ordered according to the expense withdrawal strategy
+        for (let i = 0; i < state.investments.length && remainingToTransfer > 0; i++) {
+          let inv = state.investments[i];
+
+          // Skip if not a positive-value pre-tax retirement account
+          if (inv.taxStatus !== "pretax-retirement" || inv.value <= 0) {
+            continue;
+          }
+
+          // determine the transfer amount: either the full investment value or the remaining amount needed.
+          let transferAmount = Math.min(inv.value, remainingToTransfer);
+
+          // reduce the source pre-tax investment by the transfer amount.
+          inv.value -= transferAmount;
+
+          // look for an existing investment with the same type that has taxStatus "non-retirement".
+          let targetInvestment = state.investments.find(investment =>
+            investment.assetType === inv.assetType &&
+            investment.taxStatus === "non-retirement"
+          );
+
+          // if it exists, add the transferred amount; otherwise, create a new investment record.
+          if (targetInvestment) {
+            targetInvestment.value += transferAmount;
+            targetInvestment.purchasePrice = (targetInvestment.purchasePrice || 0) + transferAmount;
+          } else {
+            let newInvestment = {
+              assetType: inv.assetType, // Fixed: Use assetType instead of investmentType
+              value: transferAmount,
+              taxStatus: "non-retirement",
+              purchasePrice: transferAmount
+            };
+            state.investments.push(newInvestment);
+          }
+
+          // deduct the transferred amount from the remaining amount.
+          remainingToTransfer -= transferAmount;
+        }
+
+        // Check if RMD was fully covered
+        if (remainingToTransfer > 0) {
+          console.warn(`Year ${params.curYear}: Could not fully transfer previous year's RMD. Shortfall: ${remainingToTransfer}`);
+        }
+      }
+
+      // calculate RMD for current year
+      let pretaxInvestments = state.investments.filter(investment => investment.taxStatus === 'pretax-retirement');
+      let s = 0;
+      pretaxInvestments.forEach(investment => {
+        s += investment.value;
+      });
+      let d = params.rmdTable.find(entry => entry.age === params.userAge).distributionPeriod;
+      let rmd = s / d;
+
+      params.curYearIncome += rmd;
+
+      params.prevRMD = rmd; // store current year RMD to be used in next year's computation
+    }
+
+    // Step 4: Update the values of investments, reflecting expected annual return, reinvestment of generated income, and subtraction of expenses.
+    console.log("4. Running investment updates...");
+    state.investments.forEach(investment => {
+      let type = investment.assetType;
+      let assetType = state.assetTypes.find(at => at.name === type);
+
+      // Store starting value for expense calculation
+      let startingValue = investment.value;
+
+      // Calculate generated income
+      let generatedIncome = investment.value * (sampleNormal(assetType.normalIncomeMean, assetType.normalIncomeStd ?? 0) / 100);
+
+      // Add generated income to investment value
+      investment.value += generatedIncome;
+
+      // Add the generated income to curYearIncome if the investment is non-retirement AND taxable
+      if (investment.taxStatus === 'non-retirement' && assetType.taxability === 'taxable') {
+        params.curYearIncome += generatedIncome;
+      }
+
+      // Calculate annual return based on starting value (before adding income)
+      let annualReturnPercentage = 0;
+      if (assetType.returnType === 'fixed') {
+        annualReturnPercentage = assetType.fixedReturn;
+      }
+      else if (assetType.returnType == 'normal') {
+        annualReturnPercentage = sampleNormal(assetType.normalReturnMean, assetType.normalReturnStd);
+      }
+      let changeInValue = startingValue * (annualReturnPercentage / 100);
+
+      // Apply the change in value
+      investment.value += changeInValue;
+
+      // Store ending value for expense calculation
+      let endingValue = investment.value;
+
+      // Calculate expenses based on average value
+      let averageValue = (startingValue + endingValue) / 2;
+      let expenses = averageValue * assetType.expenseRatio;
+
+      // Subtract expenses
+      investment.value -= expenses;
+    });
+
     // Step 6: Pay non-discretionary expenses and the previous year's taxes,
     // i.e., subtract them from the cash investment. Perform additional withdrawals if needed to pay them.
     console.log("5. Running non-discretionary expense and tax processing...");
@@ -440,39 +448,42 @@ export default async function runSimulation(initialState) {
     const prevYearFedTaxableIncome = (params.prevYearIncome ?? 0) - 0.85 * (params.prevYearSS ?? 0);
 
     // --- Federal Income Tax Calculation ---
-    // Use the appropriate federal tax brackets (using keys "single" or "married-joint")
-    let lastYearFedBracket = params.taxBrackets[filingStatus].find(
+    // Use previous year's tax brackets
+    const previousFedBrackets = params.prevYearTaxBrackets ?? {};
+    let lastYearFedBracket = previousFedBrackets[filingStatus]?.find(
       bracket => prevYearFedTaxableIncome >= bracket.min && prevYearFedTaxableIncome <= bracket.max
     );
     if (lastYearFedBracket) {
       prevYearFedTax = prevYearFedTaxableIncome * (lastYearFedBracket.rate / 100);
     }
 
-    // Assume that state-specific brackets are stored under params.stateTaxBrackets using the state abbreviation
-    // and further keyed by filing status.
-    let lastYearStateBracket = params.stateTaxBrackets[state.residenceState][filingStatus].find(
+    // --- State Income Tax Calculation ---
+    // Use previous year's state tax brackets
+    const previousStateBrackets = params.prevYearStateTaxBrackets ?? {};
+    let lastYearStateBracket = previousStateBrackets[state.residenceState]?.[filingStatus]?.find(
       bracket => prevYearFedTaxableIncome >= bracket.min && prevYearFedTaxableIncome <= bracket.max
     );
     if (lastYearStateBracket) {
       prevYearStateTax = prevYearFedTaxableIncome * (lastYearStateBracket.rate / 100);
     }
 
-    // Use the capital gains tax brackets keyed by filing status.
-    let lastYearCapitalBracket = params.capitalGainsTax[filingStatus].find(
+    // --- Capital Gains Tax Calculation ---
+    // Use previous year's capital gains tax brackets
+    const previousCapitalGainsBrackets = params.prevYearCapitalGainsTax ?? {};
+    let lastYearCapitalBracket = previousCapitalGainsBrackets[filingStatus]?.find(
       bracket => prevYearFedTaxableIncome >= bracket.min && prevYearFedTaxableIncome <= bracket.max
     );
     if (lastYearCapitalBracket) {
-      // Ensure that if realized gains (params.prevYearGains) are negative, tax them as zero.
       prevYearCapitalGainsTax = Math.max(0, params.prevYearGains ?? 0) * (lastYearCapitalBracket.rate / 100);
     }
 
-    // Early withdrawal penalty is 10% of withdrawals from retirement accounts taken before age 59.5
+    // Early withdrawal penalty
     earlyWithdrawalTax = (params.prevYearEarlyWithdrawals ?? 0) * 0.1;
 
     // Sum up all tax liabilities from last year.
     let totalTaxes = prevYearFedTax + prevYearStateTax + prevYearCapitalGainsTax + earlyWithdrawalTax;
 
-    // Sum up all non-discretionary expenses for the current year.
+    // --- Non-Discretionary Expense Summation ---
     let nonDiscretionarySum = 0;
     let nonDiscretionaryEvents = state.eventSeries.filter(event =>
       event.type === "expense" &&
@@ -480,8 +491,32 @@ export default async function runSimulation(initialState) {
       params.curYear >= event.startYear &&
       params.curYear <= event.endYear
     );
+
     nonDiscretionaryEvents.forEach(event => {
-      nonDiscretionarySum += event.amount;
+      let calculatedExpenseAmount = event.amount; // Start with base amount
+
+      // Apply annual change first (mirroring income logic)
+      if (event.changeType === 'fixed') {
+        calculatedExpenseAmount += event.annualChange;
+      } else if (event.changeType === 'percentage') {
+        calculatedExpenseAmount *= (1 + event.annualChange / 100);
+      } else if (event.changeType === 'normal') {
+        // Sample from normal distribution for this year's change
+        const sampledChangeAmount = sampleNormal(event.annualChangeMean, event.annualChangeStd);
+        calculatedExpenseAmount += sampledChangeAmount;
+      } else if (event.changeType === 'uniform') {
+        // Sample from uniform distribution for this year's change percentage
+        const sampledChangePercentage = sampleUniform(event.annualChangeMin, event.annualChangeMax);
+        calculatedExpenseAmount *= (1 + sampledChangePercentage / 100);
+      }
+
+      // Then apply inflation adjustment if needed
+      if (event.inflationAdjusted) {
+        calculatedExpenseAmount *= (1 + params.inflationRate / 100);
+      }
+
+      // Add the calculated amount for this year to the sum
+      nonDiscretionarySum += calculatedExpenseAmount;
     });
 
     // Calculate the total payment amount: non-discretionary expenses plus last year's taxes.
