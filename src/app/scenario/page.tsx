@@ -98,7 +98,7 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel, initialData = null }: 
             spouseLifeExpectancyMean: '',
             spouseLifeExpectancyStd: '0',
             assetTypes: [{ name: "Cash", description: "Pre-defined", returnType: "fixed", expenseRatio: "", incomeAmtOrPct: "amount", returnAmtOrPct: "amount" }],
-            investments: [{ assetType: "Cash", value: "0", taxStatus: "non-retirement" }],
+            investments: [{ assetType: "Cash", value: "0", taxStatus: "non-retirement", rothConversionStrategy: "1" }],
             eventSeries: [],
             inflationAssumption: '',
             residenceState: '',
