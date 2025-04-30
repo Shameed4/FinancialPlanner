@@ -556,13 +556,17 @@ export default async function runSimulation(initialState) {
     // (Subtract 85% of last year's Social Security from last year's income)
     const prevYearFedTaxableIncome = (params.prevYearIncome ?? 0) - 0.85 * (params.prevYearSS ?? 0);
 
+    // Apply standard deduction to get income after deduction
+    const prevStandardDeduction = params.prevYearStandardDeductions[filingStatus];
+    const prevYearIncomeAfterDeduction = Math.max(0, prevYearFedTaxableIncome - prevStandardDeduction);
+
     // --- Federal Income Tax Calculation ---
     // Use previous year's tax brackets
     const previousFedBrackets = params.prevYearTaxBrackets ?? {};
     const fedBracketsForStatus = previousFedBrackets[filingStatus];
 
     if (fedBracketsForStatus && fedBracketsForStatus.length > 0) {
-      prevYearFedTax = calculateMarginalTax(prevYearFedTaxableIncome, fedBracketsForStatus);
+      prevYearFedTax = calculateMarginalTax(prevYearIncomeAfterDeduction, fedBracketsForStatus);
     } else {
       prevYearFedTax = 0;
       console.warn(`Year ${params.curYear}: Missing or empty federal tax brackets for status ${filingStatus} for previous year tax calculation.`);
@@ -574,7 +578,7 @@ export default async function runSimulation(initialState) {
     const stateBracketsForStatus = previousStateBrackets[state.residenceState]?.[filingStatus];
 
     if (stateBracketsForStatus && stateBracketsForStatus.length > 0) {
-      prevYearStateTax = calculateMarginalTax(prevYearFedTaxableIncome, stateBracketsForStatus);
+      prevYearStateTax = calculateMarginalTax(prevYearIncomeAfterDeduction, stateBracketsForStatus);
     } else {
       prevYearStateTax = 0;
       console.warn(`Year ${params.curYear}: Missing or empty state tax brackets for ${state.residenceState} ${filingStatus} for previous year tax calculation.`);
@@ -598,14 +602,17 @@ export default async function runSimulation(initialState) {
     // Sum up all tax liabilities from last year.
     let totalTaxes = prevYearFedTax + prevYearStateTax + prevYearCapitalGainsTax + earlyWithdrawalTax;
 
-    // Log tax payment
+    // Log tax payment with detailed breakdown
     if (totalTaxes > 0) {
       logEvent(logStream, params.curYear, 'Tax Payment (Prev Year)', {
         Total: totalTaxes,
         FedIncome: prevYearFedTax,
         StateIncome: prevYearStateTax,
         CapGains: prevYearCapitalGainsTax,
-        EarlyWithdrawal: earlyWithdrawalTax
+        EarlyWithdrawal: earlyWithdrawalTax,
+        IncomeBeforeDeduction: prevYearFedTaxableIncome,
+        StandardDeduction: prevStandardDeduction,
+        IncomeAfterDeduction: prevYearIncomeAfterDeduction
       });
     }
 
