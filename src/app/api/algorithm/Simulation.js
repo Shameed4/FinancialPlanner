@@ -99,13 +99,14 @@ export default async function runSimulation(initialState) {
   let params = await buildParams(state);
   let cash = state.investments.find(investment => investment.assetType == 'Cash');
   let iteration = 1;
+  let resObject = {}
 
   // console.log(params);
   // console.log(state);
   // console.log(params.taxBrackets['married-joint']);
 
   // this while loop performs the simulation iteratively each year while at least one user is still alive
-  while (params.userAlive || params.spouseAlive) {
+  while (params.userAlive) {
     // Step 1: Preprocessing and Preliminaries
 
     params.curYear += 1;
@@ -124,8 +125,8 @@ export default async function runSimulation(initialState) {
       params.spouseAlive = params.spouseAge < params.spouseLifeExpectancy;
     }
 
-    if (!(params.userAlive || params.spouseAlive)) {
-      console.log("Simulation complete. The user and/or spouse has reached their life expectancy");
+    if (!params.userAlive) {
+      console.log("Simulation complete. The user has reached their life expectancy");
       continue;
     }
 
@@ -207,10 +208,6 @@ export default async function runSimulation(initialState) {
       if (params.hasSpouse && params.spouseAlive === false) {
         // if the user has a spouse who is deceased, consider only the user's percentage
         event.amount *= event.userPercentage / 100;
-      }
-      else if (params.hasSpouse && params.userAlive === false) {
-        // if the user is deceased and has a spouse who isn't, consider only the spouse's percentage
-        event.amount *= 1 - (event.userPercentage / 100);
       }
 
       // Add the amount to cash and update income tracking
@@ -903,6 +900,9 @@ export default async function runSimulation(initialState) {
     params.prevYearSS = params.curYearSS;
     params.prevYearGains = params.curYearGains;
     params.prevYearEarlyWithdrawals = params.curYearEarlyWithdrawals;
+    
+    resObject[params.curYear] = {}
+    resObject[params.curYear].success = computeTotalAssets(state) >= state.financialGoal;
 
     iteration += 1;
   }
@@ -913,6 +913,8 @@ export default async function runSimulation(initialState) {
   else {
     console.log("Financial goal was not met");
   }
+
+  return resObject;
 }
 
 export async function loadRMD() {
@@ -967,8 +969,8 @@ export async function loadTaxData() {
     }
 
     // Add debug logging
-    console.log('Tax data received:', data);
-    console.log('Filing statuses:', filingStatuses);
+    // console.log('Tax data received:', data);
+    // console.log('Filing statuses:', filingStatuses);
 
     filingStatuses.forEach(status => {
       if (!data[status]) {

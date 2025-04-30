@@ -138,7 +138,7 @@ const Sidebar = () => {
                             isActive={router.pathname === '/charts-results'}
                         />
                     </li>
-                    {isAuthenticated && (
+                    {/* isAuthenticated && (
                         <li>
                             <NavItem
                                 icon={<CircleUserRound size={20} />}
@@ -148,7 +148,7 @@ const Sidebar = () => {
                                 isActive={router.pathname === '/account'}
                             />
                         </li>
-                    )}
+                    ) */}
                 </ul>
             </nav>
 
