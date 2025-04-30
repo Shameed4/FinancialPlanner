@@ -116,8 +116,8 @@ model ExpenseEventDetails {
   userPercentage      Float?
   spousePercentage    Float?
 
-  isDiscretionary Boolean
-  expenseWithdrawalStrategy           Int? // for the spending strategy of discretionary expenses
+  isDiscretionary  Boolean
+  spendingStrategy Int? // for the spending strategy of discretionary expenses
 
   // Relation to EventSeries
   eventSeries   EventSeries @relation(fields: [eventSeriesId], references: [id], onDelete: Cascade)
@@ -181,15 +181,16 @@ model AssetType {
 }
 
 model Investment {
-  id                     Int                  @id @default(autoincrement())
-  assetType              AssetType            @relation(fields: [assetTypeId], references: [id])
-  assetTypeId            Int
-  value                  Float
-  taxStatus              TaxStatus
-  rothConversionStrategy Int? // for pre tax investments
-  rmdStrategy            Int?
-  assetAllocations       AssetAllocation[]
-  investmentScenario     InvestmentScenario[]
+  id                        Int                  @id @default(autoincrement())
+  assetType                 AssetType            @relation(fields: [assetTypeId], references: [id])
+  assetTypeId               Int
+  value                     Float
+  taxStatus                 TaxStatus
+  rothConversionStrategy    Int? // for pre tax investments
+  rmdStrategy               Int?
+  expenseWithdrawalStrategy Int
+  assetAllocations          AssetAllocation[]
+  investmentScenario        InvestmentScenario[]
 }
 
 enum ReturnType {

@@ -71,7 +71,7 @@ CREATE TABLE `ExpenseEventDetails` (
     `userPercentage` DOUBLE NULL,
     `spousePercentage` DOUBLE NULL,
     `isDiscretionary` BOOLEAN NOT NULL,
-    `expenseWithdrawalStrategy` INTEGER NULL,
+    `spendingStrategy` INTEGER NULL,
     `eventSeriesId` INTEGER NOT NULL,
 
     UNIQUE INDEX `ExpenseEventDetails_eventSeriesId_key`(`eventSeriesId`),
@@ -140,6 +140,7 @@ CREATE TABLE `Investment` (
     `taxStatus` ENUM('NON_RETIREMENT', 'PRE_TAX_RETIREMENT', 'AFTER_TAX_RETIREMENT') NOT NULL,
     `rothConversionStrategy` INTEGER NULL,
     `rmdStrategy` INTEGER NULL,
+    `expenseWithdrawalStrategy` INTEGER NOT NULL,
 
     PRIMARY KEY (`id`)
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;

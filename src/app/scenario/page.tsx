@@ -461,7 +461,7 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel, initialData = null }: 
                         if (path.match(/^assetTypes\.\d+\.(fixedReturn|normalReturnMean|normalReturnStd|expenseRatio|fixedIncome|normalIncomeMean|normalIncomeStd|percentage|value|fee|minAllocation|maxAllocation|targetAllocation)$/)) return true;
 
                         // Investments
-                        if (path.match(/^investments\.\d+\.(value|rmdStrategy|rothConversionStrategy)$/)) return true;
+                        if (path.match(/^investments\.\d+\.(value|rmdStrategy|rothConversionStrategy|expenseWithdrawalStrategy)$/)) return true;
 
                         // Event series
                         if (path != 'annualChangeType' && path.match(/^eventSeries\.\d+\.(startYear|startYearMin|startYearMax|startYearMean|startYearStd|durationFixed|durationMin|durationMax|durationMean|durationStd|amount|userPercentage|maxCashValue|annualChange.*)$/)) return true;
@@ -2196,7 +2196,7 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel, initialData = null }: 
                         <p className="text-sm text-gray-500 mb-2">Order your investments for RMDs (1 = first, 2 = second, etc.)</p>
                         <div className="space-y-2">
                             {formData.investments?.filter(inv => inv.taxStatus === 'pre-tax-retirement').map((investment) => {
-                                const investmentIndex = formData.investments.findIndex(inv => inv.assetType === investment.assetType);
+                                const investmentIndex = formData.investments.findIndex(inv => inv.assetType === investment.assetType && inv.taxStatus == 'pre-tax-retirement');
 
                                 return (
                                     <div key={investment.assetType} className="flex items-center gap-2 bg-gray-50 p-2 rounded">
@@ -2242,7 +2242,7 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel, initialData = null }: 
                             {formData.investments
                                 ?.filter(inv => inv.taxStatus === 'pre-tax-retirement')
                                 .map((investment) => {
-                                    const investmentIndex = formData.investments.findIndex(inv => inv.assetType === investment.assetType);
+                                    const investmentIndex = formData.investments.findIndex(inv => inv.assetType === investment.assetType && inv.taxStatus === 'pre-tax-retirement');
 
                                     return (
                                         <div key={investment.assetType} className="flex items-center gap-2 bg-gray-50 p-2 rounded">
@@ -2280,9 +2280,52 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel, initialData = null }: 
                                 })}
                         </div>
                     </div>
+
+                    <div className="mb-4">
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Expense Withdrawal Strategy</label>
+                        <p className="text-sm text-gray-500 mb-2">Order your investments for Expense Withdrawal (1 = first, 2 = second, etc.)</p>
+                        <div className="space-y-2">
+                            {formData.investments
+                                .map((investment) => {
+                                    const investmentIndex = formData.investments.findIndex(inv => inv.assetType === investment.assetType && inv.taxStatus === investment.taxStatus);
+
+                                    return (
+                                        <div key={`${investment.assetType} ${investment.taxStatus}`} className="flex items-center gap-2 bg-gray-50 p-2 rounded">
+                                            <span className="flex-1 text-gray-500">{investment.assetType} ({investment.taxStatus})</span>
+                                            <input
+                                                type="number"
+                                                min="1"
+                                                max={formData.investments?.length || 1}
+                                                value={investment.expenseWithdrawalStrategy || ''}
+                                                onChange={(e) => {
+                                                    const newInvestments = [...formData.investments];
+
+                                                    if (e.target.value === '') {
+                                                        newInvestments[investmentIndex].expenseWithdrawalStrategy = '';
+                                                        setFormData({ ...formData, investments: newInvestments });
+                                                        return;
+                                                    }
+
+                                                    const newOrder = parseInt(e.target.value);
+
+                                                    if (isNaN(newOrder) || newOrder < 1 || newOrder > newInvestments.length) {
+                                                        return;
+                                                    }
+
+                                                    newInvestments[investmentIndex].expenseWithdrawalStrategy = newOrder + '';
+                                                    setFormData({ ...formData, investments: newInvestments });
+                                                }}
+                                                className="w-20 p-1 border rounded"
+                                                placeholder="Order"
+                                            />
+                                        </div>
+                                    );
+                                })}
+                        </div>
+                    </div>
                     
                     <div className="mb-4">
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Expense Strategy</label>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Spending Strategy</label>
                         <p className="text-sm text-gray-500 mb-2">
                             Order your discretionary expenses (1 = first, 2 = second, etc.)
                         </p>
@@ -2301,12 +2344,13 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel, initialData = null }: 
                                                 type="number"
                                                 min="1"
                                                 max={formData.eventSeries.filter(e => e.type === 'expense' && e.isDiscretionary).length || 1}
-                                                value={es.expenseWithdrawalStrategy || ''}
+                                                value={es.spendingStrategy || ''}
                                                 onChange={(e) => {
                                                     const newEventSeries = [...formData.eventSeries];
+                                                    console.log("Change detected");
 
                                                     if (e.target.value === '') {
-                                                        newEventSeries[eventIndex].expenseWithdrawalStrategy = '';
+                                                        newEventSeries[eventIndex].spendingStrategy = '';
                                                         setFormData({ ...formData, eventSeries: newEventSeries });
                                                         return;
                                                     }
@@ -2318,7 +2362,7 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel, initialData = null }: 
                                                         return;
                                                     }
 
-                                                    newEventSeries[eventIndex].expenseWithdrawalStrategy = newOrder + '';
+                                                    newEventSeries[eventIndex].spendingStrategy = newOrder + '';
                                                     setFormData({ ...formData, eventSeries: newEventSeries });
                                                 }}
                                                 className="w-20 p-1 border rounded text-black"

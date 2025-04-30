@@ -103,7 +103,7 @@ async function createEventSeries(scenarioId: number, eventSeries: any[], investm
             inflationAdjustment: event.inflationAdjusted,
             userPercentage: event.userPercentage ? parseFloat(event.userPercentage) : null,
             isDiscretionary: event.isDiscretionary || false,
-            expenseWithdrawalStrategy: event.isDiscretionary ? parseInt(event.expenseWithdrawalStrategy) : null,
+            spendingStrategy: event.isDiscretionary ? parseInt(event.spendingStrategy) : null,
             changeAmtOrPct: event.changeAmtOrPct
           }
         });
@@ -338,7 +338,8 @@ async function createInvestments(scenarioId: number, investments: any[], assetTy
         value: investment.value,
         taxStatus: taxStatus,
         rothConversionStrategy: investment.rothConversionStrategy,
-        rmdStrategy: investment.rmdStrategy
+        rmdStrategy: investment.rmdStrategy,
+        expenseWithdrawalStrategy: investment.expenseWithdrawalStrategy,
       },
       include: {
         assetType: true
@@ -507,7 +508,7 @@ const transformScenarioForFrontend = (scenario: any) => {
         inflationAdjusted: es.expenseEventDetails.inflationAdjustment,
         userPercentage: es.expenseEventDetails.userPercentage,
         isDiscretionary: es.expenseEventDetails.isDiscretionary,
-        expenseWithdrawalStrategy: es.expenseEventDetails.expenseWithdrawalStrategy
+        spendingStrategy: es.expenseEventDetails.spendingStrategy
       };
     }
 
@@ -549,7 +550,8 @@ const transformScenarioForFrontend = (scenario: any) => {
     value: is.investment.value,
     taxStatus: is.investment.taxStatus.toLowerCase().replace(/_/g, '-'),
     rmdStrategy: is.investment.rmdStrategy,
-    rothConversionStrategy: is.investment.rothConversionStrategy
+    rothConversionStrategy: is.investment.rothConversionStrategy,
+    expenseWithdrawalStrategy: is.investment.expenseWithdrawalStrategy
   })) || [];
 
   return {

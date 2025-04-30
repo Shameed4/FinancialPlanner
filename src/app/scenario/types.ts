@@ -75,6 +75,7 @@ export type Investment = {
   value: string;
   rothConversionStrategy?: string;
   rmdStrategy?: string;
+  expenseWithdrawalStrategy: string;
 } & (
   | { taxStatus: 'non-retirement' | 'after-tax-retirement'}
   | { taxStatus: 'pre-tax-retirement', rothConversionStrategy: string, rmdStrategy: string; }
@@ -139,7 +140,7 @@ export type IncomeEvent = {
 export type ExpenseEvent = {
   type: 'expense';
 } & BaseIncomeExpense & AnnualChange & (
-  | { isDiscretionary: true; expenseWithdrawalStrategy: number }
+  | { isDiscretionary: true; spendingStrategy: number }
   | { isDiscretionary: false }
 );
 
