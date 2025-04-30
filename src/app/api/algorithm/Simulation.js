@@ -1070,6 +1070,10 @@ export default async function runSimulation(initialState) {
             params.curYearIncome += amountToSell;
           }
 
+          if ((investment.taxStatus === "pretax-retirement" || investment.taxStatus === "aftertax-retirement") && params.userAge < 59) {
+            params.curYearEarlyWithdrawals += amountToSell;
+          }
+
           // Update investment value and purchase price
           investment.value -= amountToSell;
           investment.purchasePrice -= fractionSold * investment.purchasePrice;
