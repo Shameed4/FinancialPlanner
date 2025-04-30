@@ -49,12 +49,18 @@ async function buildParams(state) {
 
   let curYearIncome = 0;
   let curYearSS = 0;
-  let prevYearIncome = null;
-  let prevYearSS = null;
+  let prevYearIncome = 0;
+  let prevYearSS = 0;
+  let totalIncome = 0;
+  let curYearExpenses = 0;
+  let totalExpenses = 0;
+  let curYearDiscExpenses = 0;
+  let totalDiscExpenses = 0;
   let curYearGains = 0;
-  let prevYearGains = null;
+  let prevYearGains = 0;
+  let totalEarlyWithdrawals = 0;
   let curYearEarlyWithdrawals = 0;
-  let prevYearEarlyWithdrawals = null;
+  let prevYearEarlyWithdrawals = 0;
 
   // Initialize purchasePrice for all investments if not already set
   state.investments.forEach(inv => {
@@ -87,10 +93,16 @@ async function buildParams(state) {
     afterTaxRetirementContributionLimit,
     curYearIncome,
     curYearSS,
+    totalIncome,
+    curYearExpenses,
+    totalExpenses,
+    curYearDiscExpenses,
+    totalDiscExpenses,
     prevYearIncome,
     prevYearSS,
     curYearGains,
     prevYearGains,
+    totalEarlyWithdrawals,
     curYearEarlyWithdrawals,
     prevYearEarlyWithdrawals,
     rmdTable,
@@ -191,6 +203,8 @@ export default async function runSimulation(initialState) {
     params.curYearSS = 0;
     params.curYearGains = 0;
     params.curYearEarlyWithdrawals = 0;
+    params.curYearExpenses = 0;
+    params.curYearDiscExpenses = 0;
 
     // Re-sample inflation rate if using a probability distribution
     if (state.inflationAssumption === 'normal') {
@@ -272,7 +286,6 @@ export default async function runSimulation(initialState) {
       if (event.isSocialSecurity) {
         params.curYearSS += event.amount;
       }
-
       // Log income event
       logEvent(logStream, params.curYear, 'Income', {
         EventName: event.name,
@@ -372,6 +385,7 @@ export default async function runSimulation(initialState) {
             target.value += transferAmount;
             target.purchasePrice = (target.purchasePrice ?? 0) + transferAmount;
           }
+
           // Reduce the remaining conversion amount.
           remainingConversion -= transferAmount;
 
@@ -380,7 +394,6 @@ export default async function runSimulation(initialState) {
           params.curYearIncome += transferAmount;
         }
       }
-
       // Log Roth conversion event
       const totalConverted = rothConversionAmount - remainingConversion;
       if (totalConverted > 0) {
@@ -410,7 +423,6 @@ export default async function runSimulation(initialState) {
 
       // Store the calculated amount for potential transfer *next* year
       params.prevRMD = calculatedRmdCurrentYear;
-
       // Log RMD calculation
       if (calculatedRmdCurrentYear > 0) {
         logEvent(logStream, params.curYear, 'RMD Calculation', {
@@ -1078,23 +1090,37 @@ export default async function runSimulation(initialState) {
       }
     }
 
+
     // Store current year's tax brackets and deductions for next year's tax calculations
     params.prevYearTaxBrackets = JSON.parse(JSON.stringify(params.taxBrackets));
     params.prevYearStateTaxBrackets = JSON.parse(JSON.stringify(params.stateTaxBrackets));
     params.prevYearCapitalGainsTax = JSON.parse(JSON.stringify(params.capitalGainsTax));
     params.prevYearStandardDeductions = JSON.parse(JSON.stringify(params.standardDeductions));
 
+    params.totalIncome += params.curYearIncome;
+    params.totalExpenses += params.curYearExpenses;
+    params.totalDiscExpenses += params.curYearDiscExpenses;
+
+    params.totalEarlyWithdrawals += params.curYearEarlyWithdrawals;
+
     params.prevYearIncome = params.curYearIncome;
     params.prevYearSS = params.curYearSS;
     params.prevYearGains = params.curYearGains;
     params.prevYearEarlyWithdrawals = params.curYearEarlyWithdrawals;
 
-    resObject[params.curYear] = {}
-    resObject[params.curYear].success = computeTotalAssets(state) >= state.financialGoal;
     params.rmdAmountFromPreviousYear = params.prevRMD; // Store the RMD calculated this year for next year's transfer
     params.prevYearEndPreTaxSum = state.investments
       .filter(inv => inv.taxStatus === "pretax-retirement")
       .reduce((sum, inv) => sum + inv.value, 0); // Store the current year-end pre-tax sum
+
+    // set fields for the return object, which will be used in generating the charts
+    resObject[params.curYear] = {}
+    resObject[params.curYear].success = computeTotalAssets(state) >= state.financialGoal;
+    resObject[params.curYear].totInvestments = computeTotalAssets(state);
+    resObject[params.curYear].totIncome = params.totalIncome;
+    resObject[params.curYear].totExpenses = params.totalExpenses;
+    resObject[params.curYear].earlyWithdrawalTax = params.totalEarlyWithdrawals;
+    resObject[params.curYear].totDiscExpensePercent = (params.totalDiscExpenses / params.ttoalExpenses) * 100;
 
     // Capture end-of-year state for CSV
     const yearlySnapshot = { Year: params.curYear };
@@ -1106,7 +1132,6 @@ export default async function runSimulation(initialState) {
 
     iteration += 1;
   }
-
   // Close the log stream
   logStream.end();
 
