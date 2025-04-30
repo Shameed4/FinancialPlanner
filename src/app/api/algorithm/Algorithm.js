@@ -1,12 +1,15 @@
 import runSimulation from './Simulation.js';
 
-export default function runAlgorithm(selectedScenarioData, numSimulations) {
-  const simulationResults = [];
+export default async function runAlgorithm(selectedScenarioData, numSimulations) {
+  const simulationResults = {};
 
   for (let i = 0; i < numSimulations; i++) {
-    // Each call simulates one full run of the algorithm.
-    const result = runSimulation(selectedScenarioData);
-    simulationResults.push(result);
+    simulationResults[`Simulation ${i}`] = {};
+
+    const result = await runSimulation(selectedScenarioData);
+    simulationResults[`Simulation ${i}`] = result;
+
+    console.log(simulationResults);
   }
 
   return simulationResults;
