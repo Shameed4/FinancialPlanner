@@ -527,14 +527,12 @@ export default async function runSimulation(initialState) {
       // Sort investments according to RMD withdrawal strategy
       // TODO: Implement proper sorting based on state.rmdStrategy if available
       // For now, we'll assume the investments are already in the correct order
+      const preTaxInvestmentsForRMD = [...state.investments]
+        .filter(inv => inv.taxStatus === "pretax-retirement" && inv.value > 0)
+        .sort((a, b) => (a.rmdStrategy || Infinity) - (b.rmdStrategy || Infinity));
 
-      for (let i = 0; i < state.investments.length && remainingToTransfer > 0; i++) {
-        let inv = state.investments[i];
-
-        // Source must be pre-tax retirement with a positive value
-        if (inv.taxStatus !== "pretax-retirement" || inv.value <= 0) {
-          continue;
-        }
+      for (let inv of preTaxInvestmentsForRMD) {
+        if (remainingToTransfer <= 0) break;
 
         const transferAmount = Math.min(inv.value, remainingToTransfer);
 
@@ -691,12 +689,16 @@ export default async function runSimulation(initialState) {
       // Use the conversion room as the amount available to convert.
       let remainingConversion = rothConversionAmount;
 
+      const preTaxInvestmentsForRoth = [...state.investments]
+        .filter(inv => inv.taxStatus === "pretax-retirement" && inv.value > 0)
+        .sort((a, b) => (a.rothConversionStrategy || Infinity) - (b.rothConversionStrategy || Infinity));
+
       // Assuming that 'state.investments' is ordered by your Roth conversion strategy,
       // iterate over investments to perform the conversion.
-      for (let i = 0; i < state.investments.length; i++) {
+      for (let inv of preTaxInvestmentsForRoth) {
         if (remainingConversion <= 0) break; // Conversion complete.
 
-        let inv = state.investments[i];
+        // let inv = state.investments[i];
 
         // Only convert from pre-tax retirement investments.
         if (inv.taxStatus === 'pretax-retirement' && inv.value > 0) {
@@ -882,12 +884,16 @@ export default async function runSimulation(initialState) {
     if (withdrawalAmount > 0) {
       let totalWithdrawn = 0;
 
+      const investmentsToSell = [...state.investments]
+        .filter(inv => inv.assetType !== 'Cash' && inv.value > 0)
+        .sort((a, b) => (a.expenseWithdrawalStrategy || Infinity) - (b.expenseWithdrawalStrategy || Infinity));
+
       // Iterate over investments (using the ordering in state.investments)
-      for (let i = 0; i < state.investments.length && totalWithdrawn < withdrawalAmount; i++) {
-        let inv = state.investments[i];
+      for (let inv of investmentsToSell) {
+        // let inv = state.investments[i];
 
         // Skip cash investments or investments with zero value.
-        if (inv.assetType === "cash" || inv.value <= 0) continue;
+        // if (inv.assetType === "cash" || inv.value <= 0) continue;
 
         // Determine the amount to be sold from this investment.
         let remainingToSell = withdrawalAmount - totalWithdrawn;
@@ -969,7 +975,7 @@ export default async function runSimulation(initialState) {
       params.curYear >= event.startYear &&
       params.curYear <= event.endYear
     );
-
+    discretionaryEvents.sort((a, b) => (a.spendingStrategy || Infinity) - (b.spendingStrategy || Infinity));
     // Process each discretionary expense event in the order they appear.
     for (let event of discretionaryEvents) {
       let expenseAmount = event.amount;
@@ -1001,19 +1007,23 @@ export default async function runSimulation(initialState) {
         let additionalWithdrawal = expenseAmount - cash.value;
         let totalWithdrawn = 0;
 
+        const investmentsToSell = [...state.investments] // Create shallow copy
+          .filter(inv => inv.assetType !== 'Cash' && inv.value > 0) // Filter out cash/empty
+          .sort((a, b) => (a.expenseWithdrawalStrategy || Infinity) - (b.expenseWithdrawalStrategy || Infinity));
+
         // Withdraw funds from investments in the order defined in state.investments.
-        for (let i = 0; i < state.investments.length && totalWithdrawn < additionalWithdrawal; i++) {
-          let inv = state.investments[i];
+        for (let inv of investmentsToSell) {
+          // let inv = state.investments[i];
 
           // Skip the cash bucket or any investment with no value.
-          if (inv.assetType === "cash" || inv.value <= 0) continue;
+          // if (inv.assetType === "cash" || inv.value <= 0) continue;
 
           // Determine the withdrawal amount from this investment.
           let remainingToWithdraw = additionalWithdrawal - totalWithdrawn;
           let withdrawalAmount = Math.min(inv.value, remainingToWithdraw);
 
           // Calculate the fraction of the investment being sold.
-          let fractionSold = withdrawalAmount / inv.value;
+          let fractionSold = inv.value > 0 ? withdrawalAmount / inv.value : 0;;
           // Calculate the realized capital gain on the sale.
           let realizedGain = fractionSold * (inv.value - inv.purchasePrice);
 
@@ -1053,7 +1063,7 @@ export default async function runSimulation(initialState) {
       cash.value -= expenseAmount;
       params.curYearExpenses += expenseAmount;
       params.curYearDiscExpenses += expenseAmount;
-      
+
       if (!eventTotals.expense[event.name]) {
         eventTotals.expense[event.name] = expenseAmount;
       } else {
