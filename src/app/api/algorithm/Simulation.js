@@ -120,6 +120,21 @@ function computeTotalAssets(state) {
   return state.investments.reduce((acc, inv) => acc + inv.value, 0);
 }
 
+function computeTotalAssetsByType(state) {
+  let assetTotals = {};
+
+  state.investments.forEach(investment => {
+    if (!assetTotals[investment.assetType]) {
+      assetTotals[investment.assetType] = investment.value;
+    }
+    else {
+      assetTotals[investment.assetType] += investment.value;
+    }
+  });
+
+  return assetTotals;
+}
+
 // Helper function to calculate marginal tax
 function calculateMarginalTax(taxableIncome, brackets) {
   if (!brackets || brackets.length === 0 || taxableIncome <= 0) {
@@ -153,7 +168,11 @@ export default async function runSimulation(initialState) {
   let params = await buildParams(state);
   let cash = state.investments.find(investment => investment.assetType == 'Cash');
   let iteration = 1;
-  let resObject = {}
+  let resObject = {};
+
+  let eventTotals = {};
+  eventTotals.income = {};
+  eventTotals.expense = {};
 
   // Preprocess event timings for this simulation run
   console.log("Preprocessing event timings for this simulation run...");
@@ -338,6 +357,7 @@ export default async function runSimulation(initialState) {
   // this while loop performs the simulation iteratively each year while at least one user is still alive
   while (params.userAlive) {
     // Step 1: Preprocessing and Preliminaries
+    let assetTotals = computeTotalAssetsByType(state);
 
     params.curYear += 1;
     console.log(`[----------------------------------------------------]`)
@@ -449,6 +469,13 @@ export default async function runSimulation(initialState) {
       // Add the amount to cash and update income tracking
       cash.value += event.amount;
       params.curYearIncome += event.amount;
+
+      if (!eventTotals.income[event.name]) {
+        eventTotals.income[event.name] = event.amount;
+      } else {
+        eventTotals.income[event.name] += event.amount;
+      }
+
       if (event.isSocialSecurity) {
         params.curYearSS += event.amount;
       }
@@ -829,6 +856,11 @@ export default async function runSimulation(initialState) {
       }
 
       params.curYearExpenses += calculatedExpenseAmount;
+      if (!eventTotals.expense[event.name]) {
+        eventTotals.expense[event.name] = calculatedExpenseAmount;
+      } else {
+        eventTotals.expense[event.name] += calculatedExpenseAmount;
+      }
 
       // Add the calculated amount for this year to the sum
       nonDiscretionarySum += calculatedExpenseAmount;
@@ -955,6 +987,12 @@ export default async function runSimulation(initialState) {
         }
         params.curYearExpenses += expenseAmount;
         params.curYearDiscExpenses += expenseAmount;
+
+        if (!eventTotals.expense[event.name]) {
+          eventTotals.expense[event.name] = expenseAmount;
+        } else {
+          eventTotals.expense[event.name] += expenseAmount;
+        }
       }
 
       // Determine if current cash is sufficient to pay the expense.
@@ -1015,6 +1053,12 @@ export default async function runSimulation(initialState) {
       cash.value -= expenseAmount;
       params.curYearExpenses += expenseAmount;
       params.curYearDiscExpenses += expenseAmount;
+      
+      if (!eventTotals.expense[event.name]) {
+        eventTotals.expense[event.name] = expenseAmount;
+      } else {
+        eventTotals.expense[event.name] += expenseAmount;
+      }
 
       // Log discretionary expense
       logEvent(logStream, params.curYear, 'Expense (Disc)', {
@@ -1311,7 +1355,7 @@ export default async function runSimulation(initialState) {
     params.prevYearEndPreTaxSum = state.investments
       .filter(inv => inv.taxStatus === "pretax-retirement")
       .reduce((sum, inv) => sum + inv.value, 0); // Store the current year-end pre-tax sum
-    
+
     console.log(params.totalDiscExpenses);
     // set fields for the return object, which will be used in generating the charts
     resObject[params.curYear] = {}
@@ -1322,16 +1366,16 @@ export default async function runSimulation(initialState) {
     resObject[params.curYear].earlyWithdrawalTax = params.curYearEarlyWithdrawals;
     resObject[params.curYear].totDiscExpensePercent = (params.totalDiscExpenses / params.totalExpenses) * 100;
     state.assetTypes.forEach(assetType => {
-      resObject[params.curYear][`${assetType.name} Type Total`] = 0;
+      resObject[params.curYear][`${assetType.name} Type Total`] = assetTotals[assetType.name];
     })
     state.eventSeries.forEach(eventItem => {
       if (eventItem.type === 'income') {
-        resObject[params.curYear][`${eventItem.name} Event Income`] = 0;
+        resObject[params.curYear][`${eventItem.name} Event Income`] = eventTotals.income[eventItem.name] ?? 0;
       }
     })
     state.eventSeries.forEach(eventItem => {
       if (eventItem.type === 'expense') {
-        resObject[params.curYear][`${eventItem.name} Event Expense`] = 0;
+        resObject[params.curYear][`${eventItem.name} Event Expense`] = eventTotals.expense[eventItem.name] ?? 0;
       }
     })
     resObject[params.curYear].taxes = totalTaxes;
@@ -1415,7 +1459,6 @@ export async function loadRMD() {
   }
 }
 
-
 export async function loadTaxData() {
   try {
     const response = await fetch('http://localhost:3000/api/tax-brackets');
@@ -1494,4 +1537,3 @@ export async function loadTaxData() {
     return { taxBrackets: {}, capitalGainsTax: {}, standardDeductions: {}, stateTaxBrackets: {} };
   }
 }
-

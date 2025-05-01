@@ -7,8 +7,8 @@ export async function POST(request: Request) {
     const simulationData = await request.json();
     const { scenario, numberOfSimulations } = simulationData;
 
-    console.log(numberOfSimulations);
-    console.log(scenario);
+    // console.log(numberOfSimulations);
+    // console.log(scenario);
 
     // Run the simulation algorithm multiple times.
     const simulationResults = runAlgorithm(scenario, Number(numberOfSimulations));
