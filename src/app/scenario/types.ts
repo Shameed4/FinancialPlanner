@@ -1,16 +1,16 @@
 // Shared inflation union
-type FixedInflation = {
+export type FixedInflation = {
   inflationAssumption: 'fixed';
   inflation: string;
 };
 
-type UniformInflation = {
+export type UniformInflation = {
   inflationAssumption: 'random_uniform';
   inflationMin: string;
   inflationMax: string;
 };
 
-type NormalInflation = {
+export type NormalInflation = {
   inflationAssumption: 'random_normal';
   inflationMean: string;
   inflationStd: string;

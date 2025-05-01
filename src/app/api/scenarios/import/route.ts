@@ -1,6 +1,82 @@
-import { StringScenarioFormData } from '@/app/scenario/types';
+import { StringScenarioFormData, AssetType, Investment, ExpenseEvent, IncomeEvent, InvestEvent, RebalanceEvent, FixedInflation, UniformInflation, NormalInflation } from '@/app/scenario/types';
 import { yamlToJson } from '@/utils/scenarioConverter';
 import { NextRequest, NextResponse } from 'next/server';
+
+// Define required interfaces for YAML structure
+interface YamlDistribution {
+  type: string;
+  value?: number;
+  mean?: number;
+  stdev?: number;
+  lower?: number;
+  upper?: number;
+}
+
+interface YamlInvestmentType {
+  name: string;
+  description: string;
+  returnAmtOrPct: 'amount' | 'percent';
+  returnDistribution: YamlDistribution;
+  expenseRatio: number;
+  incomeAmtOrPct: 'amount' | 'percent';
+  incomeDistribution: YamlDistribution;
+  taxability: boolean;
+}
+
+interface YamlInvestment {
+  investmentType: string;
+  value: number;
+  taxStatus: string;
+  id: string;
+}
+
+interface YamlEvent {
+  name: string;
+  description?: string;
+  start: {
+    type: string;
+    value?: number;
+    mean?: number;
+    stdev?: number;
+    lower?: number;
+    upper?: number;
+    eventSeries?: string;
+  };
+  duration: YamlDistribution;
+  type: 'income' | 'expense' | 'invest' | 'rebalance';
+  initialAmount?: number;
+  changeAmtOrPct?: 'amount' | 'percent';
+  changeDistribution?: YamlDistribution;
+  inflationAdjusted?: boolean;
+  userFraction?: number;
+  socialSecurity?: boolean;
+  discretionary?: boolean;
+  assetAllocation?: Record<string, number>;
+  assetAllocation2?: Record<string, number>;
+  glidePath?: boolean;
+  maxCash?: number;
+}
+
+interface YamlScenario {
+  name: string;
+  maritalStatus: 'individual' | 'couple';
+  birthYears: number[];
+  lifeExpectancy: YamlDistribution[];
+  investmentTypes: YamlInvestmentType[];
+  investments: YamlInvestment[];
+  eventSeries: YamlEvent[];
+  inflationAssumption: YamlDistribution;
+  afterTaxContributionLimit: number;
+  spendingStrategy?: string[];
+  expenseWithdrawalStrategy?: string[];
+  RMDStrategy?: string[];
+  RothConversionOpt?: boolean;
+  RothConversionStart?: number;
+  RothConversionEnd?: number;
+  RothConversionStrategy?: string[];
+  financialGoal: number;
+  residenceState: string;
+}
 
 const starterYaml = `# file format for scenario import/export.  version: 2025-03-23
 # CSE416, Software Engineering, Scott D. Stoller.
@@ -144,126 +220,370 @@ financialGoal: 10000
 residenceState: NY  # states are identified by standard 2-letter abbreviations
 `
 
-export function yamlToScenario(yaml: string) {
-  const jsonYaml: YamlScenario = starterYaml as jsonYaml;//yamlToJson(yaml);
-  const res: StringScenarioFormData = {
+export function yamlToScenario(yaml: string): StringScenarioFormData {
+  const jsonYaml: YamlScenario = yamlToJson(yaml);
+
+  // Basic validation for required fields
+  if (!jsonYaml || typeof jsonYaml !== 'object') {
+    throw new Error('Invalid YAML format: Root object missing or invalid.');
+  }
+  if (!jsonYaml.name) throw new Error('Invalid YAML format: Missing scenario name.');
+  if (!jsonYaml.maritalStatus || (jsonYaml.maritalStatus !== 'individual' && jsonYaml.maritalStatus !== 'couple')) {
+    throw new Error('Invalid YAML format: Missing or invalid maritalStatus (must be "individual" or "couple").');
+  }
+  if (!jsonYaml.birthYears || !Array.isArray(jsonYaml.birthYears)) throw new Error('Invalid YAML format: Missing or invalid birthYears.');
+  if (!jsonYaml.lifeExpectancy || !Array.isArray(jsonYaml.lifeExpectancy)) throw new Error('Invalid YAML format: Missing or invalid lifeExpectancy.');
+  if (!jsonYaml.investmentTypes || !Array.isArray(jsonYaml.investmentTypes)) throw new Error('Invalid YAML format: Missing or invalid investmentTypes.');
+  if (!jsonYaml.investments || !Array.isArray(jsonYaml.investments)) throw new Error('Invalid YAML format: Missing or invalid investments.');
+  if (!jsonYaml.eventSeries || !Array.isArray(jsonYaml.eventSeries)) throw new Error('Invalid YAML format: Missing or invalid eventSeries.');
+  if (!jsonYaml.inflationAssumption || typeof jsonYaml.inflationAssumption !== 'object' || !jsonYaml.inflationAssumption.type) {
+    throw new Error('Invalid YAML format: Missing or invalid inflationAssumption.');
+  }
+  if (!jsonYaml.residenceState) throw new Error('Invalid YAML format: Missing residenceState.');
+  if (jsonYaml.financialGoal === undefined || jsonYaml.financialGoal === null || typeof jsonYaml.financialGoal !== 'number') {
+    throw new Error('Invalid YAML format: Missing or invalid financialGoal.');
+  }
+  if (jsonYaml.afterTaxContributionLimit === undefined || jsonYaml.afterTaxContributionLimit === null || typeof jsonYaml.afterTaxContributionLimit !== 'number') {
+    throw new Error('Invalid YAML format: Missing or invalid afterTaxContributionLimit.');
+  }
+
+  const isCouple = jsonYaml.maritalStatus === 'couple';
+  const expectedLength = isCouple ? 2 : 1;
+
+  if (jsonYaml.birthYears.length !== expectedLength) {
+    throw new Error(`Invalid YAML format: birthYears length (${jsonYaml.birthYears.length}) does not match maritalStatus (${jsonYaml.maritalStatus}). Expected ${expectedLength}.`);
+  }
+  if (jsonYaml.lifeExpectancy.length !== expectedLength) {
+    throw new Error(`Invalid YAML format: lifeExpectancy length (${jsonYaml.lifeExpectancy.length}) does not match maritalStatus (${jsonYaml.maritalStatus}). Expected ${expectedLength}.`);
+  }
+  if (!jsonYaml.lifeExpectancy[0] || typeof jsonYaml.lifeExpectancy[0] !== 'object') {
+    throw new Error('Invalid YAML format: User lifeExpectancy data is missing or invalid.');
+  }
+  if (isCouple && (!jsonYaml.lifeExpectancy[1] || typeof jsonYaml.lifeExpectancy[1] !== 'object')) {
+    throw new Error('Invalid YAML format: Spouse lifeExpectancy data is missing or invalid.');
+  }
+
+  // Create the base object structure first
+  let baseRes = {
     name: jsonYaml.name,
-    userLifeExpectancyMean: String(jsonYaml.lifeExpectancy[0].type == 'fixed' ? jsonYaml.lifeExpectancy[0].value : jsonYaml.lifeExpectancy[0].mean),
-    userLifeExpectancyStd: String(jsonYaml.lifeExpectancy[0].type == 'fixed' ? 0 : jsonYaml.lifeExpectancy[0].stdev),
+    userLifeExpectancyMean: String(jsonYaml.lifeExpectancy[0].type == 'fixed' ? jsonYaml.lifeExpectancy[0].value ?? '80' : jsonYaml.lifeExpectancy[0].mean ?? '80'),
+    userLifeExpectancyStd: String(jsonYaml.lifeExpectancy[0].type == 'fixed' ? '0' : jsonYaml.lifeExpectancy[0].stdev ?? '3'),
     residenceState: jsonYaml.residenceState,
     userBirthYear: String(jsonYaml.birthYears[0]),
     financialGoal: String(jsonYaml.financialGoal),
-    initialAfterTaxRetirementContributionLimit: String(jsonYaml.afterTaxContributionLimit || 0),
-    ...(jsonYaml.lifeExpectancy.length == 1 ?
-      { forIndividual: true } :
-      { forIndividual: false, spouseBirthYear: String(jsonYaml.birthYears[1]), spouseLifeExpectancyStd: String(jsonYaml.lifeExpectancy[1].type == 'fixed' ? 0 : jsonYaml.lifeExpectancy[1].stdev) }
-    ),
-    inflationAssumption: jsonYaml.inflationAssumption.type,
-    assetTypes: [],
-    investments: [],
-    eventSeries: [],
-    enableTaxOptimization: jsonYaml.RothConversionOpt,
+    initialAfterTaxRetirementContributionLimit: String(jsonYaml.afterTaxContributionLimit),
+    forIndividual: !isCouple,
+    assetTypes: [] as AssetType[],
+    investments: [] as Investment[],
+    eventSeries: [] as (IncomeEvent | ExpenseEvent | InvestEvent | RebalanceEvent)[],
+    enableTaxOptimization: jsonYaml.RothConversionOpt || false,
     rothOptimizationStartYear: jsonYaml.RothConversionStart ? String(jsonYaml.RothConversionStart) : undefined,
     rothOptimizationEndYear: jsonYaml.RothConversionEnd ? String(jsonYaml.RothConversionEnd) : undefined,
+  };
+
+  // Add spouse fields if applicable
+  let coupleRes = {};
+  if (isCouple) {
+    coupleRes = {
+      spouseBirthYear: String(jsonYaml.birthYears[1]),
+      spouseLifeExpectancyMean: String(jsonYaml.lifeExpectancy[1].type == 'fixed' ? jsonYaml.lifeExpectancy[1].value ?? '80' : jsonYaml.lifeExpectancy[1].mean ?? '80'),
+      spouseLifeExpectancyStd: String(jsonYaml.lifeExpectancy[1].type == 'fixed' ? '0' : jsonYaml.lifeExpectancy[1].stdev ?? '3')
+    };
   }
-  res.assetTypes = jsonYaml.investmentTypes.map(asset => {
+
+  // Add inflation fields based on type to satisfy the discriminated union
+  let inflationFields: FixedInflation | UniformInflation | NormalInflation;
+  switch (jsonYaml.inflationAssumption.type) {
+    case 'fixed':
+      inflationFields = {
+        inflationAssumption: 'fixed',
+        inflation: String(jsonYaml.inflationAssumption.value ?? 0.03),
+      };
+      break;
+    case 'random_uniform':
+      inflationFields = {
+        inflationAssumption: 'random_uniform',
+        inflationMin: String(jsonYaml.inflationAssumption.lower ?? 0.02),
+        inflationMax: String(jsonYaml.inflationAssumption.upper ?? 0.04),
+      };
+      break;
+    case 'random_normal':
+      inflationFields = {
+        inflationAssumption: 'random_normal',
+        inflationMean: String(jsonYaml.inflationAssumption.mean ?? 0.03),
+        inflationStd: String(jsonYaml.inflationAssumption.stdev ?? 0.01),
+      };
+      break;
+    default:
+      // Fallback to fixed if type is unknown or missing
+      console.warn(`Unknown inflation assumption type: ${jsonYaml.inflationAssumption.type}. Falling back to fixed.`);
+      inflationFields = {
+        inflationAssumption: 'fixed',
+        inflation: '0.03',
+      };
+  }
+
+  // Combine base, couple (if applicable), and inflation fields
+  let res: StringScenarioFormData = {
+    ...baseRes,
+    ...(isCouple ? coupleRes : {}),
+    ...inflationFields,
+  } as StringScenarioFormData; // Cast to assure TypeScript
+
+  // --- Map Asset Types ---
+  res.assetTypes = jsonYaml.investmentTypes.map((asset: YamlInvestmentType) => {
+    let returnFields: any = {};
+    switch (asset.returnDistribution.type) {
+      case 'fixed':
+        returnFields = { returnType: 'fixed', fixedReturn: String(asset.returnDistribution.value ?? 0) };
+        break;
+      case 'normal':
+      case 'random_normal': // Handle both 'normal' and 'random_normal'
+        returnFields = {
+          returnType: 'random_normal',
+          normalReturnMean: String(asset.returnDistribution.mean ?? 0),
+          normalReturnStd: String(asset.returnDistribution.stdev ?? 0)
+        };
+        break;
+      case 'uniform':
+      case 'random_uniform': // Handle both 'uniform' and 'random_uniform'
+        returnFields = {
+          returnType: 'random_uniform',
+          uniformReturnMin: String(asset.returnDistribution.lower ?? 0),
+          uniformReturnMax: String(asset.returnDistribution.upper ?? 0)
+        };
+        break;
+      default:
+        console.warn(`Unknown asset return type: ${asset.returnDistribution.type}. Defaulting to fixed.`);
+        returnFields = { returnType: 'fixed', fixedReturn: '0' };
+    }
+
+    let incomeFields: any = {};
+    // Assuming income distribution follows similar pattern, adjust if needed
+    switch (asset.incomeDistribution.type) {
+        case 'fixed':
+            incomeFields = {
+                // Assuming no separate incomeType field in AssetType definition
+                normalIncomeMean: String(asset.incomeDistribution.value ?? 0),
+                normalIncomeStd: '0' // No std dev for fixed income
+            }
+            break;
+        case 'normal':
+        case 'random_normal': // Handle both 'normal' and 'random_normal'
+            incomeFields = {
+                normalIncomeMean: String(asset.incomeDistribution.mean ?? 0),
+                normalIncomeStd: String(asset.incomeDistribution.stdev ?? 0)
+            };
+            break;
+        case 'uniform':
+        case 'random_uniform': // Handle both 'uniform' and 'random_uniform'
+            incomeFields = {
+                normalIncomeMean: String((asset.incomeDistribution.lower !== undefined && asset.incomeDistribution.upper !== undefined) 
+                    ? (asset.incomeDistribution.lower + asset.incomeDistribution.upper) / 2 
+                    : 0),
+                normalIncomeStd: String((asset.incomeDistribution.lower !== undefined && asset.incomeDistribution.upper !== undefined) 
+                    ? (asset.incomeDistribution.upper - asset.incomeDistribution.lower) / 4 
+                    : 0)
+            };
+            break;
+        default:
+            console.warn(`Unknown asset income type: ${asset.incomeDistribution.type}. Defaulting to fixed.`);
+            incomeFields = { normalIncomeMean: '0', normalIncomeStd: '0' };
+    }
+
     return {
       name: asset.name,
-      description: asset.description,
-      returnType: asset.returnDistribution.type,
-      ...(asset.returnDistribution.type == "fixed" ? { fixedReturn: String(asset.returnDistribution.value) }
-        : asset.returnDistribution.type == "normal" ? { normalReturnMean: String(asset.returnDistribution.mean), normalReturnStd: String(asset.returnDistribution.stdev) }
-          : {}
-      ),
-      expenseRatio: String(asset.expenseRatio),
-      normalIncomeMean: String(asset.incomeDistribution.type == "normal" ? asset.incomeDistribution.mean : asset.incomeDistribution.type == "fixed" ? asset.incomeDistribution.value : 0),
-      normalIncomeStd: String(asset.incomeDistribution.type == "normal" ? asset.incomeDistribution.stdev : "0"),
-      taxable: asset.taxability,
-      expectedAnnualIncomeType: "fixed",
-      returnAmtOrPct: asset.returnAmtOrPct,
-      incomeAmtOrPct: asset.incomeAmtOrPct
-    }
+      description: asset.description || asset.name, // Provide default description
+      ...returnFields,
+      expenseRatio: String(asset.expenseRatio ?? 0),
+      ...incomeFields,
+      taxable: asset.taxability ?? false, // Default taxable to false if missing
+      // expectedAnnualIncomeType: "fixed", // This seems hardcoded? Check if needed by type
+      returnAmtOrPct: asset.returnAmtOrPct || 'percent', // Default if missing
+      incomeAmtOrPct: asset.incomeAmtOrPct || 'percent' // Default if missing
+    } as AssetType; // Cast to ensure type match
   })
-  res.investments = jsonYaml.investments.map(inv => {
+
+  // --- Map Investments ---
+  // Create maps for strategy ordering
+  const rmdOrderMap = new Map(jsonYaml.RMDStrategy?.map((id: string, index: number) => [id, index + 1]));
+  const rothConvOrderMap = new Map(jsonYaml.RothConversionStrategy?.map((id: string, index: number) => [id, index + 1]));
+  const expenseWithdrawalOrderMap = new Map(jsonYaml.expenseWithdrawalStrategy?.map((id: string, index: number) => [id, index + 1]));
+
+  res.investments = jsonYaml.investments.map((inv: YamlInvestment, index: number) => {
+    let taxStatus: Investment['taxStatus'];
+    switch (inv.taxStatus) {
+      case 'non-retirement': taxStatus = 'non-retirement'; break;
+      case 'pre-tax': taxStatus = 'pre-tax-retirement'; break;
+      case 'after-tax': taxStatus = 'after-tax-retirement'; break;
+      default:
+        console.warn(`Unknown tax status: ${inv.taxStatus}. Defaulting to non-retirement.`);
+        taxStatus = 'non-retirement';
+    }
+
     return {
       assetType: inv.investmentType,
-      value: String(inv.value),
-      ...(
-        inv.taxStatus === "non-retirement" ? { taxStatus: "non-retirement" } :
-        inv.taxStatus === "after-tax" ? { taxStatus: "after-tax-retirement" } :
-        { taxStatus: "non-retirement" }
-      )
+      value: String(inv.value ?? 0),
+      taxStatus: taxStatus,
+      // Assign strategies based on maps, default to index+1 if not found
+      rmdStrategy: taxStatus === 'pre-tax-retirement' ? String(rmdOrderMap.get(inv.id) ?? index + 1) : undefined,
+      rothConversionStrategy: taxStatus === 'pre-tax-retirement' ? String(rothConvOrderMap.get(inv.id) ?? index + 1) : undefined,
+      expenseWithdrawalStrategy: String(expenseWithdrawalOrderMap.get(inv.id) ?? index + 1)
+    } as Investment; // Cast to ensure type match
+  });
+
+  // --- Map Event Series ---
+  const spendingOrderMap = new Map(jsonYaml.spendingStrategy?.map((name: string, index: number) => [name, index + 1]));
+
+  res.eventSeries = jsonYaml.eventSeries.map((es: YamlEvent, index: number) => {
+    let startFields: any = {};
+    let startYearType: string;
+    switch (es.start.type) {
+      case 'fixed':
+        startYearType = 'fixed';
+        startFields = { startYear: String(es.start.value ?? 0) };
+        break;
+      case 'uniform':
+      case 'random_uniform': // Handle both 'uniform' and 'random_uniform'
+        startYearType = 'random_uniform';
+        startFields = { startYearMin: String(es.start.lower ?? 0), startYearMax: String(es.start.upper ?? 0) };
+        break;
+      case 'normal':
+      case 'random_normal': // Handle both 'normal' and 'random_normal'
+        startYearType = 'random_normal';
+        startFields = { startYearMean: String(es.start.mean ?? 0), startYearStd: String(es.start.stdev ?? 0) };
+        break;
+      case 'startWith':
+        startYearType = 'same_as'; // Map to UI type
+        startFields = { startOnOtherSeries: es.start.eventSeries };
+        break;
+      case 'startAfter':
+        startYearType = 'after'; // Map to UI type
+        startFields = { startOnOtherSeries: es.start.eventSeries };
+        break;
+      default:
+        console.warn(`Unknown event start type: ${es.start.type}. Defaulting to fixed.`);
+        startYearType = 'fixed';
+        startFields = { startYear: '2024' };
     }
-  })
-  res.eventSeries = jsonYaml.eventSeries.map(es => {
+
+    let durationFields: any = {};
+    switch (es.duration.type) {
+      case 'fixed':
+        durationFields = { durationType: 'fixed', durationFixed: String(es.duration.value ?? 1) };
+        break;
+      case 'uniform':
+      case 'random_uniform': // Handle both 'uniform' and 'random_uniform'
+        durationFields = {
+          durationType: 'random_uniform',
+          durationMin: String(es.duration.lower ?? 1),
+          durationMax: String(es.duration.upper ?? 1)
+        };
+        break;
+      case 'normal':
+      case 'random_normal': // Handle both 'normal' and 'random_normal'
+        durationFields = {
+          durationType: 'random_normal',
+          durationMean: String(es.duration.mean ?? 1),
+          durationStd: String(es.duration.stdev ?? 0)
+        };
+        break;
+      default:
+        console.warn(`Unknown event duration type: ${es.duration.type}. Defaulting to fixed.`);
+        durationFields = { durationType: 'fixed', durationFixed: '1' };
+    }
+
     const baseEvent = {
       name: es.name,
-      type: es.type,
-      startYearType: es.start.type === "startWith" ? "withEvent" :
-        es.start.type === "startAfter" ? "afterEvent" :
-          es.start.type,
-
-      ...(es.start.type == "fixed" ? { startYear: String(es.start.value) } :
-        es.start.type == "uniform" ? { startYearMin: String(es.start.lower), startYearMax: String(es.start.upper) } :
-          es.start.type == "normal" ? { startYearMean: String(es.start.mean), startYearStd: String(es.start.stdev) } :
-            es.start.type == "startWith" || es.start.type == "startAfter" ? { startYearEvent: String(es.start.eventSeries) } :
-              { error: "ERROR" }
-      ),
-      durationType: es.duration.type,
-      ...(es.duration.type == "fixed" ? { durationFixed: String(es.duration.value) } :
-        es.duration.type == "uniform" ? { durationMin: String(es.duration.lower), durationMax: String(es.duration.upper) } :
-          es.duration.type == "normal" ? { durationMean: String(es.duration.mean), durationStd: String(es.duration.stdev) } :
-            {}
-      ),
+      description: es.description || es.name, // Add optional description
+      startYearType: startYearType,
+      ...startFields,
+      ...durationFields,
     };
 
     // Add type-specific properties
     if (es.type === 'income' || es.type === 'expense') {
+      let changeFields: any = {};
+      switch (es.changeDistribution.type) {
+        case 'fixed':
+          changeFields = { annualChangeType: 'fixed', annualChange: String(es.changeDistribution.value ?? 0) };
+          break;
+        case 'uniform':
+        case 'random_uniform': // Handle both 'uniform' and 'random_uniform'
+          changeFields = {
+            annualChangeType: 'random_uniform',
+            annualChangeMin: String(es.changeDistribution.lower ?? 0),
+            annualChangeMax: String(es.changeDistribution.upper ?? 0)
+          };
+          break;
+        case 'normal':
+        case 'random_normal': // Handle both 'normal' and 'random_normal'
+          changeFields = {
+            annualChangeType: 'random_normal',
+            annualChangeMean: String(es.changeDistribution.mean ?? 0),
+            annualChangeStd: String(es.changeDistribution.stdev ?? 0)
+          };
+          break;
+        default:
+          console.warn(`Unknown event change type: ${es.changeDistribution.type}. Defaulting to fixed.`);
+          changeFields = { annualChangeType: 'fixed', annualChange: '0' };
+      }
+
+      const isExpense = es.type === 'expense';
+      const spendingStrategy = isExpense && es.discretionary ? String(spendingOrderMap.get(es.name) ?? index + 1) : undefined;
+
       return {
         ...baseEvent,
+        type: es.type,
         amount: String(es.initialAmount || 0),
         changeAmtOrPct: es.changeAmtOrPct || 'amount',
-        annualChangeType: es.changeDistribution.type || 'fixed',
-        ...(es.changeDistribution.type === 'fixed' ? { annualChange: String(es.changeDistribution.value || 0) } :
-          es.changeDistribution.type === 'uniform' ? {
-            annualChangeMin: String(es.changeDistribution.lower || 0),
-            annualChangeMax: String(es.changeDistribution.upper || 0)
-          } :
-            es.changeDistribution.type === 'normal' ? {
-              annualChangeMean: String(es.changeDistribution.mean || 0),
-              annualChangeStd: String(es.changeDistribution.stdev || 0)
-            } : {}
-        ),
+        ...changeFields,
         inflationAdjusted: es.inflationAdjusted || false,
         userPercentage: es.userFraction ? String(es.userFraction * 100) : '100',
         ...(es.type === 'income' ? { isSocialSecurity: es.socialSecurity || false } : {}),
-        ...(es.type === 'expense' ? { isDiscretionary: es.discretionary || false } : {})
-      };
+        ...(isExpense ? { isDiscretionary: es.discretionary || false, spendingStrategy } : {})
+      } as IncomeEvent | ExpenseEvent; // Cast to specific types
+
     } else if (es.type === 'invest' || es.type === 'rebalance') {
-      // For invest and rebalance events
-      const allocations : Record<string, string> = {};
-      if (es.assetAllocation) {
-        Object.entries(es.assetAllocation).forEach(([key, value]) => {
-          allocations[key] = String(value);
-        });
+      let allocationFields: any = {};
+      if (es.glidePath) {
+        const initialAllocations: Record<string, string> = {};
+        if (es.assetAllocation) {
+          Object.entries(es.assetAllocation).forEach(([key, value]) => {
+            initialAllocations[key] = String(value * 100); // Convert to percentage string
+          });
+        }
+        const finalAllocations: Record<string, string> = {};
+        if (es.assetAllocation2) {
+          Object.entries(es.assetAllocation2).forEach(([key, value]) => {
+            finalAllocations[key] = String(value * 100); // Convert to percentage string
+          });
+        }
+        allocationFields = { allocationType: 'glide', initialAllocations, finalAllocations };
+      } else {
+        const allocations: Record<string, string> = {};
+        if (es.assetAllocation) {
+          Object.entries(es.assetAllocation).forEach(([key, value]) => {
+            allocations[key] = String(value * 100); // Convert to percentage string
+          });
+        }
+        allocationFields = { allocationType: 'fixed', allocations };
       }
 
       return {
         ...baseEvent,
-        allocationType: es.glidePath ? 'glide' : 'fixed',
-        allocations: allocations,
-        ...(es.glidePath && es.assetAllocation2 ? {
-          initialAllocations: allocations,
-          finalAllocations: Object.fromEntries(
-            Object.entries(es.assetAllocation2).map(([key, value]) => [key, String(value)])
-          )
-        } : {}),
+        type: es.type,
+        ...allocationFields,
         ...(es.type === 'invest' ? { maxCashValue: String(es.maxCash || 0) } : {})
-      };
+      } as InvestEvent | RebalanceEvent; // Cast to specific types
+    } else {
+      console.warn(`Unknown event series type: ${es.type}`);
+      // Return a default or throw an error, here returning null and filtering later
+      return null;
     }
+  }).filter((event: any) => event !== null) as (IncomeEvent | ExpenseEvent | InvestEvent | RebalanceEvent)[]; // Filter out any nulls from unknown types
 
-    return baseEvent;
-  });
+
   return res;
 }
 
@@ -310,7 +630,10 @@ export async function POST(request: NextRequest) {
         })),
         investments: scenarioYaml.investments.map(inv => ({
           ...inv,
-          value: parseFloat(inv.value) || 0
+          value: parseFloat(inv.value) || 0,
+          rmdStrategy: inv.rmdStrategy ? parseInt(inv.rmdStrategy) : undefined,
+          rothConversionStrategy: inv.rothConversionStrategy ? parseInt(inv.rothConversionStrategy) : undefined,
+          expenseWithdrawalStrategy: parseInt(inv.expenseWithdrawalStrategy) || 0
         })),
         eventSeries: scenarioYaml.eventSeries.map(event => {
           const parsedEvent = { ...event };
@@ -336,9 +659,17 @@ export async function POST(request: NextRequest) {
           if (parsedEvent.annualChangeMean) parsedEvent.annualChangeMean = parseFloat(parsedEvent.annualChangeMean);
           if (parsedEvent.annualChangeStd) parsedEvent.annualChangeStd = parseFloat(parsedEvent.annualChangeStd);
           if (parsedEvent.userPercentage) parsedEvent.userPercentage = parseFloat(parsedEvent.userPercentage);
+          
+          // Convert strategy fields to numbers
+          if (parsedEvent.spendingStrategy) parsedEvent.spendingStrategy = parseInt(parsedEvent.spendingStrategy);
 
           // Handle invest events
           if (parsedEvent.maxCashValue) parsedEvent.maxCashValue = parseFloat(parsedEvent.maxCashValue);
+         
+          // Keep string representation for these fields
+          if (parsedEvent.amount) parsedEvent.amount = Number(parsedEvent.amount);
+          if (parsedEvent.userPercentage) parsedEvent.userPercentage = Number(parsedEvent.userPercentage);
+          if (parsedEvent.maxCashValue) parsedEvent.maxCashValue = Number(parsedEvent.maxCashValue);
 
           return parsedEvent;
         })
