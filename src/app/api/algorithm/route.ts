@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import runAlgorithm from './Algorithm.js';
+import { runAlgorithm, chartData } from './Algorithm.js';
 
 export async function POST(request: Request) {
   try {
@@ -11,10 +11,10 @@ export async function POST(request: Request) {
     // console.log(scenario);
 
     // Run the simulation algorithm multiple times.
-    const simulationResults = runAlgorithm(scenario, Number(numberOfSimulations));
+    const simulationResults = await runAlgorithm(scenario, Number(numberOfSimulations));
 
     // Return the simulation results in the response.
-    // return NextResponse.json({ result: simulationResults }, { status: 200 });
+    return NextResponse.json({ result: simulationResults }, { status: 200 });
   } 
   catch (error: any) {
     console.error('Simulation API error:', error);
@@ -23,4 +23,9 @@ export async function POST(request: Request) {
       { status: 500 }
     );
   }
+}
+
+// GET endpoint that returns the in-memory chartData
+export async function GET(request: Request) {
+  return NextResponse.json({ chartData }, { status: 200 })
 }

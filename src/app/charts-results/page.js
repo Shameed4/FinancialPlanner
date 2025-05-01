@@ -11,7 +11,6 @@ import { BarChart } from '@mui/x-charts/BarChart';
 import { LineChart } from '@mui/x-charts/LineChart';
 import { PieChart } from '@mui/x-charts/PieChart';
 
-// The rest of your code remains the same...
 // Sample data – replace these with your API calls as needed
 const simulationResults = [
     {
