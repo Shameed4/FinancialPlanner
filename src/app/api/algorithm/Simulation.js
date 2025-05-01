@@ -409,7 +409,7 @@ export default async function runSimulation(initialState) {
     }
     params.afterTaxRetirementContributionLimit = params.afterTaxRetirementContributionLimit * (1 + params.inflationRate / 100);
 
-    // Step 1: run the income events, adding income to the cash investment
+    // Step 2: run the income events, adding income to the cash investment
     console.log("Running income events...");
     let activeIncomeEvents = state.eventSeries.filter(event =>
       event.type === "income" &&
@@ -460,7 +460,157 @@ export default async function runSimulation(initialState) {
       });
     });
 
-    // Step 2: Run the Roth conversion (RC) optimizer, if it is enabled
+    // Step 3: Perform the RMD (Calculation for Current Year, Transfer for Previous Year)
+    console.log("Running RMD processing...");
+
+    // --- Part 1: Calculate RMD for Current Year (Based on Prev Year End) ---
+    let calculatedRmdCurrentYear = 0;
+    if (params.userAge >= 73) {
+      const s = params.prevYearEndPreTaxSum ?? 0; // Use sum calculated at end of *last* year
+      const rmdEntry = params.rmdTable.find(entry => entry.age === params.userAge);
+      const d = rmdEntry?.distributionPeriod;
+
+      if (s > 0 && d > 0) {
+        calculatedRmdCurrentYear = s / d;
+      }
+
+      // RMD amount is added to income in the year it's calculated for (age >= 73)
+      params.curYearIncome += calculatedRmdCurrentYear;
+
+      // Store the calculated amount for potential transfer *next* year
+      params.prevRMD = calculatedRmdCurrentYear;
+      // Log RMD calculation
+      if (calculatedRmdCurrentYear > 0) {
+        logEvent(logStream, params.curYear, 'RMD Calculation', {
+          Amount: calculatedRmdCurrentYear
+        });
+      }
+    } else {
+      // Ensure prevRMD is zeroed out if user is younger than RMD age
+      params.prevRMD = 0;
+    }
+
+    // --- Part 2: Perform In-Kind Transfer for RMD calculated LAST year ---
+    const rmdToTransfer = params.rmdAmountFromPreviousYear ?? 0; // Use value from end of last year
+
+    if (params.userAge >= 74 && rmdToTransfer > 0) {
+      console.log(`Year ${params.curYear} Age ${params.userAge}: Attempting RMD transfer for amount ${rmdToTransfer.toFixed(2)} calculated last year.`);
+      let remainingToTransfer = rmdToTransfer;
+
+      // Sort investments according to RMD withdrawal strategy
+      // TODO: Implement proper sorting based on state.rmdStrategy if available
+      // For now, we'll assume the investments are already in the correct order
+
+      for (let i = 0; i < state.investments.length && remainingToTransfer > 0; i++) {
+        let inv = state.investments[i];
+
+        // Source must be pre-tax retirement with a positive value
+        if (inv.taxStatus !== "pretax-retirement" || inv.value <= 0) {
+          continue;
+        }
+
+        const transferAmount = Math.min(inv.value, remainingToTransfer);
+
+        if (transferAmount <= 0) continue; // Skip if calculated transfer is zero
+
+        // Reduce source value
+        inv.value -= transferAmount;
+        // Pre-tax accounts generally have 0 basis, so no basis reduction needed on source
+
+        // Find or create target non-retirement investment
+        let targetInvestment = state.investments.find(t =>
+          t.assetType === inv.assetType && t.taxStatus === "non-retirement"
+        );
+
+        if (targetInvestment) {
+          targetInvestment.value += transferAmount;
+          // Add transferred amount to basis of the target taxable investment
+          targetInvestment.purchasePrice = (targetInvestment.purchasePrice ?? 0) + transferAmount;
+        } else {
+          const newInvestment = {
+            assetType: inv.assetType,
+            value: transferAmount,
+            taxStatus: "non-retirement",
+            purchasePrice: transferAmount // Basis of new investment is the transferred amount
+          };
+          state.investments.push(newInvestment);
+        }
+
+        remainingToTransfer -= transferAmount;
+      }
+
+      // Log RMD transfer
+      const actualTransferred = rmdToTransfer - remainingToTransfer;
+      if (actualTransferred > 0 || rmdToTransfer > 0) {
+        logEvent(logStream, params.curYear, 'RMD Transfer', {
+          RequiredAmount: rmdToTransfer,
+          TransferredAmount: actualTransferred,
+          Shortfall: remainingToTransfer
+        });
+      }
+
+      if (remainingToTransfer > 0.01) { // Tolerance for floating point issues
+        console.warn(`Year ${params.curYear} Age ${params.userAge}: RMD transfer shortfall. Could not transfer ${remainingToTransfer.toFixed(2)} from pre-tax accounts.`);
+      }
+    }
+
+    // Step 4: Update the values of investments, reflecting expected annual return, reinvestment of generated income, and subtraction of expenses.
+    console.log("Running investment updates...");
+    state.investments.forEach(investment => {
+      let type = investment.assetType;
+      let assetType = state.assetTypes.find(at => at.name === type);
+
+      // Store starting value for expense calculation
+      let startingValue = investment.value;
+
+      // Calculate generated income
+      let generatedIncome = investment.value * (sampleNormal(assetType.normalIncomeMean, assetType.normalIncomeStd ?? 0) / 100);
+
+      // Add generated income to investment value
+      investment.value += generatedIncome;
+
+      // Add the generated income to curYearIncome if the investment is non-retirement AND taxable
+      if (investment.taxStatus === 'non-retirement' && assetType.taxability === 'taxable') {
+        params.curYearIncome += generatedIncome;
+      }
+
+      // Calculate annual return based on starting value (before adding income)
+      let annualReturnPercentage = 0;
+      if (assetType.returnType === 'fixed') {
+        annualReturnPercentage = assetType.fixedReturn;
+      }
+      else if (assetType.returnType == 'normal') {
+        annualReturnPercentage = sampleNormal(assetType.normalReturnMean, assetType.normalReturnStd);
+      }
+      let changeInValue = startingValue * (annualReturnPercentage / 100);
+
+      // Apply the change in value
+      investment.value += changeInValue;
+
+      // Store ending value for expense calculation
+      let endingValue = investment.value;
+
+      // Calculate expenses based on average value
+      let averageValue = (startingValue + endingValue) / 2;
+      let expenses = averageValue * assetType.expenseRatio;
+
+      params.curYearExpenses += expenses;
+
+      // Subtract expenses
+      investment.value -= expenses;
+
+      // Log investment update
+      logEvent(logStream, params.curYear, 'Investment Update', {
+        AssetType: type,
+        TaxStatus: investment.taxStatus,
+        GeneratedIncome: generatedIncome,
+        ReturnChange: changeInValue,
+        Expenses: expenses,
+        FinalValue: investment.value
+      });
+    });
+
+    // Step 5: Run the Roth conversion (RC) optimizer, if it is enabled
     if (state.rothOptimizationStartYear && state.rothOptimizationEndYear) {
       console.log("Running roth conversion optimizer...");
 
@@ -570,154 +720,6 @@ export default async function runSimulation(initialState) {
       }
     }
 
-    // Step 3: Perform the RMD (Calculation for Current Year, Transfer for Previous Year)
-    console.log("Running RMD processing...");
-
-    // --- Part 1: Calculate RMD for Current Year (Based on Prev Year End) ---
-    let calculatedRmdCurrentYear = 0;
-    if (params.userAge >= 73) {
-      const s = params.prevYearEndPreTaxSum ?? 0; // Use sum calculated at end of *last* year
-      const rmdEntry = params.rmdTable.find(entry => entry.age === params.userAge);
-      const d = rmdEntry?.distributionPeriod;
-
-      if (s > 0 && d > 0) {
-        calculatedRmdCurrentYear = s / d;
-      }
-
-      // RMD amount is added to income in the year it's calculated for (age >= 73)
-      params.curYearIncome += calculatedRmdCurrentYear;
-
-      // Store the calculated amount for potential transfer *next* year
-      params.prevRMD = calculatedRmdCurrentYear;
-      // Log RMD calculation
-      if (calculatedRmdCurrentYear > 0) {
-        logEvent(logStream, params.curYear, 'RMD Calculation', {
-          Amount: calculatedRmdCurrentYear
-        });
-      }
-    } else {
-      // Ensure prevRMD is zeroed out if user is younger than RMD age
-      params.prevRMD = 0;
-    }
-
-    // --- Part 2: Perform In-Kind Transfer for RMD calculated LAST year ---
-    const rmdToTransfer = params.rmdAmountFromPreviousYear ?? 0; // Use value from end of last year
-
-    if (params.userAge >= 74 && rmdToTransfer > 0) {
-      console.log(`Year ${params.curYear} Age ${params.userAge}: Attempting RMD transfer for amount ${rmdToTransfer.toFixed(2)} calculated last year.`);
-      let remainingToTransfer = rmdToTransfer;
-
-      // Sort investments according to RMD withdrawal strategy
-      // TODO: Implement proper sorting based on state.rmdStrategy if available
-      // For now, we'll assume the investments are already in the correct order
-
-      for (let i = 0; i < state.investments.length && remainingToTransfer > 0; i++) {
-        let inv = state.investments[i];
-
-        // Source must be pre-tax retirement with a positive value
-        if (inv.taxStatus !== "pretax-retirement" || inv.value <= 0) {
-          continue;
-        }
-
-        const transferAmount = Math.min(inv.value, remainingToTransfer);
-
-        if (transferAmount <= 0) continue; // Skip if calculated transfer is zero
-
-        // Reduce source value
-        inv.value -= transferAmount;
-        // Pre-tax accounts generally have 0 basis, so no basis reduction needed on source
-
-        // Find or create target non-retirement investment
-        let targetInvestment = state.investments.find(t =>
-          t.assetType === inv.assetType && t.taxStatus === "non-retirement"
-        );
-
-        if (targetInvestment) {
-          targetInvestment.value += transferAmount;
-          // Add transferred amount to basis of the target taxable investment
-          targetInvestment.purchasePrice = (targetInvestment.purchasePrice ?? 0) + transferAmount;
-        } else {
-          const newInvestment = {
-            assetType: inv.assetType,
-            value: transferAmount,
-            taxStatus: "non-retirement",
-            purchasePrice: transferAmount // Basis of new investment is the transferred amount
-          };
-          state.investments.push(newInvestment);
-        }
-
-        remainingToTransfer -= transferAmount;
-      }
-
-      // Log RMD transfer
-      const actualTransferred = rmdToTransfer - remainingToTransfer;
-      if (actualTransferred > 0 || rmdToTransfer > 0) {
-        logEvent(logStream, params.curYear, 'RMD Transfer', {
-          RequiredAmount: rmdToTransfer,
-          TransferredAmount: actualTransferred,
-          Shortfall: remainingToTransfer
-        });
-      }
-
-      if (remainingToTransfer > 0.01) { // Tolerance for floating point issues
-        console.warn(`Year ${params.curYear} Age ${params.userAge}: RMD transfer shortfall. Could not transfer ${remainingToTransfer.toFixed(2)} from pre-tax accounts.`);
-      }
-    }
-      
-    // Step 4: Update the values of investments, reflecting expected annual return, reinvestment of generated income, and subtraction of expenses.
-    console.log("Running investment updates...");
-    state.investments.forEach(investment => {
-      let type = investment.assetType;
-      let assetType = state.assetTypes.find(at => at.name === type);
-
-      // Store starting value for expense calculation
-      let startingValue = investment.value;
-
-      // Calculate generated income
-      let generatedIncome = investment.value * (sampleNormal(assetType.normalIncomeMean, assetType.normalIncomeStd ?? 0) / 100);
-
-      // Add generated income to investment value
-      investment.value += generatedIncome;
-
-      // Add the generated income to curYearIncome if the investment is non-retirement AND taxable
-      if (investment.taxStatus === 'non-retirement' && assetType.taxability === 'taxable') {
-        params.curYearIncome += generatedIncome;
-      }
-
-      // Calculate annual return based on starting value (before adding income)
-      let annualReturnPercentage = 0;
-      if (assetType.returnType === 'fixed') {
-        annualReturnPercentage = assetType.fixedReturn;
-      }
-      else if (assetType.returnType == 'normal') {
-        annualReturnPercentage = sampleNormal(assetType.normalReturnMean, assetType.normalReturnStd);
-      }
-      let changeInValue = startingValue * (annualReturnPercentage / 100);
-
-      // Apply the change in value
-      investment.value += changeInValue;
-
-      // Store ending value for expense calculation
-      let endingValue = investment.value;
-
-      // Calculate expenses based on average value
-      let averageValue = (startingValue + endingValue) / 2;
-      let expenses = averageValue * assetType.expenseRatio;
-
-      // Subtract expenses
-      investment.value -= expenses;
-
-      // Log investment update
-      logEvent(logStream, params.curYear, 'Investment Update', {
-        AssetType: type,
-        TaxStatus: investment.taxStatus,
-        GeneratedIncome: generatedIncome,
-        ReturnChange: changeInValue,
-        Expenses: expenses,
-        FinalValue: investment.value
-      });
-    });
-
     // Step 6: Pay non-discretionary expenses and the previous year's taxes,
     // i.e., subtract them from the cash investment. Perform additional withdrawals if needed to pay them.
     console.log("Running non-discretionary expense and tax processing...");
@@ -826,6 +828,8 @@ export default async function runSimulation(initialState) {
         calculatedExpenseAmount *= (1 + params.inflationRate / 100);
       }
 
+      params.curYearExpenses += calculatedExpenseAmount;
+
       // Add the calculated amount for this year to the sum
       nonDiscretionarySum += calculatedExpenseAmount;
 
@@ -918,7 +922,116 @@ export default async function runSimulation(initialState) {
       cash.value = 0;
     }
 
-    // Step 7: Run the invest event scheduled for the current year, if any, by using excess cash to buy investments included in the asset allocation in the invest event,
+    // Step 7: Pay discretionary expenses in the order given by the spending strategy,
+    // except stop if continuing would reduce the user's total assets below the financial goal.
+    // The last discretionary expense to be paid can be partially paid if incurring the entire expense would violate the financial goal.
+    // Perform additional withdrawals if needed to pay them.
+    console.log("Running discretionary expense processing...");
+
+    const financialGoal = state.financialGoal;
+
+    // Get the discretionary expense events for the current year.
+    let discretionaryEvents = state.eventSeries.filter(event =>
+      event.type === "expense" &&
+      event.isDiscretionary === true &&
+      params.curYear >= event.startYear &&
+      params.curYear <= event.endYear
+    );
+
+    // Process each discretionary expense event in the order they appear.
+    for (let event of discretionaryEvents) {
+      let expenseAmount = event.amount;
+
+      // Update current total assets.
+      let totalAssets = computeTotalAssets(state);
+
+      // Check if paying this entire expense would reduce assets below the financial goal.
+      if (totalAssets - expenseAmount < financialGoal) {
+        // Only pay enough so that assets remain at (or above) the financial goal.
+        expenseAmount = Math.max(0, totalAssets - financialGoal);
+        // If no funds can be allocated without violating the goal, exit the loop.
+        if (expenseAmount === 0) {
+          break;
+        }
+        params.curYearExpenses += expenseAmount;
+        params.curYearDiscExpenses += expenseAmount;
+      }
+
+      // Determine if current cash is sufficient to pay the expense.
+      if (cash.value < expenseAmount) {
+        // Calculate additional funds required.
+        let additionalWithdrawal = expenseAmount - cash.value;
+        let totalWithdrawn = 0;
+
+        // Withdraw funds from investments in the order defined in state.investments.
+        for (let i = 0; i < state.investments.length && totalWithdrawn < additionalWithdrawal; i++) {
+          let inv = state.investments[i];
+
+          // Skip the cash bucket or any investment with no value.
+          if (inv.assetType === "cash" || inv.value <= 0) continue;
+
+          // Determine the withdrawal amount from this investment.
+          let remainingToWithdraw = additionalWithdrawal - totalWithdrawn;
+          let withdrawalAmount = Math.min(inv.value, remainingToWithdraw);
+
+          // Calculate the fraction of the investment being sold.
+          let fractionSold = withdrawalAmount / inv.value;
+          // Calculate the realized capital gain on the sale.
+          let realizedGain = fractionSold * (inv.value - inv.purchasePrice);
+
+          // If the investment is not held in a pre-tax retirement account, record the realized gain.
+          // Otherwise, treat the withdrawn amount as ordinary income.
+          if (inv.taxStatus === "non-retirement") {
+            params.curYearGains += saleCapitalGain;
+          } else if (inv.taxStatus === "pretax-retirement") {
+            params.curYearIncome += amountSold;
+          }
+
+          // For retirement accounts and if the user is under 59, record early withdrawals.
+          if ((inv.taxStatus === "pretax-retirement" || inv.taxStatus === "aftertax-retirement") && params.userAge < 59) {
+            params.curYearEarlyWithdrawals += withdrawalAmount;
+          }
+
+          // Adjust the investment's value and cost basis proportionally.
+          inv.value -= withdrawalAmount;
+          inv.purchasePrice -= fractionSold * inv.purchasePrice;
+
+          totalWithdrawn += withdrawalAmount;
+
+          // Log investment sale for discretionary expense
+          logEvent(logStream, params.curYear, 'Investment Sale (Disc)', {
+            AssetType: inv.assetType,
+            TaxStatus: inv.taxStatus,
+            AmountSold: withdrawalAmount,
+            CapitalGain: realizedGain
+          });
+        }
+
+        // Increase cash by the total amount withdrawn from investments.
+        cash.value += totalWithdrawn;
+      }
+
+      // Deduct the expense amount from cash.
+      cash.value -= expenseAmount;
+      params.curYearExpenses += expenseAmount;
+      params.curYearDiscExpenses += expenseAmount;
+
+      // Log discretionary expense
+      logEvent(logStream, params.curYear, 'Expense (Disc)', {
+        EventName: event.name,
+        AmountPaid: expenseAmount
+      });
+
+      // Update total assets after paying the expense.
+      totalAssets = computeTotalAssets(state);
+
+      // If the total assets have reached or dropped below the financial goal, stop processing further expenses.
+      if (totalAssets <= financialGoal) {
+        break;
+      }
+    }
+
+    // Step 8: Run the invest event scheduled for the current year, if any, by using excess cash to buy investments included in the asset allocation in the invest event,
     // apportioning the excess cash according to that asset allocation.
     console.log("Running invest events...");
     let activeInvestEvents = state.eventSeries.filter(event =>
@@ -1068,7 +1181,7 @@ export default async function runSimulation(initialState) {
       }
     }
 
-    // Step 8: Run rebalance events scheduled for the current year, by selling and buying the investments included in the specified asset allocation to achieve the specified ratios between their values.
+    // Step 9: Run rebalance events scheduled for the current year, by selling and buying the investments included in the specified asset allocation to achieve the specified ratios between their values.
     console.log("Running rebalance events");
     let activeRebalanceEvents = state.eventSeries.filter(event =>
       event.type === "rebalance" &&
@@ -1198,15 +1311,30 @@ export default async function runSimulation(initialState) {
     params.prevYearEndPreTaxSum = state.investments
       .filter(inv => inv.taxStatus === "pretax-retirement")
       .reduce((sum, inv) => sum + inv.value, 0); // Store the current year-end pre-tax sum
-
+    
+    console.log(params.totalDiscExpenses);
     // set fields for the return object, which will be used in generating the charts
     resObject[params.curYear] = {}
     resObject[params.curYear].success = computeTotalAssets(state) >= state.financialGoal;
     resObject[params.curYear].totInvestments = computeTotalAssets(state);
     resObject[params.curYear].totIncome = params.totalIncome;
     resObject[params.curYear].totExpenses = params.totalExpenses;
-    resObject[params.curYear].earlyWithdrawalTax = params.totalEarlyWithdrawals;
-    resObject[params.curYear].totDiscExpensePercent = (params.totalDiscExpenses / params.ttoalExpenses) * 100;
+    resObject[params.curYear].earlyWithdrawalTax = params.curYearEarlyWithdrawals;
+    resObject[params.curYear].totDiscExpensePercent = (params.totalDiscExpenses / params.totalExpenses) * 100;
+    state.assetTypes.forEach(assetType => {
+      resObject[params.curYear][`${assetType.name} Type Total`] = 0;
+    })
+    state.eventSeries.forEach(eventItem => {
+      if (eventItem.type === 'income') {
+        resObject[params.curYear][`${eventItem.name} Event Income`] = 0;
+      }
+    })
+    state.eventSeries.forEach(eventItem => {
+      if (eventItem.type === 'expense') {
+        resObject[params.curYear][`${eventItem.name} Event Expense`] = 0;
+      }
+    })
+    resObject[params.curYear].taxes = totalTaxes;
 
     // Capture end-of-year state for CSV
     const yearlySnapshot = { Year: params.curYear };
