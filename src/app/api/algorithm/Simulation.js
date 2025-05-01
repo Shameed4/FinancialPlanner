@@ -45,6 +45,8 @@ async function buildParams(state) {
 
   const { taxBrackets, capitalGainsTax, standardDeductions, stateTaxBrackets } = await loadTaxData();
 
+  let prevYearStandardDeductions = standardDeductions;
+
   let afterTaxRetirementContributionLimit = state.initialAfterTaxRetirementContributionLimit;
 
   let curYearIncome = 0;
@@ -89,6 +91,7 @@ async function buildParams(state) {
     taxBrackets,
     capitalGainsTax,
     standardDeductions,
+    prevYearStandardDeductions,
     stateTaxBrackets,
     afterTaxRetirementContributionLimit,
     curYearIncome,
@@ -167,24 +170,27 @@ export default async function runSimulation(initialState) {
 
       switch (startMode) {
         case 'random_normal':
-          if (!event.startMean || !event.startStd) {
+          if (!event.startYearMean || !event.startYearStd) {
             console.warn(`Event '${event.name}': Missing required parameters for random_normal start year. Using current year.`);
             calculatedStartYear = params.curYear;
           } else {
-            calculatedStartYear = Math.round(sampleNormal(event.startMean, event.startStd));
+            calculatedStartYear = Math.round(sampleNormal(event.startYearMean, event.startYearStd));
           }
           break;
 
         case 'random_uniform':
-          if (!event.startMin || !event.startMax) {
+          if (!event.startYearMin || !event.startYearMax) {
             console.warn(`Event '${event.name}': Missing required parameters for random_uniform start year. Using current year.`);
             calculatedStartYear = params.curYear;
           } else {
-            calculatedStartYear = Math.round(sampleUniform(event.startMin, event.startMax));
+            calculatedStartYear = Math.round(sampleUniform(event.startYearMin, event.startYearMax));
           }
           break;
 
         case 'fixed':
+          calculatedStartYear = event.startYear;
+          break;
+
         default:
           calculatedStartYear = event.startYear ?? params.curYear;
           break;
@@ -216,6 +222,9 @@ export default async function runSimulation(initialState) {
           break;
 
         case 'fixed':
+          calculatedDuration = event.durationFixed;
+          break;
+
         default:
           // If duration is not specified but endYear exists, calculate from endYear
           if (!event.duration && event.endYear) {
@@ -306,6 +315,8 @@ export default async function runSimulation(initialState) {
       console.log(`Event '${event.name}': Type S:${event.startYearType}/D:${durationMode} -> Start: ${event.startYear}, End: ${event.endYear} (Duration: ${actualDuration})`);
     }
   });
+
+  console.log(state.eventSeries);
 
   // Setup logging
   const userId = initialState.userId || 'anonymous';
@@ -399,7 +410,7 @@ export default async function runSimulation(initialState) {
     params.afterTaxRetirementContributionLimit = params.afterTaxRetirementContributionLimit * (1 + params.inflationRate / 100);
 
     // Step 1: run the income events, adding income to the cash investment
-    console.log("1. Running income events...");
+    console.log("Running income events...");
     let activeIncomeEvents = state.eventSeries.filter(event =>
       event.type === "income" &&
       params.curYear >= event.startYear &&
@@ -451,7 +462,7 @@ export default async function runSimulation(initialState) {
 
     // Step 2: Run the Roth conversion (RC) optimizer, if it is enabled
     if (state.rothOptimizationStartYear && state.rothOptimizationEndYear) {
-      console.log("2. Running roth conversion optimizer...");
+      console.log("Running roth conversion optimizer...");
 
       // Calculate the user's federal taxable income for the year.
       // This subtracts 85% of Social Security from the total income.
@@ -560,7 +571,7 @@ export default async function runSimulation(initialState) {
     }
 
     // Step 3: Perform the RMD (Calculation for Current Year, Transfer for Previous Year)
-    console.log("3. Running RMD processing...");
+    console.log("Running RMD processing...");
 
     // --- Part 1: Calculate RMD for Current Year (Based on Prev Year End) ---
     let calculatedRmdCurrentYear = 0;
@@ -652,9 +663,9 @@ export default async function runSimulation(initialState) {
         console.warn(`Year ${params.curYear} Age ${params.userAge}: RMD transfer shortfall. Could not transfer ${remainingToTransfer.toFixed(2)} from pre-tax accounts.`);
       }
     }
-
+      
     // Step 4: Update the values of investments, reflecting expected annual return, reinvestment of generated income, and subtraction of expenses.
-    console.log("4. Running investment updates...");
+    console.log("Running investment updates...");
     state.investments.forEach(investment => {
       let type = investment.assetType;
       let assetType = state.assetTypes.find(at => at.name === type);
@@ -709,7 +720,7 @@ export default async function runSimulation(initialState) {
 
     // Step 6: Pay non-discretionary expenses and the previous year's taxes,
     // i.e., subtract them from the cash investment. Perform additional withdrawals if needed to pay them.
-    console.log("5. Running non-discretionary expense and tax processing...");
+    console.log("Running non-discretionary expense and tax processing...");
 
     let prevYearFedTax = 0;
     let prevYearStateTax = 0;
@@ -724,8 +735,8 @@ export default async function runSimulation(initialState) {
     const prevYearFedTaxableIncome = (params.prevYearIncome ?? 0) - 0.85 * (params.prevYearSS ?? 0);
 
     // Apply standard deduction to get income after deduction
-    // const prevStandardDeduction = params.prevYearStandardDeductions[filingStatus];
-    // const prevYearIncomeAfterDeduction = Math.max(0, prevYearFedTaxableIncome - prevStandardDeduction);
+    const prevStandardDeduction = params.prevYearStandardDeductions[filingStatus];
+    const prevYearIncomeAfterDeduction = Math.max(0, prevYearFedTaxableIncome - prevStandardDeduction);
 
     // --- Federal Income Tax Calculation ---
     // Use previous year's tax brackets
@@ -909,7 +920,7 @@ export default async function runSimulation(initialState) {
 
     // Step 7: Run the invest event scheduled for the current year, if any, by using excess cash to buy investments included in the asset allocation in the invest event,
     // apportioning the excess cash according to that asset allocation.
-    console.log("7. Running invest events...");
+    console.log("Running invest events...");
     let activeInvestEvents = state.eventSeries.filter(event =>
       event.type === "invest" &&
       params.curYear >= event.startYear &&
@@ -1058,7 +1069,7 @@ export default async function runSimulation(initialState) {
     }
 
     // Step 8: Run rebalance events scheduled for the current year, by selling and buying the investments included in the specified asset allocation to achieve the specified ratios between their values.
-    console.log("8. Running rebalance events");
+    console.log("Running rebalance events");
     let activeRebalanceEvents = state.eventSeries.filter(event =>
       event.type === "rebalance" &&
       params.curYear >= event.startYear &&
@@ -1165,7 +1176,6 @@ export default async function runSimulation(initialState) {
         }
       }
     }
-
 
     // Store current year's tax brackets and deductions for next year's tax calculations
     params.prevYearTaxBrackets = JSON.parse(JSON.stringify(params.taxBrackets));
