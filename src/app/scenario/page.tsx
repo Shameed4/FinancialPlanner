@@ -24,6 +24,15 @@ import ShareScenarioModal from './ShareScenarioModal';
 import ScenarioCard from './ScenarioCard.js';
 import { ExpenseEvent, StringScenarioFormData } from './types';
 
+/*
+ * This page is the main page for the scenario. It contains the form for creating a new scenario,
+ * and the modal for sharing a scenario.
+ * 
+ * The form is split into 4 sections:
+ * 1. Basic information
+ * 2. Asset types
+ * 3. Investments   
+ * */
 const FormSection = ({ title, children, isActive, errors = {} }: { title: string, children: ReactNode, isActive: boolean, errors: any }) => {
     if (!isActive) return null;
 
@@ -2323,7 +2332,7 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel, initialData = null }: 
                                 })}
                         </div>
                     </div>
-                    
+
                     <div className="mb-4">
                         <label className="block text-sm font-medium text-gray-700 mb-1">Spending Strategy</label>
                         <p className="text-sm text-gray-500 mb-2">
