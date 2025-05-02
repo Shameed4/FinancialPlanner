@@ -6,6 +6,8 @@ import pageVariants from '../components/PageAnimation'
 import { usePathname } from 'next/navigation'
 import { LineChart } from '@mui/x-charts/LineChart'
 import { BarChart } from '@mui/x-charts/BarChart'
+import { Router } from 'lucide-react'
+import { useRouter } from 'next/navigation'
 
 // Build a full `result` object from raw chartData
 function makeResultObject(scenarioName, simulations = {}) {
@@ -241,7 +243,7 @@ const DetailedView = ({ result, onBack }) => {
 
     return (
         <div className="space-y-6 text-black">
-            <button onClick={onBack} className="text-blue-600">&larr; Back</button>
+            <button onClick={onBack} className="text-blue-600 hover: cursor-pointer">&larr; Back</button>
             <h2 className="text-2xl font-bold">{result.title}</h2>
 
             {/* 4.1 */}
@@ -341,53 +343,49 @@ export default function ChartsAndResultsPage() {
     const [loading, setLoading] = useState(true)
     const [selectedResult, setSelected] = useState(null)
     const pathname = usePathname()
-
+    const router = useRouter();
+  
+    // existing effect to fetch chartData…
     useEffect(() => {
-        async function load() {
-            try {
-                const res = await fetch('/api/algorithm')
-                if (!res.ok) throw new Error(`HTTP ${res.status}`)
-                const { chartData } = await res.json()
-                setChartData(chartData)
-            } catch (err) {
-                console.error(err)
-            } finally {
-                setLoading(false)
-            }
-        }
-        load()
+      async function load() {
+        const res = await fetch('/api/algorithm')
+        const { chartData } = await res.json()
+        setChartData(chartData)
+        setLoading(false)
+      }
+      load()
     }, [pathname])
-
-    if (loading) return <p>Loading…</p>
-    if (!chartData) return <p>No data available.</p>
-
+  
+    // ── NEW: auto-select the first (and only) result as soon as data is in ──
+    useEffect(() => {
+      if (!loading && chartData && !selectedResult) {
+        const entries = Object.entries(chartData)
+        if (entries.length > 0) {
+          const [name, sims] = entries[0]
+          setSelected(makeResultObject(name, sims))
+        }
+      }
+    }, [loading, chartData, selectedResult])
+  
     return (
-        <motion.div
-            variants={pageVariants}
-            initial="initial"
-            animate="animate"
-            exit="exit"
-            className="p-8 space-y-8"
-        >
-            <h1 className="text-3xl font-bold text-black">Charts and Results</h1>
-
-            {selectedResult ? (
-                <DetailedView
-                    result={selectedResult}
-                    onBack={() => setSelected(null)}
-                />
-            ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    {Object.entries(chartData).map(([name, sims]) => (
-                        <ResultCard
-                            key={name}
-                            name={name}
-                            data={sims}
-                            onClick={() => setSelected(makeResultObject(name, sims))}
-                        />
-                    ))}
-                </div>
-            )}
-        </motion.div>
+      <motion.div
+        variants={pageVariants}
+        initial="initial"
+        animate="animate"
+        exit="exit"
+        className="p-8 space-y-8"
+      >
+        <h1 className="text-3xl font-bold text-black">Charts and Results</h1>
+  
+        {/* ── ALWAYS render the detailed view ── */}
+        {selectedResult && (
+          <DetailedView
+            result={selectedResult}
+            onBack={() => {
+              router.back()
+            }}
+          />
+        )}
+      </motion.div>
     )
-}
+  }
