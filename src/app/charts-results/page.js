@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import pageVariants from "../components/PageAnimation";
 import { useRouter } from 'next/navigation';
@@ -41,43 +41,24 @@ const simulationResults = [
 ];
 
 // Summary Card Component
-const ResultCard = ({ result, onClick }) => (
-    <div
-        className="bg-white text-black rounded-xl shadow-md p-6 hover:shadow-lg transition-all cursor-pointer"
-        onClick={onClick}
-    >
-        <h3 className="text-xl font-semibold mb-2 text-gray-900">{result.title}</h3>
-        <p className="text-sm text-gray-500 mb-4">Run on: {result.date}</p>
-        <div className="space-y-2">
-            <div className="flex justify-between">
-                <span className="text-gray-600">Number of Runs:</span>
-                <span className="font-medium">{result.summary.number_of_runs.toLocaleString()}</span>
-            </div>
-            <div className="flex justify-between">
-                <span className="text-gray-600">Mean Final Value:</span>
-                <span className="font-medium">${result.summary.mean_final_value.toLocaleString()}</span>
-            </div>
-            <div className="flex justify-between">
-                <span className="text-gray-600">Median Final Value:</span>
-                <span className="font-medium">${result.summary.median_final_value.toLocaleString()}</span>
-            </div>
-            <div className="flex justify-between">
-                <span className="text-gray-600">10th Percentile:</span>
-                <span className="font-medium">${result.summary.percentile_10.toLocaleString()}</span>
-            </div>
-            <div className="flex justify-between">
-                <span className="text-gray-600">90th Percentile:</span>
-                <span className="font-medium">${result.summary.percentile_90.toLocaleString()}</span>
+const ResultCard = ({ name, data }) => {
+    const simNames = Object.keys(data);
+    const numRuns = simNames.length;
+
+    return (
+        <div
+            className="bg-white text-black rounded-xl shadow-md p-6 hover:shadow-lg transition-all cursor-pointer"
+        >
+            <h3 className="text-xl font-semibold mb-2 text-gray-900">Simulation Results for {name}</h3>
+            <div className="mt-4 text-blue-600 text-sm font-medium flex items-center">
+                View Details
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 ml-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                </svg>
             </div>
         </div>
-        <div className="mt-4 text-blue-600 text-sm font-medium flex items-center">
-            View Details
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 ml-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-            </svg>
-        </div>
-    </div>
-);
+    )
+};
 
 // ===== Chart Components =====
 
@@ -578,9 +559,29 @@ const DetailedView = ({ result, onBack }) => {
     );
 };
 
-const ChartsAndResultsPage = () => {
-    const [selectedResult, setSelectedResult] = useState(null);
-    const router = useRouter();
+export default function ChartsAndResultsPage() {
+    const [chartData, setChartData] = useState(null)
+    const [loading, setLoading] = useState(true)
+
+    useEffect(() => {
+        async function fetchChartOnly() {
+            try {
+                const res = await fetch('/api/algorithm')
+                if (!res.ok) throw new Error(`HTTP ${res.status}`)
+                const { chartData } = await res.json()
+                console.log("fetched chart data", chartData);
+                setChartData(chartData)
+            } catch (err) {
+                console.error('GET error:', err)
+            } finally {
+                setLoading(false)
+            }
+        }
+        fetchChartOnly()
+    }, [])
+
+    if (loading) return <p>Loading charts…</p>
+    if (!chartData) return <p>No chart data available.</p>
 
     return (
         <motion.div
@@ -588,23 +589,29 @@ const ChartsAndResultsPage = () => {
             initial="initial"
             animate="animate"
             exit="exit"
-            className="p-8"
+            className="p-8 space-y-12"
         >
-            <div className="flex justify-between items-center mb-8">
-                <h1 className="text-3xl font-bold text-gray-900">Charts and Results</h1>
-            </div>
+            <h1 className="text-3xl text-black font-bold">Charts and Results</h1>
 
-            {selectedResult ? (
-                <DetailedView result={selectedResult} onBack={() => setSelectedResult(null)} />
-            ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    {simulationResults.map((result) => (
-                        <ResultCard key={result.id} result={result} onClick={() => setSelectedResult(result)} />
-                    ))}
-                </div>
+            {/*
+          chartData shape:
+          {
+            'Scenario ID 5': {
+              'Simulation 1': { '2026': {...}, '2027': {...}, … },
+              'Simulation 2': { … },
+              …
+            },
+            'Scenario ID 6': { … },
+            …
+          }
+        */}
+            {Object.entries(chartData).map(
+                ([scenarioName, simulationData], idx) => (
+                    <section key={idx} className="space-y-4">
+                        <ResultCard name={scenarioName} data={simulationData} />
+                    </section>
+                )
             )}
         </motion.div>
-    );
-};
-
-export default ChartsAndResultsPage;
+    )
+}

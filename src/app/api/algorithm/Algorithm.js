@@ -14,7 +14,7 @@ export async function runAlgorithm(selectedScenarioData, numSimulations) {
 
     chartData[`Scenario ID ${scenarioId}`] = simulationResults;
 
-    console.log(chartData);
+    // console.log(chartData);
   }
 
   return simulationResults;
