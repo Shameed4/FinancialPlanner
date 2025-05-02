@@ -625,14 +625,13 @@ export function yamlToScenario(yaml: string): StringScenarioFormData {
           type: es.type,
           ...allocationFields,
           ...(es.type === 'invest' ? { maxCashValue: es.maxCash !== undefined ? String(es.maxCash) : '0' } : {})
-        } as InvestEvent | RebalanceEvent; // Cast to specific types
+        } as any; // Use a generic type assertion
       } else {
         console.warn(`Unknown event series type: ${es.type}`);
         // Return a default or throw an error, here returning null and filtering later
         return null;
       }
-    }).filter((event: any) => event !== null) as (IncomeEvent | ExpenseEvent | InvestEvent | RebalanceEvent)[]; // Filter out any nulls from unknown types
-
+    }).filter((event: any) => event !== null) as any; // Use type assertion to avoid type mismatch
 
     return res;
   } catch (error) {
@@ -668,6 +667,97 @@ export async function POST(request: NextRequest) {
     // If saveToDB flag is true, save the scenario to the database
     if (body.saveToDB && body.userEmail) {
       try {
+        // Convert string values to appropriate types for database storage
+        const convertEventSeriesForDB = (eventSeries: any[]) => {
+          return eventSeries.map((event: any) => {
+            // Create a new object to hold the converted values
+            const convertedEvent: any = {};
+            
+            // Copy all properties from the original event
+            for (const [key, value] of Object.entries(event)) {
+              // Skip this for proper handling later
+              if (key === 'maxCashValue') continue;
+              
+              // Just assign the original value for now
+              convertedEvent[key] = value;
+            }
+            
+            // Handle numeric conversions for common fields
+            if (event.amount) convertedEvent.amount = parseFloat(event.amount);
+            if (event.userPercentage) convertedEvent.userPercentage = parseFloat(event.userPercentage);
+            
+            // Handle duration fields
+            if ('durationFixed' in event && event.durationFixed) {
+              convertedEvent.durationFixed = parseInt(event.durationFixed);
+            }
+            if ('durationMin' in event && event.durationMin) {
+              convertedEvent.durationMin = parseInt(event.durationMin);
+            }
+            if ('durationMax' in event && event.durationMax) {
+              convertedEvent.durationMax = parseInt(event.durationMax);
+            }
+            if ('durationMean' in event && event.durationMean) {
+              convertedEvent.durationMean = parseFloat(event.durationMean);
+            }
+            if ('durationStd' in event && event.durationStd) {
+              convertedEvent.durationStd = parseFloat(event.durationStd);
+            }
+            
+            // Handle start year fields
+            if ('startYear' in event && event.startYear) {
+              convertedEvent.startYear = parseInt(event.startYear);
+            }
+            if ('startYearMin' in event && event.startYearMin) {
+              convertedEvent.startYearMin = parseInt(event.startYearMin);
+            }
+            if ('startYearMax' in event && event.startYearMax) {
+              convertedEvent.startYearMax = parseInt(event.startYearMax);
+            }
+            if ('startYearMean' in event && event.startYearMean) {
+              convertedEvent.startYearMean = parseFloat(event.startYearMean);
+            }
+            if ('startYearStd' in event && event.startYearStd) {
+              convertedEvent.startYearStd = parseFloat(event.startYearStd);
+            }
+            
+            // Handle event-specific fields
+            if (event.type === 'income' || event.type === 'expense') {
+              // Annual change fields
+              if ('annualChangeType' in event) {
+                if (event.annualChangeType === 'fixed' && 'annualChange' in event && event.annualChange) {
+                  convertedEvent.annualChange = parseFloat(event.annualChange);
+                } else if (event.annualChangeType === 'random_uniform') {
+                  if ('annualChangeMin' in event && event.annualChangeMin) {
+                    convertedEvent.annualChangeMin = parseFloat(event.annualChangeMin);
+                  }
+                  if ('annualChangeMax' in event && event.annualChangeMax) {
+                    convertedEvent.annualChangeMax = parseFloat(event.annualChangeMax);
+                  }
+                } else if (event.annualChangeType === 'random_normal') {
+                  if ('annualChangeMean' in event && event.annualChangeMean) {
+                    convertedEvent.annualChangeMean = parseFloat(event.annualChangeMean);
+                  }
+                  if ('annualChangeStd' in event && event.annualChangeStd) {
+                    convertedEvent.annualChangeStd = parseFloat(event.annualChangeStd);
+                  }
+                }
+              }
+              
+              // For expense events with spending strategy
+              if (event.type === 'expense' && 'spendingStrategy' in event && event.spendingStrategy) {
+                convertedEvent.spendingStrategy = parseInt(event.spendingStrategy);
+              }
+            } else if (event.type === 'invest') {
+              // Handle maxCashValue for invest events
+              if ('maxCashValue' in event && event.maxCashValue) {
+                convertedEvent.maxCashValue = parseFloat(String(event.maxCashValue));
+              }
+            }
+            
+            return convertedEvent;
+          });
+        };
+        
         // Format data for the database - parse strings to appropriate number types
         const scenarioData = {
           ...scenarioYaml,
@@ -680,13 +770,13 @@ export async function POST(request: NextRequest) {
           initialAfterTaxRetirementContributionLimit: parseFloat(scenarioYaml.initialAfterTaxRetirementContributionLimit || '0') || 0,
           
           // Handle optional spouse fields - only include if present
-          ...(scenarioYaml.spouseBirthYear ? {
+          ...(scenarioYaml.forIndividual === false && scenarioYaml.spouseBirthYear ? {
             spouseBirthYear: parseInt(scenarioYaml.spouseBirthYear) || 0,
           } : {}),
-          ...(scenarioYaml.spouseLifeExpectancyMean ? {
+          ...(scenarioYaml.forIndividual === false && scenarioYaml.spouseLifeExpectancyMean ? {
             spouseLifeExpectancyMean: parseFloat(scenarioYaml.spouseLifeExpectancyMean) || 0,
           } : {}),
-          ...(scenarioYaml.spouseLifeExpectancyStd ? {
+          ...(scenarioYaml.forIndividual === false && scenarioYaml.spouseLifeExpectancyStd ? {
             spouseLifeExpectancyStd: parseFloat(scenarioYaml.spouseLifeExpectancyStd) || 0,
           } : {}),
           
@@ -728,57 +818,8 @@ export async function POST(request: NextRequest) {
             rothConversionStrategy: inv.rothConversionStrategy ? parseInt(inv.rothConversionStrategy) : undefined,
             expenseWithdrawalStrategy: parseInt(inv.expenseWithdrawalStrategy) || 0
           })),
-          eventSeries: scenarioYaml.eventSeries.map(event => {
-            // Create a new object with properly converted numeric fields
-            const convertedEvent = {
-              // Keep all original properties
-              ...event,
-              
-              // Common fields that might need numeric conversion
-              amount: event.amount ? parseFloat(event.amount) : undefined,
-              userPercentage: event.userPercentage ? parseFloat(event.userPercentage) : undefined,
-              
-              // Handle duration fields - force to numbers
-              durationType: event.durationType,
-              durationFixed: event.durationFixed ? parseInt(event.durationFixed) : undefined,
-              durationMin: event.durationMin ? parseInt(event.durationMin) : undefined, 
-              durationMax: event.durationMax ? parseInt(event.durationMax) : undefined,
-              durationMean: event.durationMean ? parseFloat(event.durationMean) : undefined,
-              durationStd: event.durationStd ? parseFloat(event.durationStd) : undefined,
-              
-              // Handle start year fields - force to numbers
-              startYearType: event.startYearType,
-              startYear: event.startYear ? parseInt(event.startYear) : undefined,
-              startYearMin: event.startYearMin ? parseInt(event.startYearMin) : undefined,
-              startYearMax: event.startYearMax ? parseInt(event.startYearMax) : undefined,
-              startYearMean: event.startYearMean ? parseFloat(event.startYearMean) : undefined,
-              startYearStd: event.startYearStd ? parseFloat(event.startYearStd) : undefined,
-            };
-            
-            // Special handling based on event type
-            if (event.type === 'income' || event.type === 'expense') {
-              // Add annual change fields if present
-              if (event.annualChangeType === 'fixed' && event.annualChange) {
-                convertedEvent.annualChange = parseFloat(event.annualChange);
-              } else if (event.annualChangeType === 'random_uniform') {
-                convertedEvent.annualChangeMin = event.annualChangeMin ? parseFloat(event.annualChangeMin) : undefined;
-                convertedEvent.annualChangeMax = event.annualChangeMax ? parseFloat(event.annualChangeMax) : undefined;
-              } else if (event.annualChangeType === 'random_normal') {
-                convertedEvent.annualChangeMean = event.annualChangeMean ? parseFloat(event.annualChangeMean) : undefined;
-                convertedEvent.annualChangeStd = event.annualChangeStd ? parseFloat(event.annualChangeStd) : undefined;
-              }
-              
-              // For expense events with spending strategy
-              if (event.type === 'expense' && event.spendingStrategy) {
-                convertedEvent.spendingStrategy = parseInt(event.spendingStrategy);
-              }
-            } else if (event.type === 'invest') {
-              // Invest-specific fields
-              convertedEvent.maxCashValue = event.maxCashValue ? parseFloat(event.maxCashValue) : undefined;
-            }
-            
-            return convertedEvent;
-          })
+          // Use the helper function to convert event series
+          eventSeries: convertEventSeriesForDB(scenarioYaml.eventSeries)
         };
 
         // Call the main scenarios API endpoint
