@@ -165,8 +165,41 @@ function calculateMarginalTax(taxableIncome, brackets) {
 
 export default async function runSimulation(initialState) {
   let state = deepCopy(initialState);
+  
+  // Ensure 'Cash' asset type exists in assetTypes
+  if (!state.assetTypes) {
+    state.assetTypes = [];
+  }
+  
+  const cashAssetType = state.assetTypes.find(assetType => assetType.name === 'Cash');
+  if (!cashAssetType) {
+    console.log("No Cash asset type found. Creating a default Cash asset type.");
+    state.assetTypes.push({
+      name: 'Cash',
+      returnType: 'fixed',
+      fixedReturn: 0,
+      normalIncomeMean: 0,
+      normalIncomeStd: 0,
+      expenseRatio: 0,
+      taxability: 'taxable'
+    });
+  }
+  
   let params = await buildParams(state);
-  let cash = state.investments.find(investment => investment.assetType == 'Cash');
+  
+  // Check if Cash investment exists, create one if it doesn't
+  let cash = state.investments.find(investment => investment.assetType === 'Cash');
+  if (!cash) {
+    console.log("No Cash investment found. Creating a Cash investment with 0 value.");
+    cash = {
+      assetType: 'Cash',
+      value: 0,
+      taxStatus: 'non-retirement',
+      purchasePrice: 0
+    };
+    state.investments.push(cash);
+  }
+  
   let iteration = 1;
   let resObject = {};
 
@@ -432,25 +465,31 @@ export default async function runSimulation(initialState) {
     // Step 2: run the income events, adding income to the cash investment
     console.log("Running income events...");
     let activeIncomeEvents = state.eventSeries.filter(event =>
-      event.type === "income" &&
-      params.curYear >= event.startYear &&
-      params.curYear <= event.endYear
+      event && event.type === "income" &&
+      event.startYear && params.curYear >= event.startYear &&
+      event.endYear && params.curYear <= event.endYear
     );
 
     activeIncomeEvents.forEach(event => {
+      // Initialize event.amount if undefined
+      if (typeof event.amount === 'undefined') {
+        console.warn(`Income event '${event.name}' has undefined amount. Setting to 0.`);
+        event.amount = 0;
+      }
+
       // Apply annual change first (without inflation adjustment)
       if (event.changeType === 'fixed') {
-        event.amount += event.annualChange;
+        event.amount += (event.annualChange || 0);
       }
       else if (event.changeType === 'percentage') {
-        event.amount = event.amount * (1 + event.annualChange / 100);
+        event.amount = event.amount * (1 + (event.annualChange || 0) / 100);
       }
-      else if (event.changeType === 'normal') {
+      else if (event.changeType === 'normal' && event.annualChangeMean !== undefined) {
         // Sample from normal distribution for this year's change
-        const sampledChangeAmount = sampleNormal(event.annualChangeMean, event.annualChangeStd);
+        const sampledChangeAmount = sampleNormal(event.annualChangeMean, event.annualChangeStd || 0);
         event.amount += sampledChangeAmount;
       }
-      else if (event.changeType === 'uniform') {
+      else if (event.changeType === 'uniform' && event.annualChangeMin !== undefined && event.annualChangeMax !== undefined) {
         // Sample from uniform distribution for this year's change percentage
         const sampledChangePercentage = sampleUniform(event.annualChangeMin, event.annualChangeMax);
         event.amount = event.amount * (1 + sampledChangePercentage / 100);

@@ -37,7 +37,7 @@ function makeResultObject(scenarioName, simulations = {}) {
         percentile_90: pct(Math.floor(n * 0.9)),
     }
 
-    // history: take the *first* simulation’s per-year entries
+    // history: take the *first* simulation's per-year entries
     const firstSim = Object.values(simulations)[0] || {}
     const history = Object.entries(firstSim)
         .map(([yr, entry]) => ({ year: Number(yr), ...entry }))
@@ -152,7 +152,7 @@ function buildStackedData(simulations = {}, years, { category, measure, threshol
         })
     })
 
-    // threshold -> “Other”
+    // threshold -> "Other"
     let other = Array(years.length).fill(0)
     const finalSeries = []
     Object.entries(raw).forEach(([lbl, arr]) => {
@@ -342,30 +342,89 @@ export default function ChartsAndResultsPage() {
     const [chartData, setChartData] = useState(null)
     const [loading, setLoading] = useState(true)
     const [selectedResult, setSelected] = useState(null)
+    const [retryCount, setRetryCount] = useState(0) // Track retry attempts
+    const [error, setError] = useState(null)
     const pathname = usePathname()
     const router = useRouter();
   
-    // existing effect to fetch chartData…
-    useEffect(() => {
-      async function load() {
-        const res = await fetch('/api/algorithm')
-        const { chartData } = await res.json()
-        setChartData(chartData)
-        setLoading(false)
+    // Load data function that can be called directly
+    const loadChartData = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+        
+        const res = await fetch('/api/algorithm', {
+          // Add cache: 'no-store' to prevent caching
+          cache: 'no-store',
+          headers: {
+            'Cache-Control': 'no-cache'
+          }
+        });
+        
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        
+        const data = await res.json();
+        console.log("Chart data response:", data.timestamp);
+        
+        if (data.chartData && Object.keys(data.chartData).length > 0) {
+          // Filter out non-scenario keys (like lastUpdated)
+          const scenarioData = Object.fromEntries(
+            Object.entries(data.chartData).filter(([key]) => key.startsWith('Scenario'))
+          );
+          
+          if (Object.keys(scenarioData).length > 0) {
+            setChartData(scenarioData);
+            
+            // Create the result object
+            const entries = Object.entries(scenarioData);
+            if (entries.length > 0) {
+              const [name, sims] = entries[0];
+              setSelected(makeResultObject(name, sims));
+            }
+            return true;
+          }
+        }
+        return false;
+      } catch (error) {
+        console.error("Error loading chart data:", error);
+        setError(error.message);
+        return false;
+      } finally {
+        setLoading(false);
       }
-      load()
-    }, [pathname])
+    };
   
-    // ── NEW: auto-select the first (and only) result as soon as data is in ──
     useEffect(() => {
-      if (!loading && chartData && !selectedResult) {
-        const entries = Object.entries(chartData)
-        if (entries.length > 0) {
-          const [name, sims] = entries[0]
-          setSelected(makeResultObject(name, sims))
+      let isMounted = true;
+      
+      async function initialLoad() {
+        // First attempt
+        const success = await loadChartData();
+        
+        // If not successful and still mounted, start retry mechanism
+        if (!success && isMounted && retryCount < 3) {
+          const timer = setTimeout(() => {
+            if (isMounted) {
+              setRetryCount(prev => prev + 1);
+            }
+          }, 800);
+          
+          return () => clearTimeout(timer);
         }
       }
-    }, [loading, chartData, selectedResult])
+      
+      initialLoad();
+      
+      return () => {
+        isMounted = false;
+      };
+    }, [pathname, retryCount]);
+  
+    // Function to manually retry loading the data
+    const handleRetry = () => {
+      setRetryCount(0);
+      loadChartData();
+    };
   
     return (
       <motion.div
@@ -377,15 +436,55 @@ export default function ChartsAndResultsPage() {
       >
         <h1 className="text-3xl font-bold text-black">Charts and Results</h1>
   
-        {/* ── ALWAYS render the detailed view ── */}
-        {selectedResult && (
+        {loading ? (
+          <div className="flex justify-center items-center h-64">
+            <div className="text-center">
+              <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-blue-600 border-r-transparent" role="status">
+                <span className="sr-only">Loading...</span>
+              </div>
+              <p className="mt-2 text-gray-700">Loading simulation results... {retryCount > 0 ? `(Attempt ${retryCount + 1})` : ''}</p>
+            </div>
+          </div>
+        ) : error ? (
+          <div className="flex justify-center items-center h-64">
+            <div className="text-center">
+              <p className="text-red-600">Error: {error}</p>
+              <button 
+                onClick={handleRetry}
+                className="mt-4 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+              >
+                Try Again
+              </button>
+            </div>
+          </div>
+        ) : selectedResult ? (
           <DetailedView
             result={selectedResult}
             onBack={() => {
-              router.back()
+              router.back();
             }}
           />
+        ) : (
+          <div className="flex justify-center items-center h-64">
+            <div className="text-center">
+              <p className="text-gray-700">No simulation data available. Please run a simulation first.</p>
+              <div className="mt-4 space-x-4">
+                <button 
+                  onClick={handleRetry}
+                  className="px-4 py-2 bg-gray-500 text-white rounded hover:bg-gray-600"
+                >
+                  Retry Loading
+                </button>
+                <button 
+                  onClick={() => router.push('/simulation')}
+                  className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+                >
+                  Go to Simulation
+                </button>
+              </div>
+            </div>
+          </div>
         )}
       </motion.div>
-    )
-  }
+    );
+}

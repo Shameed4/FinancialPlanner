@@ -185,23 +185,91 @@ const SimulationPage = () => {
                             disabled={!selectedScenario}
                             onClick={async () => {
                                 try {
-                                    // 1) run the simulation on the server
+                                    // Show loading state
+                                    const button = document.activeElement;
+                                    if (button) {
+                                        button.disabled = true;
+                                        button.innerText = "Running...";
+                                    }
+                                    
+                                    console.log("Starting simulation...");
+                                    
+                                    // 1) Run the simulation on the server
                                     const res = await fetch('/api/algorithm', {
                                         method: 'POST',
-                                        headers: { 'Content-Type': 'application/json' },
+                                        headers: { 
+                                            'Content-Type': 'application/json',
+                                            'Cache-Control': 'no-cache'
+                                        },
+                                        cache: 'no-store',
                                         body: JSON.stringify({
                                             scenario: selectedScenario,
                                             numberOfSimulations: simulationCount
                                         }),
                                     });
-                                    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-                                    // optional: read the response so you know chartData is set
-                                    await res.json();
-
-                                    // 2) only now navigate to the results page
+                                    
+                                    if (!res.ok) throw new Error(`HTTP ${res.status}: ${await res.text()}`);
+                                    
+                                    // 2) Wait for the response and store the data
+                                    const responseData = await res.json();
+                                    console.log("Simulation completed successfully");
+                                    
+                                    // 3) Ensure we get valid data returned
+                                    if (!responseData.timestamp) {
+                                        throw new Error("Simulation completed but response is missing timestamp");
+                                    }
+                                    
+                                    if (!responseData.chartData) {
+                                        throw new Error("Simulation completed but chart data is missing");
+                                    }
+                                    
+                                    const hasScenarioData = Object.keys(responseData.chartData)
+                                        .some(key => key.startsWith('Scenario'));
+                                        
+                                    if (!hasScenarioData) {
+                                        throw new Error("Simulation completed but no scenario data was generated");
+                                    }
+                                    
+                                    console.log(`Simulation completed at ${responseData.timestamp}`);
+                                    
+                                    // 4) Make a final GET request to ensure data is accessible
+                                    console.log("Verifying data is accessible...");
+                                    const verifyRes = await fetch('/api/algorithm', { 
+                                        cache: 'no-store',
+                                        headers: { 'Cache-Control': 'no-cache' }
+                                    });
+                                    
+                                    if (!verifyRes.ok) throw new Error(`Verification request failed: ${await verifyRes.text()}`);
+                                    
+                                    const verifyData = await verifyRes.json();
+                                    
+                                    if (!verifyData.chartData) {
+                                        throw new Error("Verification failed: Response missing chart data");
+                                    }
+                                    
+                                    const hasVerifiedScenarioData = Object.keys(verifyData.chartData)
+                                        .some(key => key.startsWith('Scenario'));
+                                        
+                                    if (!hasVerifiedScenarioData) {
+                                        throw new Error("Verification failed: No scenario data found");
+                                    }
+                                    
+                                    console.log("Data verification successful, navigating to results...");
+                                    
+                                    // 5) Navigate to results page
                                     router.push('/charts-results');
+                                    
                                 } catch (err) {
                                     console.error('Simulation error:', err);
+                                    
+                                    // Reset button state if there's an error
+                                    const button = document.activeElement;
+                                    if (button) {
+                                        button.disabled = false;
+                                        button.innerText = "Begin";
+                                    }
+                                    
+                                    alert(`Error running simulation: ${err.message}\n\nPlease try again.`);
                                 }
                             }}
                         >
