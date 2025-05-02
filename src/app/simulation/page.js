@@ -181,12 +181,29 @@ const SimulationPage = () => {
                     {/* Button to begin the simulation, enabled only when a scenario and simulation type are selected */}
                     <div className="flex justify-end">
                         <button
-                            className={`px-8 py-3 rounded-md font-medium ${selectedScenario
-                                ? 'bg-black text-white hover:bg-gray-800 hover:cursor-pointer'
-                                : 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                                } transition-colors duration-200`}
+                            className={`px-8 py-3 rounded-md font-medium ${selectedScenario ? 'bg-black text-white hover:bg-gray-800 cursor-pointer' : 'bg-gray-100 text-gray-400 cursor-not-allowed'} transition-colors duration-200`}
                             disabled={!selectedScenario}
-                            onClick={() => handleBeginSimulation(selectedScenario, simulationCount)}
+                            onClick={async () => {
+                                try {
+                                    // 1) run the simulation on the server
+                                    const res = await fetch('/api/algorithm', {
+                                        method: 'POST',
+                                        headers: { 'Content-Type': 'application/json' },
+                                        body: JSON.stringify({
+                                            scenario: selectedScenario,
+                                            numberOfSimulations: simulationCount
+                                        }),
+                                    });
+                                    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                                    // optional: read the response so you know chartData is set
+                                    await res.json();
+
+                                    // 2) only now navigate to the results page
+                                    router.push('/charts-results');
+                                } catch (err) {
+                                    console.error('Simulation error:', err);
+                                }
+                            }}
                         >
                             Begin
                         </button>

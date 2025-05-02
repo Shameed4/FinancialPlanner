@@ -4,7 +4,7 @@ import { useSession, signOut } from 'next-auth/react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { House, Infinity, SquareActivity, CircleUserRound, LogIn, LogOut, ChartArea } from "lucide-react";
+import { House, Infinity, SquareActivity, LogIn, LogOut, ChartSpline, ChartScatter } from "lucide-react";
 
 // Navigation item component with animated label based on sidebar collapse state.
 const NavItem = ({ icon, label, isCollapsed, onClick, isActive }) => (
@@ -131,6 +131,24 @@ const Sidebar = () => {
                     </li>
                     <li>
                         <NavItem
+                            icon={<ChartSpline size={20} />}
+                            label="1D Parameter Exploration"
+                            isCollapsed={isCollapsed}
+                            onClick={() => navigateTo('/')}
+                            isActive={router.pathname === '/'}
+                        />
+                    </li>
+                    <li>
+                        <NavItem
+                            icon={<ChartScatter size={20} />}
+                            label="2D Parameter Exploration"
+                            isCollapsed={isCollapsed}
+                            onClick={() => navigateTo('/')}
+                            isActive={router.pathname === '/'}
+                        />
+                    </li>
+                    {/* <li>
+                        <NavItem
                             icon={<ChartArea size={20} />}
                             label="Charts and Results"
                             isCollapsed={isCollapsed}
@@ -138,7 +156,7 @@ const Sidebar = () => {
                             isActive={router.pathname === '/charts-results'}
                         />
                     </li>
-                    {/* isAuthenticated && (
+                    isAuthenticated && (
                         <li>
                             <NavItem
                                 icon={<CircleUserRound size={20} />}

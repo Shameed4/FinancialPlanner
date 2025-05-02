@@ -14,7 +14,7 @@ export async function POST(request: Request) {
     const simulationResults = await runAlgorithm(scenario, Number(numberOfSimulations));
 
     // Return the simulation results in the response.
-    return NextResponse.json({ result: simulationResults }, { status: 200 });
+    return NextResponse.json({ result: simulationResults, chartData }, { status: 200 });
   } 
   catch (error: any) {
     console.error('Simulation API error:', error);
@@ -27,5 +27,8 @@ export async function POST(request: Request) {
 
 // GET endpoint that returns the in-memory chartData
 export async function GET(request: Request) {
+  //console.log("hi1");
+  //console.log(chartData);
+  //console.log("hi2");
   return NextResponse.json({ chartData }, { status: 200 })
 }
