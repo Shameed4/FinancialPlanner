@@ -371,7 +371,7 @@ const transformScenarioForFrontend = (scenario: any) => {
     investEventDetails?: InvestEventDetails & { AssetAllocation: any },
     rebalanceEventDetails?: RebalanceEventDetails & { AssetAllocation: any }
   }) => {
-    console.log("Event series:", es);
+    // console.log("Event series:", es);
     const baseEvent = {
       name: es.name,
       description: es.description,
@@ -544,7 +544,7 @@ const transformScenarioForFrontend = (scenario: any) => {
   // Convert map values to array
   const transformedAssetTypes = Array.from(assetTypeMap.values());
 
-  console.log("InvestmentScenario: ", scenario.investmentScenario);
+  // console.log("InvestmentScenario: ", scenario.investmentScenario);
   const transformedInvestments = scenario.investmentScenario?.map((is: any) => ({
     assetType: is.investment.assetType.name,
     value: is.investment.value,
@@ -722,7 +722,7 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const ownerId = body.userEmail;
 
-    console.log("Post body: ", body);
+    // console.log("Post body: ", body);
 
     if (!ownerId) {
       return NextResponse.json({ status: 400, error: 'User email is required' });

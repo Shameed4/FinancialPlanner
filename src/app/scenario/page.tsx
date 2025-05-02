@@ -113,7 +113,7 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel, initialData = null }: 
 
     const validateStep = (step: number) => {
         const newErrors: Record<string, string> = {};
-        console.log(JSON.stringify(formData));
+        // console.log(JSON.stringify(formData));
         switch (step) {
             case 1:
                 if (!formData.name) newErrors.name = 'Name is required';
@@ -2429,7 +2429,7 @@ const ScenarioPage = () => {
             const data = await response.json();
 
             if (data.status === 200) {
-                console.log(`Setting scenarios to ${data.result}`);
+                // console.log(`Setting scenarios to ${data.result}`);
                 // console.log(data.result);
                 setScenarios(data.result);
             } else {
@@ -2462,7 +2462,7 @@ const ScenarioPage = () => {
                 rothOptimizationEndYear: newScenario.rothOptimizationEndYear || null
             };
 
-            console.log("Scenario data", scenarioData);
+            // console.log("Scenario data", scenarioData);
 
             const response = await fetch('/api/scenarios', {
                 method: 'POST',
