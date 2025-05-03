@@ -232,7 +232,7 @@ function buildStackedData(simulations = {}, years, { category, measure, threshol
       if (category === 'investments' && taxStatus[key]) {
         label = `${key} (${taxStatus[key]})`
       }
-      
+
       finalSeries.push({
         label,
         data: values,
@@ -244,8 +244,8 @@ function buildStackedData(simulations = {}, years, { category, measure, threshol
 
   // Add "Other" category if it has any values
   if (other.some(v => v > 0)) {
-    finalSeries.push({ 
-      label: 'Other', 
+    finalSeries.push({
+      label: 'Other',
       data: other,
       originalValues: other
     })
@@ -358,78 +358,18 @@ const DetailedView = ({ result, onBack, financialGoal }) => {
             tickFormatter: formatValue
           }]}
           series={[
-            // Layer 1 (lightest, 10-90 percentile)
-            {
-              data: ranges.p90,
-              area: true,
-              showMark: false,
-              label: '90th',
-              color: 'rgba(33, 150, 243, 0.1)',
-              areaOpacity: 0.1
-            },
-            {
-              data: ranges.p10,
-              area: true,
-              showMark: false,
-              label: '10th',
-              areaOpacity: 0.1
-            },
-            // Layer 2 (20-80 percentile)
-            {
-              data: ranges.p80,
-              area: true,
-              showMark: false,
-              label: '80th',
-              color: 'rgba(33, 150, 243, 0.2)',
-              areaOpacity: 0.2
-            },
-            {
-              data: ranges.p20,
-              area: true,
-              showMark: false,
-              label: '20th',
-              areaOpacity: 0.2
-            },
-            // Layer 3 (30-70 percentile)
-            {
-              data: ranges.p70,
-              area: true,
-              showMark: false,
-              label: '70th',
-              color: 'rgba(33, 150, 243, 0.3)',
-              areaOpacity: 0.3
-            },
-            {
-              data: ranges.p30,
-              area: true,
-              showMark: false,
-              label: '30th',
-              areaOpacity: 0.3
-            },
-            // Layer 4 (darkest, 40-60 percentile)
-            {
-              data: ranges.p60,
-              area: true,
-              showMark: false,
-              label: '60th',
-              color: 'rgba(33, 150, 243, 0.4)',
-              areaOpacity: 0.4
-            },
-            {
-              data: ranges.p40,
-              area: true,
-              showMark: false,
-              label: '40th',
-              areaOpacity: 0.4
-            },
-            // Median line (50th percentile)
-            {
-              data: ranges.p50,
-              label: 'Median',
-              color: '#2196f3',
-              lineWidth: 2,
-              showMark: false
-            },
+            // Outer extremes
+            { data: ranges.p10, area: true, showMark: false, label: '10th', color: 'rgba(33,150,243,0.1)', areaOpacity: 0.1 },
+            { data: ranges.p20, area: true, showMark: false, label: '20th', color: 'rgba(33,150,243,0.2)', areaOpacity: 0.2 },
+            { data: ranges.p30, area: true, showMark: false, label: '30th', color: 'rgba(33,150,243,0.3)', areaOpacity: 0.3 },
+            { data: ranges.p40, area: true, showMark: false, label: '40th', color: 'rgba(33,150,243,0.4)', areaOpacity: 0.4 },
+            // Median
+            { data: ranges.p50, label: 'Median', color: '#2196f3', lineWidth: 2, showMark: false },
+            // Upper half
+            { data: ranges.p60, area: true, showMark: false, label: '60th', color: 'rgba(33,150,243,0.4)', areaOpacity: 0.4 },
+            { data: ranges.p70, area: true, showMark: false, label: '70th', color: 'rgba(33,150,243,0.3)', areaOpacity: 0.3 },
+            { data: ranges.p80, area: true, showMark: false, label: '80th', color: 'rgba(33,150,243,0.2)', areaOpacity: 0.2 },
+            { data: ranges.p90, area: true, showMark: false, label: '90th', color: 'rgba(33,150,243,0.1)', areaOpacity: 0.1 },
             // Financial goal line (if applicable)
             ...(selectedQuantity === 'total_investments' && financialGoal ? [
               {
@@ -493,38 +433,21 @@ const DetailedView = ({ result, onBack, financialGoal }) => {
               position: 'bottom'
             },
             tooltip: {
-              trigger: 'item',
-              formatter: (value, seriesName, series, index) => {
-                const dataIndex = index;
-                const seriesIndex = stackedData.series.findIndex(s => s.label === series.label);
-                
-                if (seriesIndex !== -1 && stackedData.series[seriesIndex].originalValues) {
-                  const originalValue = stackedData.series[seriesIndex].originalValues[dataIndex];
-                  
-                  // Calculate total for this year
-                  const yearTotal = stackedData.series.reduce((sum, s) => {
-                    return sum + (s.originalValues ? s.originalValues[dataIndex] : 0);
-                  }, 0);
-                  
-                  // Format the values
-                  const formattedValue = formatDollar(originalValue);
-                  const formattedTotal = formatDollar(yearTotal);
-                  const percentage = ((originalValue / yearTotal) * 100).toFixed(1);
-                  
-                  return {
-                    title: `Year ${stackedData.labels[dataIndex]}`,
-                    items: [
-                      { label: series.label, value: formattedValue },
-                      { label: 'Percentage', value: `${percentage}%` },
-                      { label: 'Total', value: formattedTotal }
-                    ]
-                  };
-                }
-                
+              // change trigger to 'axis' so it groups all stacks for a given year
+              trigger: 'axis',
+              axisPointer: { type: 'shadow' },
+              // formatter now receives an array of all series at that category
+              formatter: (params) => {
+                // params is an array of { seriesName, data, axisValue } for each stack
+                const year = params[0]?.axisValue
+                const items = params.map(p => ({
+                  label: p.seriesName,
+                  value: formatDollar(p.data)
+                }))
                 return {
-                  title: `Year ${stackedData.labels[dataIndex]}`,
-                  items: [{ label: series.label, value: formatDollar(value) }]
-                };
+                  title: `Year ${year}`,
+                  items
+                }
               }
             }
           }}
@@ -570,10 +493,10 @@ export default function ChartsAndResultsPage() {
 
       if (data.chartData) {
         // Instead of hardcoding "Scenario ID 1", find the most recent scenario
-        const scenarioKeys = Object.keys(data.chartData).filter(key => 
+        const scenarioKeys = Object.keys(data.chartData).filter(key =>
           key.startsWith('Scenario ID')
         );
-        
+
         if (scenarioKeys.length > 0) {
           // Get the most recently added scenario
           const targetScenario = scenarioKeys[scenarioKeys.length - 1];
@@ -695,5 +618,5 @@ export default function ChartsAndResultsPage() {
         </div>
       )}
     </motion.div>
-  );
+  )
 }
