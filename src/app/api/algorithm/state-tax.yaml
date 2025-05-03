@@ -297,3 +297,117 @@ CT:
     - min: 800000.01
       max: null
       rate: 6.99
+
+CA:
+  single:
+    - min: 0
+      max: 10099
+      rate: 1
+    - min: 10100
+      max: 23942
+      rate: 2
+    - min: 23943
+      max: 37788
+      rate: 4
+    - min: 37789
+      max: 52455
+      rate: 6
+    - min: 52456
+      max: 66295
+      rate: 8
+    - min: 66296
+      max: 338639
+      rate: 9.3
+    - min: 338640
+      max: 406364
+      rate: 10.3
+    - min: 406365
+      max: 677275
+      rate: 11.3
+    - min: 677276
+      max: null
+      rate: 12.3
+  married-joint:
+    - min: 0
+      max: 20198
+      rate: 1
+    - min: 20199
+      max: 47884
+      rate: 2
+    - min: 47885
+      max: 75576
+      rate: 4
+    - min: 75577
+      max: 104910
+      rate: 6
+    - min: 104911
+      max: 132590
+      rate: 8
+    - min: 132591
+      max: 677278
+      rate: 9.3
+    - min: 677279
+      max: 812728
+      rate: 10.3
+    - min: 812729
+      max: 1354550
+      rate: 11.3
+    - min: 1354551
+      max: null
+      rate: 12.3
+  married-separate:
+    - min: 0
+      max: 10099
+      rate: 1
+    - min: 10100
+      max: 23942
+      rate: 2
+    - min: 23943
+      max: 37788
+      rate: 4
+    - min: 37789
+      max: 52455
+      rate: 6
+    - min: 52456
+      max: 66295
+      rate: 8
+    - min: 66296
+      max: 338639
+      rate: 9.3
+    - min: 338640
+      max: 406364
+      rate: 10.3
+    - min: 406365
+      max: 677275
+      rate: 11.3
+    - min: 677276
+      max: null
+      rate: 12.3
+  head-of-household:
+    - min: 0
+      max: 20212
+      rate: 1
+    - min: 20213
+      max: 47887
+      rate: 2
+    - min: 47888
+      max: 61730
+      rate: 4
+    - min: 61731
+      max: 76397
+      rate: 6
+    - min: 76398
+      max: 90240
+      rate: 8
+    - min: 90241
+      max: 460547
+      rate: 9.3
+    - min: 460548
+      max: 552658
+      rate: 10.3
+    - min: 552659
+      max: 921095
+      rate: 11.3
+    - min: 921096
+      max: null
+      rate: 12.3

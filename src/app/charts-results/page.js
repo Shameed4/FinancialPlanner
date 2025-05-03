@@ -166,6 +166,21 @@ function buildStackedData(simulations = {}, years, { category, measure, threshol
     })
   })
 
+  // Get tax status for investment accounts (if category is investments)
+  const taxStatus = {}
+  if (category === 'investments') {
+    Object.values(simulations).forEach(sim => {
+      Object.values(sim).forEach(yearData => {
+        Object.keys(yearData).forEach(key => {
+          if (key.endsWith(" Tax Status") && yearData[key]) {
+            const investmentName = key.replace(" Tax Status", " Type Total")
+            taxStatus[investmentName] = yearData[key]
+          }
+        })
+      })
+    })
+  }
+
   // Compute per-year values for each segment
   const segments = {}
   allKeys.forEach(key => {
@@ -195,22 +210,45 @@ function buildStackedData(simulations = {}, years, { category, measure, threshol
   let other = Array(years.length).fill(0)
   const finalSeries = []
 
-  Object.entries(segments).forEach(([key, values]) => {
+  // Sort keys by tax status to ensure adjacent segments for same tax status
+  let sortedKeys = Array.from(allKeys)
+  if (category === 'investments') {
+    sortedKeys.sort((a, b) => {
+      const statusA = taxStatus[a] || 'unknown'
+      const statusB = taxStatus[b] || 'unknown'
+      return statusA.localeCompare(statusB)
+    })
+  }
+
+  sortedKeys.forEach(key => {
+    const values = segments[key]
     const maxValue = Math.max(...values)
     if (maxValue < threshold) {
       // Add to "Other" category
       other = other.map((val, idx) => val + values[idx])
     } else {
+      let label = key
+      // Add tax status indicator for investments
+      if (category === 'investments' && taxStatus[key]) {
+        label = `${key} (${taxStatus[key]})`
+      }
+      
       finalSeries.push({
-        label: key,
-        data: values
+        label,
+        data: values,
+        // Store original values for tooltips
+        originalValues: values.map(v => v)
       })
     }
   })
 
   // Add "Other" category if it has any values
   if (other.some(v => v > 0)) {
-    finalSeries.push({ label: 'Other', data: other })
+    finalSeries.push({ 
+      label: 'Other', 
+      data: other,
+      originalValues: other
+    })
   }
 
   return {
@@ -453,12 +491,47 @@ const DetailedView = ({ result, onBack, financialGoal }) => {
           slotProps={{
             legend: {
               position: 'bottom'
+            },
+            tooltip: {
+              trigger: 'item',
+              formatter: (value, seriesName, series, index) => {
+                const dataIndex = index;
+                const seriesIndex = stackedData.series.findIndex(s => s.label === series.label);
+                
+                if (seriesIndex !== -1 && stackedData.series[seriesIndex].originalValues) {
+                  const originalValue = stackedData.series[seriesIndex].originalValues[dataIndex];
+                  
+                  // Calculate total for this year
+                  const yearTotal = stackedData.series.reduce((sum, s) => {
+                    return sum + (s.originalValues ? s.originalValues[dataIndex] : 0);
+                  }, 0);
+                  
+                  // Format the values
+                  const formattedValue = formatDollar(originalValue);
+                  const formattedTotal = formatDollar(yearTotal);
+                  const percentage = ((originalValue / yearTotal) * 100).toFixed(1);
+                  
+                  return {
+                    title: `Year ${stackedData.labels[dataIndex]}`,
+                    items: [
+                      { label: series.label, value: formattedValue },
+                      { label: 'Percentage', value: `${percentage}%` },
+                      { label: 'Total', value: formattedTotal }
+                    ]
+                  };
+                }
+                
+                return {
+                  title: `Year ${stackedData.labels[dataIndex]}`,
+                  items: [{ label: series.label, value: formatDollar(value) }]
+                };
+              }
             }
           }}
         />
         {stackOpts.category === 'investments' && (
           <p className="text-xs text-gray-500 mt-2">
-            Note: Investment tax status (taxable/tax-advantaged) is not shown due to data limitations.
+            Investment accounts show tax status in parentheses where available.
           </p>
         )}
       </div>
@@ -496,10 +569,16 @@ export default function ChartsAndResultsPage() {
       console.log("Chart data response:", data.timestamp);
 
       if (data.chartData) {
-        // Always use Scenario ID 1
-        const targetScenario = "Scenario ID 1";
+        // Instead of hardcoding "Scenario ID 1", find the most recent scenario
+        const scenarioKeys = Object.keys(data.chartData).filter(key => 
+          key.startsWith('Scenario ID')
+        );
+        
+        if (scenarioKeys.length > 0) {
+          // Get the most recently added scenario
+          const targetScenario = scenarioKeys[scenarioKeys.length - 1];
+          console.log("Using scenario:", targetScenario);
 
-        if (data.chartData[targetScenario]) {
           // Store just the simulation data
           const simulationData = data.chartData[targetScenario];
           setChartData(simulationData);
@@ -508,8 +587,8 @@ export default function ChartsAndResultsPage() {
           setSelected(makeResultObject(targetScenario, simulationData));
           return true;
         } else {
-          console.error("Scenario ID 1 not found in the data");
-          setError("Scenario ID 1 not found in the data");
+          console.error("No scenario data found");
+          setError("No scenario data found");
           return false;
         }
       }

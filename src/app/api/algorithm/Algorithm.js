@@ -52,8 +52,15 @@ export async function runAlgorithm(selectedScenarioData, numSimulations) {
   let scenarioId = selectedScenarioData.id;
   const simulationResults = {};
 
+  // Format the scenario ID consistently
+  const scenarioKey = `Scenario ID ${scenarioId}`;
+  
   // Clear previous results for this scenario to ensure fresh data
-  delete chartData[`Scenario ID ${scenarioId}`];
+  delete chartData[scenarioKey];
+
+  // Add timestamp for when this scenario was run
+  chartData.lastUpdatedScenario = scenarioKey;
+  chartData.lastUpdatedTimestamp = new Date().toISOString();
 
   for (let i = 1; i < numSimulations + 1; i++) {
     simulationResults[`Simulation ${i}`] = {};
@@ -62,7 +69,7 @@ export async function runAlgorithm(selectedScenarioData, numSimulations) {
     simulationResults[`Simulation ${i}`] = result;
 
     // Update chartData with the current simulation results
-    chartData[`Scenario ID ${scenarioId}`] = simulationResults;
+    chartData[scenarioKey] = simulationResults;
 
     console.log(`Simulation ${i} completed`);
   }

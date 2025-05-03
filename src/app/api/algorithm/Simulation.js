@@ -1561,6 +1561,7 @@ export async function loadTaxData() {
       NY: stateTaxData.NY,
       NJ: stateTaxData.NJ,
       CT: stateTaxData.CT,
+      CA: stateTaxData.CA
     };
 
     // Replace null with Infinity in state brackets
