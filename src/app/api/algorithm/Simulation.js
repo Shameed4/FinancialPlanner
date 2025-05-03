@@ -814,7 +814,7 @@ export default async function runSimulation(initialState) {
     const fedBracketsForStatus = previousFedBrackets[filingStatus];
 
     if (fedBracketsForStatus && fedBracketsForStatus.length > 0) {
-      prevYearFedTax = calculateMarginalTax(prevYearFedTaxableIncome, fedBracketsForStatus);
+      prevYearFedTax = calculateMarginalTax(prevYearIncomeAfterDeduction, fedBracketsForStatus);
     } else {
       prevYearFedTax = 0;
       // console.warn(`Year ${params.curYear}: Missing or empty federal tax brackets for status ${filingStatus} for previous year tax calculation.`);
@@ -1412,7 +1412,7 @@ export default async function runSimulation(initialState) {
     resObject[params.curYear].totInvestments = computeTotalAssets(state);
     resObject[params.curYear].totIncome = params.totalIncome;
     resObject[params.curYear].totExpenses = params.totalExpenses;
-    resObject[params.curYear].earlyWithdrawalTax = params.curYearEarlyWithdrawals;
+    resObject[params.curYear].earlyWithdrawalTax = params.curYearEarlyWithdrawals * 0.1;
     resObject[params.curYear].totDiscExpensePercent = (params.totalDiscExpenses / params.totalExpenses) * 100;
     state.assetTypes.forEach(assetType => {
       resObject[params.curYear][`${assetType.name} Type Total`] = assetTotals[assetType.name];
