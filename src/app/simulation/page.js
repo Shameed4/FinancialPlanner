@@ -91,6 +91,7 @@ const SimulationPage = () => {
     const [selectedScenario, setSelectedScenario] = useState(null);
     const [simulationCount, setSimulationCount] = useState(5);
     const [scenarios, setScenarios] = useState([]);
+    const [isRunning, setIsRunning] = useState(false);
     const { data: session } = useSession();
 
     useEffect(() => {
@@ -109,8 +110,18 @@ const SimulationPage = () => {
             initial="initial"
             animate="animate"
             exit="exit"
-            className="p-8"
+            className="p-8 relative"
         >
+            {isRunning && (
+                <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center">
+                    <div className="bg-white p-8 rounded-lg shadow-xl text-center">
+                        <div className="inline-block h-12 w-12 animate-spin rounded-full border-4 border-solid border-blue-600 border-r-transparent mb-4"></div>
+                        <p className="text-lg font-semibold">Running simulation...</p>
+                        <p className="text-sm text-gray-600 mt-2">This may take a few seconds</p>
+                    </div>
+                </div>
+            )}
+
             <div className="flex justify-between items-center mb-8">
                 <h1 className="text-3xl font-bold text-gray-900">Your Scenario</h1>
                 {scenarios.length === 0 && (
@@ -119,6 +130,14 @@ const SimulationPage = () => {
                         className="px-6 py-2 rounded-md bg-gray-900 text-white hover:bg-gray-800 cursor-pointer"
                     >
                         Create a Scenario
+                    </button>
+                )}
+                {scenarios.length > 0 && (
+                    <button
+                        onClick={() => router.push('/exploration-1d')}
+                        className="px-6 py-2 rounded-md bg-blue-600 text-white hover:bg-blue-700 cursor-pointer"
+                    >
+                        Explore Parameters
                     </button>
                 )}
             </div>
@@ -185,7 +204,10 @@ const SimulationPage = () => {
                             disabled={!selectedScenario}
                             onClick={async () => {
                                 try {
-                                    // Show loading state
+                                    // Show loading overlay
+                                    setIsRunning(true);
+
+                                    // Show loading state on button
                                     const button = document.activeElement;
                                     if (button) {
                                         button.disabled = true;
@@ -232,6 +254,15 @@ const SimulationPage = () => {
 
                                     console.log(`Simulation completed at ${responseData.timestamp}`);
 
+                                    // Save data to session storage to ensure it's available after navigation
+                                    try {
+                                        sessionStorage.setItem('simulationData', JSON.stringify(responseData));
+                                        console.log("Simulation data saved to session storage");
+                                    } catch (storageErr) {
+                                        console.warn("Failed to save to session storage:", storageErr);
+                                        // Continue even if storage fails
+                                    }
+
                                     // 4) Make a final GET request to ensure data is accessible
                                     console.log("Verifying data is accessible...");
                                     const verifyRes = await fetch('/api/algorithm', {
@@ -256,11 +287,24 @@ const SimulationPage = () => {
 
                                     console.log("Data verification successful, navigating to results...");
 
-                                    // 5) Navigate to results page
-                                    router.push('/charts-results');
+                                    // Reset button state before navigation
+                                    if (button) {
+                                        button.disabled = false;
+                                        button.innerText = "Begin";
+                                    }
+
+                                    // Add a longer delay to ensure data is fully processed
+                                    await new Promise(resolve => setTimeout(resolve, 1000));
+
+                                    // 5) Navigate to results page with a query parameter to avoid caching issues
+                                    const timestamp = new Date().getTime();
+                                    router.push(`/charts-results?t=${timestamp}`);
 
                                 } catch (err) {
                                     console.error('Simulation error:', err);
+
+                                    // Hide loading overlay
+                                    setIsRunning(false);
 
                                     // Reset button state if there's an error
                                     const button = document.activeElement;
