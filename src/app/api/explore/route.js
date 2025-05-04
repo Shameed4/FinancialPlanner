@@ -9,8 +9,14 @@ export async function POST(request) {
         // Extract the baseline and modified scenarios
         const { baselineScenario, modifiedScenario, parameterInfo, numberOfSimulations, baseSeed } = data;
 
-        console.log('- Baseline Scenario:', baselineScenario?.name, '(ID:', baselineScenario?.id, ')');
-        console.log('- Modified Scenario:', modifiedScenario?.name, '(ID:', modifiedScenario?.id, ')');
+        console.log('Received baselineScenario:');
+        console.log(JSON.stringify(baselineScenario, null, 2));
+
+        console.log('Received modifiedScenario:');
+        console.log(JSON.stringify(modifiedScenario, null, 2));
+
+        console.log('Parameter Info:');
+        console.log(JSON.stringify(parameterInfo, null, 2));
 
         // --- Basic Validation ---
         if (!baselineScenario || typeof baselineScenario !== 'object' || baselineScenario === null) {
