@@ -28,7 +28,7 @@ const FormSection = ({ title, children, isActive, errors = {} }: { title: string
     if (!isActive) return null;
 
     const hasErrors = Object.keys(errors).length > 0;
-    console.log(JSON.stringify(errors));
+    // console.log(JSON.stringify(errors));
 
     return (
         <motion.div
@@ -113,7 +113,7 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel, initialData = null }: 
 
     const validateStep = (step: number) => {
         const newErrors: Record<string, string> = {};
-        console.log(JSON.stringify(formData));
+        console.log(formData);
         switch (step) {
             case 1:
                 if (!formData.name) newErrors.name = 'Name is required';
@@ -398,42 +398,9 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel, initialData = null }: 
                 // Ensure rmdStrategy and rothConversionStrategy are properly assigned
                 const processedFormData = { ...formData };
 
-                // Normalize withdrawal orders (ensure consecutive 1-n)
-                if (processedFormData.investments?.length > 0) {
-                    // Create a copy with parsed integer values
-                    const sortedInvestments = [...processedFormData.investments]
-                        .map((inv, idx) => ({
-                            ...inv,
-                            originalIndex: idx,
-                            rmdStrategy: inv.rmdStrategy || idx + 1
-                        }))
-                        .sort((a, b) => a.rmdStrategy - b.rmdStrategy);
-
-                    // Reassign sequential orders (1, 2, 3, ...)
-                    sortedInvestments.forEach((inv, idx) => {
-                        processedFormData.investments[inv.originalIndex].rmdStrategy = idx + 1;
-                    });
-
-                    // Normalize Roth conversion orders for pre-tax investments
-                    const preTaxInvestments = processedFormData.investments
-                        .filter(inv => inv.taxStatus === 'pre-tax-retirement')
-                        .map((inv, idx) => ({
-                            ...inv,
-                            originalIndex: processedFormData.investments.findIndex(
-                                item => item.assetType === inv.assetType
-                            ),
-                            rothConversionStrategy: inv.rothConversionStrategy || idx
-                        }))
-                        .sort((a, b) => a.rothConversionStrategy - b.rothConversionStrategy);
-
-                    // Reassign sequential orders (1, 2, 3, ...)
-                    preTaxInvestments.forEach((inv, idx) => {
-                        processedFormData.investments[inv.originalIndex].rothConversionStrategy = idx + 1;
-                    });
-                }
-
                 // Convert specific numeric fields to numbers, preserving string fields
                 const prepareFormDataForSubmission = (data: StringScenarioFormData) => {
+                    console.log("Submitted data before processing:", data);
                     // List of field paths that should be converted to numbers
                     const numericFields = [
                         // Basic information
@@ -2193,37 +2160,30 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel, initialData = null }: 
 
                     <div className="mb-4">
                         <label className="block text-sm font-medium text-gray-700 mb-1">RMD</label>
-                        <p className="text-sm text-gray-500 mb-2">Order your investments for RMDs (1 = first, 2 = second, etc.)</p>
+                        <p className="text-sm text-gray-500 mb-2">
+                            Order your investments for RMDs (1 = first, 2 = second, etc.)
+                        </p>
                         <div className="space-y-2">
-                            {formData.investments?.filter(inv => inv.taxStatus === 'pre-tax-retirement').map((investment) => {
-                                const investmentIndex = formData.investments.findIndex(inv => inv.assetType === investment.assetType && inv.taxStatus == 'pre-tax-retirement');
+                            {formData.investments?.map((investment, originalIndex) => {
+                                if (investment.taxStatus !== 'pre-tax-retirement') return null;
+
+                                const preTaxCount = formData.investments.filter(inv => inv.taxStatus === 'pre-tax-retirement').length;
 
                                 return (
-                                    <div key={investment.assetType} className="flex items-center gap-2 bg-gray-50 p-2 rounded">
+                                    <div key={originalIndex} className="flex items-center gap-2 bg-gray-50 p-2 rounded">
                                         <span className="flex-1 text-black">
                                             {investment.assetType} ({investment.taxStatus})
                                         </span>
                                         <input
                                             type="number"
                                             min="1"
-                                            max={formData.investments?.filter(inv => inv.taxStatus === 'pre-tax-retirement').length || 1}
+                                            max={preTaxCount}
                                             value={investment.rmdStrategy || ""}
                                             onChange={(e) => {
                                                 const newInvestments = [...formData.investments];
+                                                const val = e.target.value;
 
-                                                if (e.target.value === "") {
-                                                    newInvestments[investmentIndex].rmdStrategy = "";
-                                                    setFormData({ ...formData, investments: newInvestments });
-                                                    return;
-                                                }
-
-                                                const newOrder = parseInt(e.target.value);
-
-                                                if (isNaN(newOrder) || newOrder < 1 || newOrder > formData.investments.filter(inv => inv.taxStatus === 'pre-tax-retirement').length) {
-                                                    return;
-                                                }
-
-                                                newInvestments[investmentIndex].rmdStrategy = newOrder + "";
+                                                newInvestments[originalIndex].rmdStrategy = val === "" ? "" : String(parseInt(val));
                                                 setFormData({ ...formData, investments: newInvestments });
                                             }}
                                             className="w-20 p-1 border rounded text-black"
@@ -2237,49 +2197,41 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel, initialData = null }: 
 
                     <div className="mb-4">
                         <label className="block text-sm font-medium text-gray-700 mb-1">Roth Conversion Strategy</label>
-                        <p className="text-sm text-gray-500 mb-2">Order your pre-tax investments for Roth conversion (1 = first, 2 = second, etc.)</p>
+                        <p className="text-sm text-gray-500 mb-2">
+                            Order your pre-tax investments for Roth conversion (1 = first, 2 = second, etc.)
+                        </p>
                         <div className="space-y-2">
-                            {formData.investments
-                                ?.filter(inv => inv.taxStatus === 'pre-tax-retirement')
-                                .map((investment) => {
-                                    const investmentIndex = formData.investments.findIndex(inv => inv.assetType === investment.assetType && inv.taxStatus === 'pre-tax-retirement');
+                            {formData.investments?.map((investment, originalIndex) => {
+                                if (investment.taxStatus !== 'pre-tax-retirement') return null;
 
-                                    return (
-                                        <div key={investment.assetType} className="flex items-center gap-2 bg-gray-50 p-2 rounded">
-                                            <span className="flex-1 text-gray-500">{investment.assetType}</span>
-                                            <input
-                                                type="number"
-                                                min="1"
-                                                max={formData.investments?.filter(inv => inv.taxStatus === 'pre-tax-retirement').length || 1}
-                                                value={investment.rothConversionStrategy || ''}
-                                                onChange={(e) => {
-                                                    const newInvestments = [...formData.investments];
+                                const preTaxCount = formData.investments.filter(inv => inv.taxStatus === 'pre-tax-retirement').length;
 
-                                                    if (e.target.value === '') {
-                                                        newInvestments[investmentIndex].rothConversionStrategy = '';
-                                                        setFormData({ ...formData, investments: newInvestments });
-                                                        return;
-                                                    }
+                                return (
+                                    <div key={originalIndex} className="flex items-center gap-2 bg-gray-50 p-2 rounded">
+                                        <span className="flex-1 text-gray-500">
+                                            {investment.assetType} ({investment.taxStatus})
+                                        </span>
+                                        <input
+                                            type="number"
+                                            min="1"
+                                            max={preTaxCount}
+                                            value={investment.rothConversionStrategy || ""}
+                                            onChange={(e) => {
+                                                const newInvestments = [...formData.investments];
+                                                const val = e.target.value;
 
-                                                    const newOrder = parseInt(e.target.value);
-
-                                                    const preTaxInvestments = newInvestments.filter(inv => inv.taxStatus === 'pre-tax-retirement');
-
-                                                    if (isNaN(newOrder) || newOrder < 1 || newOrder > preTaxInvestments.length) {
-                                                        return;
-                                                    }
-
-                                                    newInvestments[investmentIndex].rothConversionStrategy = newOrder + '';
-                                                    setFormData({ ...formData, investments: newInvestments });
-                                                }}
-                                                className="w-20 p-1 border rounded"
-                                                placeholder="Order"
-                                            />
-                                        </div>
-                                    );
-                                })}
+                                                newInvestments[originalIndex].rothConversionStrategy = val === "" ? "" : String(parseInt(val));
+                                                setFormData({ ...formData, investments: newInvestments });
+                                            }}
+                                            className="w-20 p-1 border rounded"
+                                            placeholder="Order"
+                                        />
+                                    </div>
+                                );
+                            })}
                         </div>
                     </div>
+
 
                     <div className="mb-4">
                         <label className="block text-sm font-medium text-gray-700 mb-1">Expense Withdrawal Strategy</label>
@@ -2323,7 +2275,7 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel, initialData = null }: 
                                 })}
                         </div>
                     </div>
-                    
+
                     <div className="mb-4">
                         <label className="block text-sm font-medium text-gray-700 mb-1">Spending Strategy</label>
                         <p className="text-sm text-gray-500 mb-2">
