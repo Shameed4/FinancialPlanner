@@ -467,7 +467,10 @@ const ExplorationPage = () => {
                 modifiedScenario.name = `${selectedScenario.name} (${investmentPair.first.name}: ${firstPercentage}%, ${investmentPair.second.name}: ${secondPercentage}%)`;
 
                 // Add this scenario to our array
-                scenarios.push(modifiedScenario);
+                scenarios.push({
+                    parameterValue: stepValues,
+                    scenario: modifiedScenario
+                });
             });
 
             // Display information about the generated scenarios
@@ -652,28 +655,59 @@ const ExplorationPage = () => {
                     }
                 }
 
-                scenarios.push(modifiedScenario);
+                scenarios.push({
+                    parameterValue: stepValue, // The specific value being tested
+                    scenario: modifiedScenario // The scenario modified for this value
+                });
             });
         } else if (data.parameter === 'rothConversion') {
             // For boolean toggle parameters, just create one modified scenario
-            const modifiedScenario = JSON.parse(JSON.stringify(data.selectedScenario));
-            modifiedScenario.name = `${data.selectedScenario.name} (Roth Conversion: ${data.toggleValue ? 'Enabled' : 'Disabled'})`;
+            const enabledScenario = JSON.parse(JSON.stringify(data.selectedScenario)); // Deep copy
+            enabledScenario.name = `${data.selectedScenario.name} (Roth Conversion: Enabled)`;
 
-            // Update the Roth conversion settings
-            if (data.toggleValue) {
-                // Enable Roth conversion
-                if (!modifiedScenario.rothOptimizationStartYear) {
-                    const currentYear = new Date().getFullYear();
-                    modifiedScenario.rothOptimizationStartYear = currentYear;
-                    modifiedScenario.rothOptimizationEndYear = currentYear + 20; // Default 20-year span
-                }
+            // Set the boolean flag (assuming your backend/simulation uses this)
+            enabledScenario.enableTaxOptimization = true;
+
+            if (enabledScenario.rothOptimizationStartYear === null || enabledScenario.rothOptimizationStartYear === undefined) {
+                const currentYear = new Date().getFullYear();
+                // Convert years to string if your scenario object expects strings
+                enabledScenario.rothOptimizationStartYear = String(currentYear);
+                enabledScenario.rothOptimizationEndYear = String(currentYear + 20); // Default 20-year span
+                console.log(`Setting default RCO years for enabled state: ${enabledScenario.rothOptimizationStartYear}-${enabledScenario.rothOptimizationEndYear}`);
             } else {
-                // Disable Roth conversion
-                modifiedScenario.rothOptimizationStartYear = null;
-                modifiedScenario.rothOptimizationEndYear = null;
+                // Ensure they are strings if needed by backend
+                enabledScenario.rothOptimizationStartYear = String(enabledScenario.rothOptimizationStartYear);
+                enabledScenario.rothOptimizationEndYear = String(enabledScenario.rothOptimizationEndYear);
+                console.log(`Using existing RCO years for enabled state: ${enabledScenario.rothOptimizationStartYear}-${enabledScenario.rothOptimizationEndYear}`);
             }
 
-            scenarios.push(modifiedScenario);
+
+            scenarios.push({
+                parameterValue: true, // The value being tested
+                scenario: enabledScenario
+            });
+
+            // --- Create Scenario for 'false' (Disabled) ---
+            const disabledScenario = JSON.parse(JSON.stringify(data.selectedScenario)); // Deep copy
+            disabledScenario.name = `${data.selectedScenario.name} (Roth Conversion: Disabled)`;
+
+            // Set the boolean flag
+            disabledScenario.enableTaxOptimization = false;
+
+            // Explicitly disable by setting years to null
+            disabledScenario.rothOptimizationStartYear = null;
+            disabledScenario.rothOptimizationEndYear = null;
+            console.log("Set RCO years to null for disabled state.");
+
+            // Add the 'false' case to the scenarios array
+            scenarios.push({
+                parameterValue: false, // The value being tested
+                scenario: disabledScenario
+            });
+
+            // Set stepValues for logging/context
+            stepValues = [true, false];
+            adjustedStepSize = null;
         } else {
             // For other parameter types (amount, date, recurringAmount)
             // Create scenarios based on min, max, step
@@ -741,18 +775,33 @@ const ExplorationPage = () => {
                 }
 
                 modifiedScenario.name = `${data.selectedScenario.name} (${data.parameter}: ${value})`;
-                scenarios.push(modifiedScenario);
+                scenarios.push({
+                    parameterValue: firstPercentage, // The specific value being tested
+                    scenario: modifiedScenario // The scenario modified for this value
+                });
             });
         }
 
         // Prepare data for the backend
+        // const exploreData = {
+        //     scenarios: scenarios,
+        //     simulationCount: simulationCount,
+        //     parameterType: data.parameter,
+        //     changedPath: data.itemName || data.parameter,
+        //     details: data,
+        //     stepValues: stepValues
+        // };
         const exploreData = {
-            scenarios: scenarios,
+            scenarios: scenarios, // Use the correctly structured array
             simulationCount: simulationCount,
-            parameterType: data.parameter,
-            changedPath: data.itemName || data.parameter,
-            details: data,
-            stepValues: stepValues
+            // Add parameterInfo for context
+            parameterInfo: {
+                name: explorationParameters.find(p => p.id === data.parameter)?.name || data.parameter,
+                id: data.parameter,
+                // Add more context if needed
+            },
+            stepValues: stepValues, // Send the values tested
+            // baseSeed: "your-seed-value" // Optional
         };
 
         // Log detailed information about what we're sending

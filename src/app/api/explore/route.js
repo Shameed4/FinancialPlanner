@@ -7,13 +7,11 @@ export async function POST(request) {
         const body = await request.json();
 
         // Extract the data
-        const { scenarios, simulationCount, baseSeed } = body;
+        const { scenarios, simulationCount, parameterType, changedPath, baseSeed } = body;
 
         console.log('========================');
         console.log('RECEIVED EXPLORATION REQUEST:');
         console.log('========================');
-        console.log(`Parameter type: ${parameterType}`);
-        console.log(`Changed path: ${changedPath}`);
         console.log(`Simulation count: ${simulationCount}`);
         console.log(`Number of scenarios: ${scenarios ? scenarios.length : 'N/A'}`);
         console.log('========================');
@@ -57,7 +55,7 @@ export async function POST(request) {
         return NextResponse.json(
             {
                 success: true,
-                message: `Successfully completed 1D exploration for ${explorationRuns.length} parameter values.`,
+                message: `Successfully completed 1D exploration for ${scenarios.length} parameter values.`,
                 results: explorationResults
             },
             { status: 200 }

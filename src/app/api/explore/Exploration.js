@@ -76,13 +76,14 @@ function aggregateSimulationResults(simulationResults, numberOfSimulations) {
 }
 
 
-export async function run1DExploration(explorationRuns, numberOfSimulations, baseSeed = 'exploration-1d-' + Date.now()) {
+export async function run1DExploration(explorationRuns, numberOfSimulationsInput, baseSeed = 'exploration-1d-' + Date.now()) {
     console.log("Starting 1D Exploration (Frontend handles modifications)...");
     const explorationResults = {};
 
     // Consistent ID for this batch run (for workaround)
     const explorationId = `exploration_1d_batch_${Date.now()}`;
     const scenarioKey = `Scenario ID ${explorationId}`;
+    const numberOfSimulations = Math.max(1, parseInt(numberOfSimulationsInput) || 10);
 
     for (let runIndex = 0; runIndex < explorationRuns.length; runIndex++) {
         const run = explorationRuns[runIndex];
@@ -104,7 +105,7 @@ export async function run1DExploration(explorationRuns, numberOfSimulations, bas
         let parameterValueResults = null;
         try {
             console.log(`Calling runAlgorithm for value: ${valueKey}...`);
-            await runAlgorithm(scenario, numberOfSimulations); // Updates global chartData
+            await runAlgorithm(scenario, numberOfSimulations, 4); // Updates global chartData
             console.log(`runAlgorithm completed for value: ${valueKey}.`);
 
             if (chartData && chartData[scenarioKey]) {
@@ -172,7 +173,7 @@ export async function run2DExploration(explorationRuns, numberOfSimulations, bas
         let aggregatedData = null;
         try {
             console.log(`Calling runAlgorithm for combo: ${comboKey}...`);
-            await runAlgorithm(scenario, numberOfSimulations); // Updates global chartData
+            await runAlgorithm(scenario, numberOfSimulations, 4); // Updates global chartData
             console.log(`runAlgorithm completed for combo: ${comboKey}.`);
 
             // 4. Extract Results (Workaround)
