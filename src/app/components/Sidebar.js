@@ -134,8 +134,8 @@ const Sidebar = () => {
                             icon={<ChartSpline size={20} />}
                             label="1D Parameter Exploration"
                             isCollapsed={isCollapsed}
-                            onClick={() => navigateTo('/')}
-                            isActive={router.pathname === '/'}
+                            onClick={() => navigateTo('/exploration-1d')}
+                            isActive={router.pathname === '/exploration-1d'}
                         />
                     </li>
                     <li>
