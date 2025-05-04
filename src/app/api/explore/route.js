@@ -1,83 +1,48 @@
 import { NextResponse } from 'next/server';
-import { runScenarioComparison } from '../explore/Exploration.js'
-
 
 export async function POST(request) {
     try {
-        const data = await request.json();
+        // Parse the JSON body from the request
+        const body = await request.json();
 
-        // Extract the baseline and modified scenarios
-        const { baselineScenario, modifiedScenario, parameterInfo, numberOfSimulations, baseSeed } = data;
+        // Extract the data
+        const { scenarios, simulationCount, parameterType, changedPath, details } = body;
 
-        console.log('Received baselineScenario:');
-        console.log(JSON.stringify(baselineScenario, null, 2));
+        // Log the received data for debugging
+        console.log('========================');
+        console.log('RECEIVED EXPLORATION REQUEST:');
+        console.log('========================');
+        console.log(`Parameter type: ${parameterType}`);
+        console.log(`Changed path: ${changedPath}`);
+        console.log(`Simulation count: ${simulationCount}`);
+        console.log(`Number of scenarios: ${scenarios ? scenarios.length : 'N/A'}`);
+        //console.log('Details:', JSON.stringify(details, null, 2));
+        console.log('========================');
 
-        console.log('Received modifiedScenario:');
-        console.log(JSON.stringify(modifiedScenario, null, 2));
+        // In a production environment, this is where you would:
+        // 1. Save the scenarios to the database
+        // 2. Queue up the simulations for processing
+        // 3. Return a job ID that the client can use to check the status
 
-        console.log('Parameter Info:');
-        console.log(JSON.stringify(parameterInfo, null, 2));
-
-        // --- Basic Validation ---
-        if (!baselineScenario || typeof baselineScenario !== 'object' || baselineScenario === null) {
-            return NextResponse.json({ success: false, error: 'Missing or invalid "baselineScenario".' }, { status: 400 });
-        }
-        if (!modifiedScenario || typeof modifiedScenario !== 'object' || modifiedScenario === null) {
-            return NextResponse.json({ success: false, error: 'Missing or invalid "modifiedScenario".' }, { status: 400 });
-        }
-        // Use a default number of simulations if not provided or invalid
-        let simsToRun = 1; // Default value
-        if (typeof numberOfSimulations === 'number' && numberOfSimulations > 0) {
-            simsToRun = numberOfSimulations;
-        } else {
-            console.warn(`numberOfSimulations not provided or invalid (${numberOfSimulations}), using default: ${simsToRun}`);
-        }
-
-        console.log(`Starting comparison for baseline "${baselineScenario.name || baselineScenario.id}" vs modified "${modifiedScenario.name || modifiedScenario.id}"`);
-        if (parameterInfo) {
-            console.log(`Parameter Changed: ${parameterInfo.name || parameterInfo.id} to ${parameterInfo.value}`);
-        }
-        console.log(`Number of Simulations per scenario: ${simsToRun}`);
-        if (baseSeed) {
-            console.log(`Using base seed: ${baseSeed}`);
-        }
-
-        // --- Run the Comparison ---
-        // Call the function designed to compare two scenarios
-        const comparisonResults = await runScenarioComparison(
-            baselineScenario,
-            modifiedScenario,
-            simsToRun,
-            baseSeed
-        );
-
-        console.log("Scenario comparison completed.");
-
-        // --- Return the Results ---
-        // The comparisonResults object contains { baseline: {...}, modified: {...} }
-        return NextResponse.json(
-            {
-                success: true,
-                message: `Successfully compared baseline and modified scenarios.`,
-                parameterInfo: parameterInfo || null, // Echo back parameter info if provided
-                results: comparisonResults // Contains aggregated results for both scenarios
-            },
-            { status: 200 }
-        );
-
+        // For now, just return a success response
+        return NextResponse.json({
+            success: true,
+            message: `Successfully received exploration request for ${parameterType} with ${simulationCount} simulations.`,
+            jobId: `explore-${Date.now()}`,
+            receivedData: {
+                scenarioCount: scenarios ? scenarios.length : 'N/A',
+                simulationCount,
+                parameterType,
+                changedPath,
+            }
+        });
     } catch (error) {
-        console.error('Error in /api/explore/1d POST handler (Comparison Mode):', error);
-        // Check if it's a JSON parsing error
-        if (error instanceof SyntaxError) {
-            return NextResponse.json(
-                { success: false, error: 'Invalid JSON in request body.' },
-                { status: 400 }
-            );
-        }
-        // General error
-        return NextResponse.json(
-            { success: false, error: 'Failed to process scenario comparison: ' + (error.message || 'Unknown error') },
-            { status: 500 }
-        );
+        console.error('Error processing exploration request:', error);
+
+        return NextResponse.json({
+            success: false,
+            message: 'Failed to process exploration request',
+            error: error.message
+        }, { status: 500 });
     }
 }
