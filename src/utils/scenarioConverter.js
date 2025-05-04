@@ -1,7 +1,7 @@
 // Implemented with the help of Cursor AI
-const yaml = require('js-yaml');
+import yaml from 'js-yaml';
 
-function jsonToYaml(json) {
+export function jsonToYaml(json) {
     return yaml.dump(json, {
         indent: 2,
         lineWidth: -1,
@@ -14,24 +14,33 @@ function jsonToYaml(json) {
     });
 }
 
-function yamlToJson(yamlStr) {
-    return yaml.load(yamlStr, {
-        json: true,
-        schema: yaml.DEFAULT_SCHEMA
-    });
+export function yamlToJson(yamlStr) {
+    try {
+        const result = yaml.load(yamlStr, {
+            json: true,
+            schema: yaml.DEFAULT_SCHEMA
+        });
+        if (result === undefined) {
+            return {};
+        }
+        return result;
+    } catch (e) {
+        console.error("Error parsing YAML string:", e);
+        throw new Error(`Failed to parse YAML: ${e instanceof Error ? e.message : String(e)}`);
+    }
 }
 
-function reorderProperties(obj, order) {
+export function reorderProperties(obj, order) {
     const reordered = {};
     order.forEach(key => {
-        if (obj.hasOwnProperty(key)) {
+        if (Object.prototype.hasOwnProperty.call(obj, key)) {
             reordered[key] = obj[key];
         }
     });
     return reordered;
 }
 
-function validateScenario(scenario) {
+export function validateScenario(scenario) {
     const requiredFields = [
         'name',
         'forIndividual',
@@ -48,8 +57,8 @@ function validateScenario(scenario) {
     ];
 
     for (const field of requiredFields) {
-        if (!(field in scenario)) {
-            throw new Error(`Missing required field: ${field}`);
+        if (!(field in scenario) || scenario[field] === undefined || scenario[field] === null) {
+            throw new Error(`Missing or invalid required field: ${String(field)}`);
         }
     }
 
@@ -70,23 +79,16 @@ function validateScenario(scenario) {
         throw new Error(`Invalid inflation assumption: ${scenario.inflationAssumption}`);
     }
 
-    const validStates = [
+    const validStates = new Set([
         'AL', 'AK', 'AZ', 'AR', 'CA', 'CO', 'CT', 'DE', 'FL', 'GA',
         'HI', 'ID', 'IL', 'IN', 'IA', 'KS', 'KY', 'LA', 'ME', 'MD',
         'MA', 'MI', 'MN', 'MS', 'MO', 'MT', 'NE', 'NV', 'NH', 'NJ',
         'NM', 'NY', 'NC', 'ND', 'OH', 'OK', 'OR', 'PA', 'RI', 'SC',
         'SD', 'TN', 'TX', 'UT', 'VT', 'VA', 'WA', 'WV', 'WI', 'WY'
-    ];
-    if (!validStates.includes(scenario.residenceState)) {
+    ]);
+    if (!validStates.has(scenario.residenceState)) {
         throw new Error(`Invalid US state: ${scenario.residenceState}`);
     }
 
     return true;
 }
-
-module.exports = {
-    jsonToYaml,
-    yamlToJson,
-    validateScenario,
-    reorderProperties
-}; 
