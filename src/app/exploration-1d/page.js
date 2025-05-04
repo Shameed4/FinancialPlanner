@@ -93,6 +93,9 @@ const ExplorationPage = () => {
     const [feedbackMessage, setFeedbackMessage] = useState('');
     const [isProcessing, setIsProcessing] = useState(false);
 
+    // Add a state variable to track the index of the selected event series
+    const [selectedEventSeriesIndex, setSelectedEventSeriesIndex] = useState(-1);
+
     useEffect(() => {
         if (session) {
             const loadScenarios = async () => {
@@ -150,6 +153,9 @@ const ExplorationPage = () => {
                 const firstEventSeries = selectedScenario.eventSeries[0];
                 setSelectedEventSeries(firstEventSeries);
 
+                // Store the index of the event series for reliable reference
+                setSelectedEventSeriesIndex(0);
+
                 // Set default modify attribute to startYear
                 setEventSeriesModifyAttribute('startYear');
 
@@ -159,6 +165,7 @@ const ExplorationPage = () => {
                 setEventSeriesUpperBound(currentStartYear + 10);
             } else {
                 setSelectedEventSeries(null);
+                setSelectedEventSeriesIndex(-1);
             }
         }
 
@@ -348,7 +355,8 @@ const ExplorationPage = () => {
                 lowerBound: eventSeriesLowerBound,
                 upperBound: eventSeriesUpperBound,
                 steps: eventSeriesSteps,
-                selectedEventSeries: selectedEventSeries
+                selectedEventSeries: selectedEventSeries,
+                selectedEventSeriesIndex: selectedEventSeriesIndex
             };
 
             sendExplorationRequest(data);
@@ -365,7 +373,8 @@ const ExplorationPage = () => {
                 lowerBound: eventSeriesLowerBound,
                 upperBound: eventSeriesUpperBound,
                 steps: eventSeriesSteps,
-                selectedEventSeries: selectedEventSeries
+                selectedEventSeries: selectedEventSeries,
+                selectedEventSeriesIndex: selectedEventSeriesIndex
             };
 
             sendExplorationRequest(data);
@@ -530,11 +539,27 @@ const ExplorationPage = () => {
         sendExplorationRequest(data);
     };
 
+    // Helper function for event series selection
+    const getEventSeriesIdentifier = (eventSeries) => {
+        return eventSeries.title || eventSeries.name || 'Unknown Event';
+    };
+
     // Function to send exploration request to the backend
     const sendExplorationRequest = (data) => {
         // Generate scenarios based on parameter type
         const scenarios = [];
         let stepValues = [];
+
+        // If there's an event series, log its properties for debugging
+        if (data.parameter === 'eventSeriesTiming' || data.parameter === 'eventSeriesAmount') {
+            console.log('===== EVENT SERIES DEBUG INFO =====');
+            console.log('Selected Event Series:', data.selectedEventSeries);
+            console.log('Event Series Properties:');
+            for (const key in data.selectedEventSeries) {
+                console.log(`  ${key}: ${JSON.stringify(data.selectedEventSeries[key])}`);
+            }
+            console.log('=================================');
+        }
 
         // Create step values based on bounds and step size
         if (data.parameter === 'eventSeriesTiming' || data.parameter === 'eventSeriesAmount') {
@@ -560,41 +585,44 @@ const ExplorationPage = () => {
                 // Give it a descriptive name
                 if (data.parameter === 'eventSeriesTiming') {
                     const attributeLabel = data.modifyAttribute === 'startYear' ? 'Start Year' : 'Duration';
-                    modifiedScenario.name = `${data.selectedScenario.name} (${data.selectedEventSeries.title}: ${attributeLabel} = ${stepValue})`;
+                    modifiedScenario.name = `${data.selectedScenario.name} (${data.selectedEventSeries.name || data.selectedEventSeries.title || 'Event'}: ${attributeLabel} = ${stepValue})`;
 
-                    // Find the event series in the modified scenario
-                    const eventSeriesIndex = modifiedScenario.eventSeries.findIndex(
-                        es => es.title === data.selectedEventSeries.title
-                    );
+                    // Use the stored index to find the event series directly - much more reliable
+                    const eventSeriesIndex = data.selectedEventSeriesIndex;
+                    console.log(`Using index ${eventSeriesIndex} to update event`);
 
-                    if (eventSeriesIndex !== -1) {
+                    if (eventSeriesIndex !== -1 && eventSeriesIndex < modifiedScenario.eventSeries.length) {
                         // Modify the event series based on the attribute
+                        const targetEventSeries = modifiedScenario.eventSeries[eventSeriesIndex];
+                        console.log(`Modifying event series: ${targetEventSeries.name || targetEventSeries.title || 'Unknown'}`);
+
                         if (data.modifyAttribute === 'startYear') {
                             // Update start year
-                            modifiedScenario.eventSeries[eventSeriesIndex].startYear = stepValue;
-                            modifiedScenario.eventSeries[eventSeriesIndex].startYearType = 'fixed';
+                            targetEventSeries.startYear = stepValue;
+                            targetEventSeries.startYearType = 'fixed';
+                            console.log(`Updated startYear to ${stepValue}`);
                         } else if (data.modifyAttribute === 'duration') {
-                            // Update duration
-                            modifiedScenario.eventSeries[eventSeriesIndex].duration = stepValue;
-                            modifiedScenario.eventSeries[eventSeriesIndex].durationType = 'fixed';
+                            // Update duration - use durationFixed as the property name
+                            targetEventSeries.durationFixed = stepValue;
+                            targetEventSeries.durationType = 'fixed';
+                            console.log(`Updated durationFixed to ${stepValue}`);
                         }
+                        console.log('Updated event series:', targetEventSeries);
                     } else {
-                        console.error(`Event series ${data.selectedEventSeries.title} not found in scenario`);
+                        console.error(`Invalid event series index: ${eventSeriesIndex} (total: ${modifiedScenario.eventSeries.length})`);
                     }
                 } else if (data.parameter === 'eventSeriesAmount') {
-                    modifiedScenario.name = `${data.selectedScenario.name} (${data.selectedEventSeries.title}: Amount = ${stepValue})`;
+                    modifiedScenario.name = `${data.selectedScenario.name} (${data.selectedEventSeries.name || data.selectedEventSeries.title || 'Event'}: Amount = ${stepValue})`;
 
-                    // Find the event series in the modified scenario
-                    const eventSeriesIndex = modifiedScenario.eventSeries.findIndex(
-                        es => es.title === data.selectedEventSeries.title
-                    );
+                    // Use the stored index to find the event series directly
+                    const eventSeriesIndex = data.selectedEventSeriesIndex;
 
-                    if (eventSeriesIndex !== -1) {
+                    if (eventSeriesIndex !== -1 && eventSeriesIndex < modifiedScenario.eventSeries.length) {
                         // Update the amount in the event series
                         modifiedScenario.eventSeries[eventSeriesIndex].initialAmount = stepValue;
                         modifiedScenario.eventSeries[eventSeriesIndex].amount = stepValue;
                     } else {
-                        console.error(`Event series ${data.selectedEventSeries.title} not found in scenario`);
+                        console.error(`Invalid event series index: ${eventSeriesIndex} (total: ${modifiedScenario.eventSeries.length})`);
                     }
                 }
 
@@ -835,7 +863,24 @@ const ExplorationPage = () => {
                                                     value={selectedEventSeries ? selectedScenario.eventSeries.findIndex(es => es.name === selectedEventSeries.name) : 0}
                                                     onChange={(e) => {
                                                         const index = parseInt(e.target.value);
-                                                        setSelectedEventSeries(selectedScenario.eventSeries[index]);
+                                                        const series = selectedScenario.eventSeries[index];
+                                                        setSelectedEventSeries(series);
+                                                        setSelectedEventSeriesIndex(index);
+
+                                                        // Log detailed info about the selected event series
+                                                        console.log('===== SELECTED EVENT SERIES =====');
+                                                        console.log('Event Series Name:', series.name);
+                                                        console.log('Event Series Title:', series.title);
+                                                        console.log('Event Series Type:', series.type);
+                                                        console.log('Event Series Index:', index);
+                                                        console.log('Full Event Series Object:', series);
+                                                        console.log('================================');
+
+                                                        // Update bounds based on the selected event's amount
+                                                        const amount = series.initialAmount || 0;
+                                                        setEventSeriesLowerBound(amount);
+                                                        setEventSeriesUpperBound(amount * 2);
+                                                        setEventSeriesSteps(Math.max(1, Math.round(amount / 5)));
                                                     }}
                                                     className="w-full p-2 border rounded-md bg-gray-50 border-gray-300 text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                                                     disabled={!selectedScenario || !selectedScenario.eventSeries || selectedScenario.eventSeries.length === 0}
@@ -913,6 +958,16 @@ const ExplorationPage = () => {
                                                         const index = parseInt(e.target.value);
                                                         const series = selectedScenario.eventSeries[index];
                                                         setSelectedEventSeries(series);
+                                                        setSelectedEventSeriesIndex(index);
+
+                                                        // Log detailed info about the selected event series
+                                                        console.log('===== SELECTED EVENT SERIES =====');
+                                                        console.log('Event Series Name:', series.name);
+                                                        console.log('Event Series Title:', series.title);
+                                                        console.log('Event Series Type:', series.type);
+                                                        console.log('Event Series Index:', index);
+                                                        console.log('Full Event Series Object:', series);
+                                                        console.log('================================');
 
                                                         // Update bounds based on the selected event's amount
                                                         const amount = series.initialAmount || 0;
