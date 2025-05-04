@@ -549,6 +549,10 @@ const ExplorationPage = () => {
         // Generate scenarios based on parameter type
         const scenarios = [];
         let stepValues = [];
+        let adjustedStepSize = null; // Add a variable to store the adjusted step size
+
+        // Define max allowed scenarios
+        const MAX_SCENARIOS = 15;
 
         // If there's an event series, log its properties for debugging
         if (data.parameter === 'eventSeriesTiming' || data.parameter === 'eventSeriesAmount') {
@@ -566,16 +570,38 @@ const ExplorationPage = () => {
             // Calculate step values for ranges with numeric steps
             const lowerBound = data.lowerBound;
             const upperBound = data.upperBound;
-            const stepSize = data.steps;
+            let stepSize = data.steps;
 
+            // Ensure reasonable step size to prevent too many scenarios
+            const range = upperBound - lowerBound;
+            const minStepSize = Math.max(1, Math.ceil(range / MAX_SCENARIOS));
+
+            if (stepSize < minStepSize) {
+                console.warn(`Step size ${stepSize} is too small for range ${range}, adjusting to ${minStepSize}`);
+                stepSize = minStepSize;
+            }
+
+            // Store the adjusted step size for logging
+            adjustedStepSize = stepSize;
+
+            // Generate step values
             for (let value = lowerBound; value <= upperBound; value += stepSize) {
                 stepValues.push(Math.round(value));
+
+                // Safety check to prevent infinite or extremely large arrays
+                if (stepValues.length >= MAX_SCENARIOS) {
+                    console.warn(`Maximum number of scenarios (${MAX_SCENARIOS}) reached, truncating`);
+                    break;
+                }
             }
 
-            // Make sure upper bound is included
-            if (stepValues[stepValues.length - 1] !== upperBound) {
+            // Make sure upper bound is included if we haven't reached max scenarios
+            if (stepValues.length < MAX_SCENARIOS && stepValues[stepValues.length - 1] !== upperBound) {
                 stepValues.push(upperBound);
             }
+
+            // Remove duplicates that might occur due to rounding
+            stepValues = [...new Set(stepValues)];
 
             // For each step value, create a scenario
             stepValues.forEach(stepValue => {
@@ -653,16 +679,38 @@ const ExplorationPage = () => {
             // Create scenarios based on min, max, step
             const min = data.min;
             const max = data.max;
-            const step = data.step;
+            let step = data.step;
 
+            // Ensure reasonable step size
+            const range = max - min;
+            const minStepSize = Math.max(1, Math.ceil(range / MAX_SCENARIOS));
+
+            if (step < minStepSize) {
+                console.warn(`Step size ${step} is too small for range ${range}, adjusting to ${minStepSize}`);
+                step = minStepSize;
+            }
+
+            // Store the adjusted step size for logging
+            adjustedStepSize = step;
+
+            // Generate step values
             for (let value = min; value <= max; value += step) {
                 stepValues.push(value);
+
+                // Safety check to prevent infinite or extremely large arrays
+                if (stepValues.length >= MAX_SCENARIOS) {
+                    console.warn(`Maximum number of scenarios (${MAX_SCENARIOS}) reached, truncating`);
+                    break;
+                }
             }
 
-            // Make sure max value is included
-            if (stepValues[stepValues.length - 1] !== max) {
+            // Make sure max value is included if we haven't reached max scenarios
+            if (stepValues.length < MAX_SCENARIOS && stepValues[stepValues.length - 1] !== max) {
                 stepValues.push(max);
             }
+
+            // Remove duplicates
+            stepValues = [...new Set(stepValues)];
 
             stepValues.forEach(value => {
                 const modifiedScenario = JSON.parse(JSON.stringify(data.selectedScenario));
@@ -713,6 +761,8 @@ const ExplorationPage = () => {
         console.log('Simulation count:', simulationCount);
         console.log('Step values:', stepValues);
         console.log('Number of scenarios:', scenarios.length);
+        console.log('Original step size:', data.steps || data.step);
+        console.log('Adjusted step size:', adjustedStepSize);
         console.log('Scenarios:', scenarios);
         console.log('Full request payload:', exploreData);
         console.log('===================================');
@@ -938,9 +988,26 @@ const ExplorationPage = () => {
                                                         type="number"
                                                         value={eventSeriesSteps}
                                                         min={2}
-                                                        onChange={(e) => setEventSeriesSteps(Math.max(2, Number(e.target.value)))}
+                                                        onChange={(e) => {
+                                                            const inputValue = Math.max(2, Number(e.target.value));
+
+                                                            // Calculate minimum step size to prevent too many scenarios
+                                                            const range = eventSeriesUpperBound - eventSeriesLowerBound;
+                                                            const minRecommendedStep = Math.max(1, Math.ceil(range / 15));
+
+                                                            if (inputValue < minRecommendedStep) {
+                                                                console.warn(`Step size ${inputValue} may create too many scenarios, recommended: ${minRecommendedStep}`);
+                                                            }
+
+                                                            setEventSeriesSteps(inputValue);
+                                                        }}
                                                         className="w-full p-2 border rounded-md bg-gray-50 border-gray-300 text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                                                     />
+                                                    {eventSeriesSteps < Math.ceil((eventSeriesUpperBound - eventSeriesLowerBound) / 15) && (
+                                                        <p className="text-xs text-orange-600 mt-1">
+                                                            Step size may create too many scenarios. Consider a larger value.
+                                                        </p>
+                                                    )}
                                                 </div>
                                             </div>
                                         </div>
@@ -1028,9 +1095,26 @@ const ExplorationPage = () => {
                                                         type="number"
                                                         value={eventSeriesSteps}
                                                         min={2}
-                                                        onChange={(e) => setEventSeriesSteps(Math.max(2, Number(e.target.value)))}
+                                                        onChange={(e) => {
+                                                            const inputValue = Math.max(2, Number(e.target.value));
+
+                                                            // Calculate minimum step size to prevent too many scenarios
+                                                            const range = eventSeriesUpperBound - eventSeriesLowerBound;
+                                                            const minRecommendedStep = Math.max(1, Math.ceil(range / 15));
+
+                                                            if (inputValue < minRecommendedStep) {
+                                                                console.warn(`Step size ${inputValue} may create too many scenarios, recommended: ${minRecommendedStep}`);
+                                                            }
+
+                                                            setEventSeriesSteps(inputValue);
+                                                        }}
                                                         className="w-full p-2 border rounded-md bg-gray-50 border-gray-300 text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                                                     />
+                                                    {eventSeriesSteps < Math.ceil((eventSeriesUpperBound - eventSeriesLowerBound) / 15) && (
+                                                        <p className="text-xs text-orange-600 mt-1">
+                                                            Step size may create too many scenarios. Consider a larger value.
+                                                        </p>
+                                                    )}
                                                 </div>
                                             </div>
                                         </div>
@@ -1128,10 +1212,27 @@ const ExplorationPage = () => {
                                                                 <input
                                                                     type="number"
                                                                     value={allocationSteps}
-                                                                    onChange={(e) => setAllocationSteps(Math.max(1, Number(e.target.value)))}
+                                                                    onChange={(e) => {
+                                                                        const inputValue = Math.max(1, Number(e.target.value));
+
+                                                                        // Calculate minimum step size to prevent too many scenarios
+                                                                        const range = allocationUpperBound - allocationLowerBound;
+                                                                        const minRecommendedStep = Math.max(1, Math.ceil(range / 15));
+
+                                                                        if (inputValue < minRecommendedStep) {
+                                                                            console.warn(`Step size ${inputValue} may create too many scenarios, recommended: ${minRecommendedStep}`);
+                                                                        }
+
+                                                                        setAllocationSteps(inputValue);
+                                                                    }}
                                                                     min={1}
                                                                     className="w-full p-2 border rounded-md bg-gray-50 border-gray-300 text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                                                                 />
+                                                                {allocationSteps < Math.ceil((allocationUpperBound - allocationLowerBound) / 15) && (
+                                                                    <p className="text-xs text-orange-600 mt-1">
+                                                                        Step size may create too many scenarios. Consider a larger value.
+                                                                    </p>
+                                                                )}
                                                             </div>
                                                         </div>
 
