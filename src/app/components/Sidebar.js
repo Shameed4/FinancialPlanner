@@ -4,7 +4,7 @@ import { useSession, signOut } from 'next-auth/react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { House, Infinity, SquareActivity, LogIn, LogOut, ChartSpline, ChartScatter } from "lucide-react";
+import { House, Infinity, SquareActivity, LogIn, LogOut, ChartSpline, ChartScatter, OctagonAlert } from "lucide-react";
 
 // Navigation item component with animated label based on sidebar collapse state.
 const NavItem = ({ icon, label, isCollapsed, onClick, isActive }) => (
@@ -145,6 +145,15 @@ const Sidebar = () => {
                             isCollapsed={isCollapsed}
                             onClick={() => navigateTo('/')}
                             isActive={router.pathname === '/'}
+                        />
+                    </li>
+                    <li>
+                        <NavItem
+                            icon={<OctagonAlert size={20} />}
+                            label="Notice"
+                            isCollapsed={isCollapsed}
+                            onClick={() => navigateTo('/notice')}
+                            isActive={router.pathname === '/notice'}
                         />
                     </li>
                     {/* <li>
