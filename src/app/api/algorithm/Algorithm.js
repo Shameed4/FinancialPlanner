@@ -1,6 +1,13 @@
 import runSimulation from './Simulation.js';
 import fs from 'fs';
 import path from 'path';
+import { Worker } from 'worker_threads';
+import { fileURLToPath, pathToFileURL } from 'url';
+import pLimit from 'p-limit';
+
+// Required because __dirname is not available in ES Modules
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 // Initialize chartData with an empty object to ensure it's defined
 export const chartData = {};
@@ -48,37 +55,51 @@ export function loadChartData() {
 // Initialize by loading existing data
 loadChartData();
 
-export async function runAlgorithm(selectedScenarioData, numSimulations) {
-  let scenarioId = selectedScenarioData.id;
+// Helper: run a simulation in a worker thread
+function runSimulationInWorker(data) {
+  return new Promise((resolve, reject) => {
+    const workerPath = pathToFileURL(path.join(__dirname, 'simulationWorker.js'));
+    const worker = new Worker(workerPath, {
+      workerData: data,
+    });
+
+    worker.on('message', resolve);
+    worker.on('error', reject);
+    worker.on('exit', (code) => {
+      if (code !== 0) {
+        reject(new Error(`Worker exited with code ${code}`));
+      }
+    });
+  });
+}
+
+// Multithreaded runAlgorithm
+export async function runAlgorithm(selectedScenarioData, numSimulations, threads) {
+  const scenarioId = selectedScenarioData.id;
   const simulationResults = {};
-
-  // Format the scenario ID consistently
   const scenarioKey = `Scenario ID ${scenarioId}`;
-  
-  // Clear previous results for this scenario to ensure fresh data
-  delete chartData[scenarioKey];
 
-  // Add timestamp for when this scenario was run
+  delete chartData[scenarioKey];
   chartData.lastUpdatedScenario = scenarioKey;
   chartData.lastUpdatedTimestamp = new Date().toISOString();
 
-  for (let i = 1; i < numSimulations + 1; i++) {
-    simulationResults[`Simulation ${i}`] = {};
+  const limit = pLimit(threads);
+  
+  const simulations = Array.from({ length: numSimulations }, (_, i) =>
+    limit(() =>
+      runSimulationInWorker(selectedScenarioData).then((result) => {
+        simulationResults[`Simulation ${i + 1}`] = result;
+        console.log(`Simulation ${i + 1} completed`);
+      })
+    )
+  );
 
-    const result = await runSimulation(selectedScenarioData);
-    simulationResults[`Simulation ${i}`] = result;
+  // Wait for all threads to finish
+  await Promise.all(simulations);
 
-    // Update chartData with the current simulation results
-    chartData[scenarioKey] = simulationResults;
-
-    console.log(`Simulation ${i} completed`);
-  }
-
-  // Add a timestamp to the chart data
+  chartData[scenarioKey] = simulationResults;
   chartData.lastUpdated = new Date().toISOString();
-  
-  // Save data to file system for persistence
   saveChartData();
-  
+
   return simulationResults;
 }

@@ -1,7 +1,5 @@
 import { deepCopy, sampleNormal, sampleUniform } from './GlobalFunctions.js';
-import { PrismaClient } from '@prisma/client';
 import fs from 'fs';
-import yaml from 'yaml';
 import { fileURLToPath } from 'url';
 import path from 'path';
 import YAML from 'yaml';
@@ -13,8 +11,6 @@ function logEvent(stream, year, type, details) {
     .join(', ');
   stream.write(`Year ${year} | Type: ${type} | ${detailString}\n`);
 }
-
-const prisma = new PrismaClient();
 
 // initialize the starting parameters that store information that either the state does not have, or is derived from the state
 // these parameters may be updated as the simulation progresses through the years

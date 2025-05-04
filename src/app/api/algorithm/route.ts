@@ -14,7 +14,9 @@ export async function POST(request: Request) {
     // console.log(scenario);
 
     // Run the simulation algorithm multiple times.
-    const simulationResults = await runAlgorithm(scenario, Number(numberOfSimulations));
+    console.time('runAlgorithm');
+    const simulationResults = await runAlgorithm(scenario, Number(numberOfSimulations), 4);
+    console.timeEnd('runAlgorithm');
 
     // Save chart data to ensure it's persisted (runAlgorithm already calls this, but double-check)
     saveChartData();
