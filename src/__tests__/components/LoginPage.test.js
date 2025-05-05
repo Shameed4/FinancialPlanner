@@ -18,6 +18,9 @@ jest.mock('next/image', () => (props) => {
 describe('LoginPage', () => {
     beforeEach(() => {
         jest.clearAllMocks();
+        if (!URL.revokeObjectURL) {
+            URL.revokeObjectURL = jest.fn();
+        }
     });
 
     it('shows loading indicator when status is loading', () => {
