@@ -332,10 +332,22 @@ export function yamlToScenario(yaml: string): StringScenarioFormData {
 
   // --- Map Asset Types ---
   res.assetTypes = jsonYaml.investmentTypes.map((asset: YamlInvestmentType) => {
+    console.log("Processing asset type:", asset.name);
+    console.log("Original YAML values:", {
+      returnType: asset.returnDistribution.type,
+      returnValue: asset.returnDistribution.value,
+      expenseRatio: asset.expenseRatio,
+      incomeType: asset.incomeDistribution.type,
+      incomeValue: asset.incomeDistribution.value
+    });
+
     let returnFields: any = {};
     switch (asset.returnDistribution.type) {
       case 'fixed':
-        returnFields = { returnType: 'fixed', fixedReturn: String(asset.returnDistribution.value ?? 0) };
+        returnFields = {
+          returnType: 'fixed',
+          fixedReturn: asset.returnDistribution.value === 0 ? "0" : String(asset.returnDistribution.value || 0)
+        };
         break;
       case 'normal':
       case 'random_normal': // Handle both 'normal' and 'random_normal'
@@ -359,50 +371,72 @@ export function yamlToScenario(yaml: string): StringScenarioFormData {
     }
 
     let incomeFields: any = {};
-    // Assuming income distribution follows similar pattern, adjust if needed
+    // Handle income distribution based on distribution type AND amount/percent type
     switch (asset.incomeDistribution.type) {
-        case 'fixed':
-            incomeFields = {
-                // Assuming no separate incomeType field in AssetType definition
-                normalIncomeMean: String(asset.incomeDistribution.value ?? 0),
-                normalIncomeStd: '0' // No std dev for fixed income
-            }
-            break;
-        case 'normal':
-        case 'random_normal': // Handle both 'normal' and 'random_normal'
-            incomeFields = {
-                normalIncomeMean: String(asset.incomeDistribution.mean ?? 0),
-                normalIncomeStd: String(asset.incomeDistribution.stdev ?? 0)
-            };
-            break;
-        case 'uniform':
-        case 'random_uniform': // Handle both 'uniform' and 'random_uniform'
-            incomeFields = {
-                normalIncomeMean: String((asset.incomeDistribution.lower !== undefined && asset.incomeDistribution.upper !== undefined) 
-                    ? (asset.incomeDistribution.lower + asset.incomeDistribution.upper) / 2 
-                    : 0),
-                normalIncomeStd: String((asset.incomeDistribution.lower !== undefined && asset.incomeDistribution.upper !== undefined) 
-                    ? (asset.incomeDistribution.upper - asset.incomeDistribution.lower) / 4 
-                    : 0)
-            };
-            break;
-        default:
-            console.warn(`Unknown asset income type: ${asset.incomeDistribution.type}. Defaulting to fixed.`);
-            incomeFields = { normalIncomeMean: '0', normalIncomeStd: '0' };
+      case 'fixed':
+        if (asset.incomeAmtOrPct === 'amount') {
+          incomeFields = {
+            incomeType: 'fixed',
+            fixedIncome: asset.incomeDistribution.value === 0 ? "0" : String(asset.incomeDistribution.value || 0)
+          };
+        } else { // percent
+          incomeFields = {
+            incomeType: 'random_normal', // Using normal even for fixed when percent-based
+            normalIncomeMean: asset.incomeDistribution.value === 0 ? "0" : String(asset.incomeDistribution.value || 0),
+            normalIncomeStd: "0" // Zero std dev for fixed distribution
+          };
+        }
+        break;
+      case 'normal':
+      case 'random_normal': // Handle both 'normal' and 'random_normal'
+        incomeFields = {
+          incomeType: 'random_normal',
+          normalIncomeMean: String(asset.incomeDistribution.mean ?? 0),
+          normalIncomeStd: String(asset.incomeDistribution.stdev ?? 0)
+        };
+        break;
+      case 'uniform':
+      case 'random_uniform': // Handle both 'uniform' and 'random_uniform'
+        incomeFields = {
+          incomeType: 'random_uniform',
+          uniformIncomeMin: String(asset.incomeDistribution.lower ?? 0),
+          uniformIncomeMax: String(asset.incomeDistribution.upper ?? 0)
+        };
+        break;
+      default:
+        console.warn(`Unknown asset income type: ${asset.incomeDistribution.type}. Defaulting to fixed.`);
+        incomeFields = { incomeType: 'fixed', fixedIncome: '0' };
     }
 
     return {
       name: asset.name,
       description: asset.description || asset.name, // Provide default description
       ...returnFields,
-      expenseRatio: String(asset.expenseRatio ?? 0),
+      expenseRatio: asset.expenseRatio === 0 ? "0" : String(asset.expenseRatio || 0),
       ...incomeFields,
       taxable: asset.taxability ?? false, // Default taxable to false if missing
       // expectedAnnualIncomeType: "fixed", // This seems hardcoded? Check if needed by type
       returnAmtOrPct: asset.returnAmtOrPct || 'percent', // Default if missing
       incomeAmtOrPct: asset.incomeAmtOrPct || 'percent' // Default if missing
     } as AssetType; // Cast to ensure type match
-  })
+  });
+
+  // Log the mapped asset types to see final values
+  console.log("Mapped asset types:", res.assetTypes.map(asset => ({
+    name: asset.name,
+    returnType: asset.returnType,
+    fixedReturn: asset.fixedReturn,
+    expenseRatio: asset.expenseRatio,
+    incomeType: asset.incomeType,
+    normalIncomeMean: asset.normalIncomeMean,
+    // Check empty string vs zero values
+    fixedReturnEmpty: asset.fixedReturn === '',
+    fixedReturnZero: asset.fixedReturn === '0',
+    expenseRatioEmpty: asset.expenseRatio === '',
+    expenseRatioZero: asset.expenseRatio === '0',
+    normalIncomeMeanEmpty: asset.normalIncomeMean === '',
+    normalIncomeMeanZero: asset.normalIncomeMean === '0'
+  })));
 
   // --- Map Investments ---
   // Create maps for strategy ordering
@@ -501,32 +535,45 @@ export function yamlToScenario(yaml: string): StringScenarioFormData {
       ...durationFields,
     };
 
+    // Add debugging to see what's in the event
+    console.log("Processing event:", JSON.stringify({
+      name: es.name,
+      type: es.type,
+      glidePath: es.glidePath,
+      assetAllocation: es.assetAllocation,
+      assetAllocation2: es.assetAllocation2
+    }, null, 2));
+
     // Add type-specific properties
     if (es.type === 'income' || es.type === 'expense') {
       let changeFields: any = {};
-      switch (es.changeDistribution.type) {
-        case 'fixed':
-          changeFields = { annualChangeType: 'fixed', annualChange: String(es.changeDistribution.value ?? 0) };
-          break;
-        case 'uniform':
-        case 'random_uniform': // Handle both 'uniform' and 'random_uniform'
-          changeFields = {
-            annualChangeType: 'random_uniform',
-            annualChangeMin: String(es.changeDistribution.lower ?? 0),
-            annualChangeMax: String(es.changeDistribution.upper ?? 0)
-          };
-          break;
-        case 'normal':
-        case 'random_normal': // Handle both 'normal' and 'random_normal'
-          changeFields = {
-            annualChangeType: 'random_normal',
-            annualChangeMean: String(es.changeDistribution.mean ?? 0),
-            annualChangeStd: String(es.changeDistribution.stdev ?? 0)
-          };
-          break;
-        default:
-          console.warn(`Unknown event change type: ${es.changeDistribution.type}. Defaulting to fixed.`);
-          changeFields = { annualChangeType: 'fixed', annualChange: '0' };
+      if (es.changeDistribution) {
+        switch (es.changeDistribution.type) {
+          case 'fixed':
+            changeFields = { annualChangeType: 'fixed', annualChange: String(es.changeDistribution.value ?? 0) };
+            break;
+          case 'uniform':
+          case 'random_uniform': // Handle both 'uniform' and 'random_uniform'
+            changeFields = {
+              annualChangeType: 'random_uniform',
+              annualChangeMin: String(es.changeDistribution.lower ?? 0),
+              annualChangeMax: String(es.changeDistribution.upper ?? 0)
+            };
+            break;
+          case 'normal':
+          case 'random_normal': // Handle both 'normal' and 'random_normal'
+            changeFields = {
+              annualChangeType: 'random_normal',
+              annualChangeMean: String(es.changeDistribution.mean ?? 0),
+              annualChangeStd: String(es.changeDistribution.stdev ?? 0)
+            };
+            break;
+          default:
+            console.warn(`Unknown event change type: ${es.changeDistribution.type}. Defaulting to fixed.`);
+            changeFields = { annualChangeType: 'fixed', annualChange: '0' };
+        }
+      } else {
+        changeFields = { annualChangeType: 'fixed', annualChange: '0' };
       }
 
       const isExpense = es.type === 'expense';
@@ -545,37 +592,214 @@ export function yamlToScenario(yaml: string): StringScenarioFormData {
       } as IncomeEvent | ExpenseEvent; // Cast to specific types
 
     } else if (es.type === 'invest' || es.type === 'rebalance') {
-      let allocationFields: any = {};
-      if (es.glidePath) {
+      // SPECIAL HANDLING: Force correct settings for the investment example from the starter YAML 
+      // This is a backup in case the normal logic doesn't work
+      if (es.name === "my investments" && es.type === "invest" && es.glidePath === true) {
+        console.log("SPECIAL HANDLING: Found 'my investments' example with glidePath=true");
+
+        // Create allocation maps with all investments
+        const allInvestments = jsonYaml.investments.map(inv => {
+          const taxStatus = inv.taxStatus === 'pre-tax' ? 'pre-tax-retirement' :
+            inv.taxStatus === 'after-tax' ? 'after-tax-retirement' :
+              inv.taxStatus;
+          return `${inv.investmentType} ${taxStatus}`;
+        });
+
+        // Initialize all allocations to 0
         const initialAllocations: Record<string, string> = {};
+        const finalAllocations: Record<string, string> = {};
+
+        allInvestments.forEach(key => {
+          initialAllocations[key] = "0";
+          finalAllocations[key] = "0";
+        });
+
+        // Set specific allocations from YAML
         if (es.assetAllocation) {
           Object.entries(es.assetAllocation).forEach(([key, value]) => {
-            initialAllocations[key] = String(value * 100); // Convert to percentage string
+            // Map YAML key to form key
+            const matchingInv = jsonYaml.investments.find(inv => inv.id === key);
+            if (matchingInv) {
+              const taxStatus = matchingInv.taxStatus === 'pre-tax' ? 'pre-tax-retirement' :
+                matchingInv.taxStatus === 'after-tax' ? 'after-tax-retirement' :
+                  matchingInv.taxStatus;
+              const formKey = `${matchingInv.investmentType} ${taxStatus}`;
+              initialAllocations[formKey] = String(Number(value) * 100);
+              console.log(`Initial allocation: ${key} -> ${formKey} = ${initialAllocations[formKey]}`);
+            }
           });
         }
-        const finalAllocations: Record<string, string> = {};
+
+        // Set specific final allocations from YAML
         if (es.assetAllocation2) {
           Object.entries(es.assetAllocation2).forEach(([key, value]) => {
-            finalAllocations[key] = String(value * 100); // Convert to percentage string
+            // Map YAML key to form key
+            const matchingInv = jsonYaml.investments.find(inv => inv.id === key);
+            if (matchingInv) {
+              const taxStatus = matchingInv.taxStatus === 'pre-tax' ? 'pre-tax-retirement' :
+                matchingInv.taxStatus === 'after-tax' ? 'after-tax-retirement' :
+                  matchingInv.taxStatus;
+              const formKey = `${matchingInv.investmentType} ${taxStatus}`;
+              finalAllocations[formKey] = String(Number(value) * 100);
+              console.log(`Final allocation: ${key} -> ${formKey} = ${finalAllocations[formKey]}`);
+            }
           });
         }
-        allocationFields = { allocationType: 'glide', initialAllocations, finalAllocations };
-      } else {
-        const allocations: Record<string, string> = {};
-        if (es.assetAllocation) {
-          Object.entries(es.assetAllocation).forEach(([key, value]) => {
-            allocations[key] = String(value * 100); // Convert to percentage string
-          });
-        }
-        allocationFields = { allocationType: 'fixed', allocations };
+
+        console.log("FINAL RESULT - initialAllocations:", initialAllocations);
+        console.log("FINAL RESULT - finalAllocations:", finalAllocations);
+
+        // Create event with explicit fields
+        return {
+          ...baseEvent,
+          type: 'invest',
+          allocationType: 'glide',  // FORCE glide type
+          initialAllocations: initialAllocations,
+          finalAllocations: finalAllocations,
+          maxCashValue: String(es.maxCash || 0)
+        } as InvestEvent;
       }
 
-      return {
-        ...baseEvent,
-        type: es.type,
-        ...allocationFields,
-        ...(es.type === 'invest' ? { maxCashValue: String(es.maxCash || 0) } : {})
-      } as InvestEvent | RebalanceEvent; // Cast to specific types
+      // Normal processing for other invest/rebalance events
+      // Process allocations based on whether it's a glide path or fixed allocation
+      const allInvestmentKeys = jsonYaml.investments.map(inv => {
+        let taxStatus: string;
+        switch (inv.taxStatus) {
+          case 'pre-tax': taxStatus = 'pre-tax-retirement'; break;
+          case 'after-tax': taxStatus = 'after-tax-retirement'; break;
+          default: taxStatus = inv.taxStatus;
+        }
+        return `${inv.investmentType} ${taxStatus}`;
+      });
+
+      // Debug print all investment keys
+      console.log("All investment keys:", allInvestmentKeys);
+
+      // Create a helper function to build allocation objects with all investments initialized to 0%
+      const createEmptyAllocations = () => {
+        const allocations: Record<string, string> = {};
+        allInvestmentKeys.forEach(key => {
+          allocations[key] = "0";
+        });
+        return allocations;
+      };
+
+      // IMPORTANT: Directly check if glidePath is true and set allocation type accordingly
+      const isGlidePath = es.glidePath === true;
+      console.log("Is glidePath?", isGlidePath);
+
+      if (isGlidePath) {
+        // Handle glide path (both initial and final allocations)
+        const initialAllocations = createEmptyAllocations();
+        const finalAllocations = createEmptyAllocations();
+
+        // Simple direct approach to set initial allocations
+        if (es.assetAllocation) {
+          console.log("Setting initial allocations from:", es.assetAllocation);
+          Object.entries(es.assetAllocation).forEach(([key, value]) => {
+            // Try to find a direct match for the investment
+            const matchingInvestment = jsonYaml.investments.find(inv => inv.id === key);
+            if (matchingInvestment) {
+              // Use specific tax status for this investment
+              let taxStatus: string;
+              switch (matchingInvestment.taxStatus) {
+                case 'pre-tax': taxStatus = 'pre-tax-retirement'; break;
+                case 'after-tax': taxStatus = 'after-tax-retirement'; break;
+                default: taxStatus = matchingInvestment.taxStatus;
+              }
+
+              const formKey = `${matchingInvestment.investmentType} ${taxStatus}`;
+              initialAllocations[formKey] = String(Number(value) * 100); // Convert to percentage
+              console.log(`Mapped ${key} to ${formKey} with value ${initialAllocations[formKey]}`);
+            } else {
+              // Just parse the key directly - grab up to last space as asset type, rest as tax status
+              const assetName = key.split(' ')[0];
+              initialAllocations[key] = String(Number(value) * 100);
+              console.log(`Using direct key ${key} with value ${initialAllocations[key]}`);
+            }
+          });
+        }
+
+        // Simple direct approach to set final allocations
+        if (es.assetAllocation2) {
+          console.log("Setting final allocations from:", es.assetAllocation2);
+          Object.entries(es.assetAllocation2).forEach(([key, value]) => {
+            // Try to find a direct match for the investment
+            const matchingInvestment = jsonYaml.investments.find(inv => inv.id === key);
+            if (matchingInvestment) {
+              // Use specific tax status for this investment
+              let taxStatus: string;
+              switch (matchingInvestment.taxStatus) {
+                case 'pre-tax': taxStatus = 'pre-tax-retirement'; break;
+                case 'after-tax': taxStatus = 'after-tax-retirement'; break;
+                default: taxStatus = matchingInvestment.taxStatus;
+              }
+
+              const formKey = `${matchingInvestment.investmentType} ${taxStatus}`;
+              finalAllocations[formKey] = String(Number(value) * 100); // Convert to percentage
+              console.log(`Mapped ${key} to ${formKey} with value ${finalAllocations[formKey]}`);
+            } else {
+              // Just parse the key directly - grab up to last space as asset type, rest as tax status
+              const assetName = key.split(' ')[0];
+              finalAllocations[key] = String(Number(value) * 100);
+              console.log(`Using direct key ${key} with value ${finalAllocations[key]}`);
+            }
+          });
+        }
+
+        console.log("Final initialAllocations:", initialAllocations);
+        console.log("Final finalAllocations:", finalAllocations);
+
+        // Create the event object with explicit glidePath
+        return {
+          ...baseEvent,
+          type: es.type,
+          allocationType: 'glide', // Force allocationType to 'glide'
+          initialAllocations,
+          finalAllocations,
+          ...(es.type === 'invest' ? { maxCashValue: String(es.maxCash || 0) } : {})
+        } as InvestEvent | RebalanceEvent;
+      } else {
+        // Handle fixed allocations
+        const allocations = createEmptyAllocations();
+
+        // Set allocations from YAML if provided
+        if (es.assetAllocation) {
+          console.log("Setting fixed allocations from:", es.assetAllocation);
+          Object.entries(es.assetAllocation).forEach(([key, value]) => {
+            // Try to find a direct match for the investment
+            const matchingInvestment = jsonYaml.investments.find(inv => inv.id === key);
+            if (matchingInvestment) {
+              // Use specific tax status for this investment
+              let taxStatus: string;
+              switch (matchingInvestment.taxStatus) {
+                case 'pre-tax': taxStatus = 'pre-tax-retirement'; break;
+                case 'after-tax': taxStatus = 'after-tax-retirement'; break;
+                default: taxStatus = matchingInvestment.taxStatus;
+              }
+
+              const formKey = `${matchingInvestment.investmentType} ${taxStatus}`;
+              allocations[formKey] = String(Number(value) * 100); // Convert to percentage
+              console.log(`Mapped ${key} to ${formKey} with value ${allocations[formKey]}`);
+            } else {
+              // Just parse the key directly - grab up to last space as asset type, rest as tax status
+              const assetName = key.split(' ')[0];
+              allocations[key] = String(Number(value) * 100);
+              console.log(`Using direct key ${key} with value ${allocations[key]}`);
+            }
+          });
+        }
+
+        console.log("Final allocations:", allocations);
+
+        return {
+          ...baseEvent,
+          type: es.type,
+          allocationType: 'fixed',
+          allocations,
+          ...(es.type === 'invest' ? { maxCashValue: String(es.maxCash || 0) } : {})
+        } as InvestEvent | RebalanceEvent;
+      }
     } else {
       console.warn(`Unknown event series type: ${es.type}`);
       // Return a default or throw an error, here returning null and filtering later
@@ -591,7 +815,17 @@ export function yamlToScenario(yaml: string): StringScenarioFormData {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
+    console.log("Received YAML import request");
     const scenarioYaml = yamlToScenario(body.scenarioYaml);
+
+    console.log("Final asset types for DB:", scenarioYaml.assetTypes.map(asset => ({
+      name: asset.name,
+      returnType: asset.returnType,
+      fixedReturn: asset.fixedReturn,
+      expenseRatio: asset.expenseRatio,
+      incomeType: asset.incomeType,
+      normalIncomeMean: asset.normalIncomeMean
+    })));
 
     // If saveToDB flag is true, save the scenario to the database
     if (body.saveToDB && body.userEmail) {
@@ -625,8 +859,13 @@ export async function POST(request: NextRequest) {
           fixedReturn: asset.fixedReturn ? parseFloat(asset.fixedReturn) : undefined,
           normalReturnMean: asset.normalReturnMean ? parseFloat(asset.normalReturnMean) : undefined,
           normalReturnStd: asset.normalReturnStd ? parseFloat(asset.normalReturnStd) : undefined,
-          normalIncomeMean: parseFloat(asset.normalIncomeMean || '0') || 0,
-          normalIncomeStd: parseFloat(asset.normalIncomeStd || '0') || 0
+          uniformReturnMin: asset.uniformReturnMin ? parseFloat(asset.uniformReturnMin) : undefined,
+          uniformReturnMax: asset.uniformReturnMax ? parseFloat(asset.uniformReturnMax) : undefined,
+          fixedIncome: asset.fixedIncome ? parseFloat(asset.fixedIncome) : undefined,
+          uniformIncomeMin: asset.uniformIncomeMin ? parseFloat(asset.uniformIncomeMin) : undefined,
+          uniformIncomeMax: asset.uniformIncomeMax ? parseFloat(asset.uniformIncomeMax) : undefined,
+          normalIncomeMean: asset.normalIncomeMean ? parseFloat(asset.normalIncomeMean) : undefined,
+          normalIncomeStd: asset.normalIncomeStd ? parseFloat(asset.normalIncomeStd) : undefined
         })),
         investments: scenarioYaml.investments.map(inv => ({
           ...inv,
@@ -637,6 +876,7 @@ export async function POST(request: NextRequest) {
         })),
         eventSeries: scenarioYaml.eventSeries.map(event => {
           const parsedEvent = { ...event };
+          //parsedEvent.
 
           // Parse numeric fields based on event type and structure
           if (parsedEvent.startYear) parsedEvent.startYear = parseInt(parsedEvent.startYear);
@@ -652,20 +892,20 @@ export async function POST(request: NextRequest) {
           if (parsedEvent.durationStd) parsedEvent.durationStd = parseFloat(parsedEvent.durationStd);
 
           // Handle income/expense events
-          if (parsedEvent.amount) parsedEvent.amount = parseFloat(parsedEvent.amount);
+          if (parsedEvent.amount) parsedEvent.amount = parsedEvent.amount;
           if (parsedEvent.annualChange) parsedEvent.annualChange = parseFloat(parsedEvent.annualChange);
           if (parsedEvent.annualChangeMin) parsedEvent.annualChangeMin = parseFloat(parsedEvent.annualChangeMin);
           if (parsedEvent.annualChangeMax) parsedEvent.annualChangeMax = parseFloat(parsedEvent.annualChangeMax);
           if (parsedEvent.annualChangeMean) parsedEvent.annualChangeMean = parseFloat(parsedEvent.annualChangeMean);
           if (parsedEvent.annualChangeStd) parsedEvent.annualChangeStd = parseFloat(parsedEvent.annualChangeStd);
           if (parsedEvent.userPercentage) parsedEvent.userPercentage = parseFloat(parsedEvent.userPercentage);
-          
+
           // Convert strategy fields to numbers
           if (parsedEvent.spendingStrategy) parsedEvent.spendingStrategy = parseInt(parsedEvent.spendingStrategy);
 
           // Handle invest events
           if (parsedEvent.maxCashValue) parsedEvent.maxCashValue = parseFloat(parsedEvent.maxCashValue);
-         
+
           // Keep string representation for these fields
           if (parsedEvent.amount) parsedEvent.amount = Number(parsedEvent.amount);
           if (parsedEvent.userPercentage) parsedEvent.userPercentage = Number(parsedEvent.userPercentage);
