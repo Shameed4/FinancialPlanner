@@ -99,6 +99,14 @@ const Exploration2DPage = () => {
     const [selectedEventSeriesB, setSelectedEventSeriesB] = useState(null);
     const [eventSeriesModifyAttributeB, setEventSeriesModifyAttributeB] = useState('startYear'); // 'startYear' or 'duration'
 
+    // Allocation specific state for Parameter A
+    const [selectedInvestEventA, setSelectedInvestEventA] = useState(null);
+    const [investmentPairA, setInvestmentPairA] = useState(null); // {first: {name, percentage}, second: {name, percentage}}
+
+    // Allocation specific state for Parameter B
+    const [selectedInvestEventB, setSelectedInvestEventB] = useState(null);
+    const [investmentPairB, setInvestmentPairB] = useState(null); // {first: {name, percentage}, second: {name, percentage}}
+
     const { data: session } = useSession();
 
     // Load scenarios when session is available
@@ -177,15 +185,16 @@ const Exploration2DPage = () => {
             }
         }
         else if (paramType === 'allocations') {
-            // For allocations, find an invest event 
-            const investEvent = selectedScenario.eventSeries.find(es => es.type === 'invest');
+            // Reset investment event selections
+            setSelectedInvestEventA(null);
+            setInvestmentPairA(null);
 
-            if (investEvent && investEvent.initialAllocations) {
-                // Set default allocation range
-                setParamARangeMin(0);
-                setParamARangeMax(100);
-                setParamARangeStep(10);
-            }
+            // Set default range
+            setParamARangeMin(0);
+            setParamARangeMax(100);
+            setParamARangeStep(10);
+
+            console.log('Parameter A set to allocations. Please select an investment event.');
         }
     };
 
@@ -247,15 +256,16 @@ const Exploration2DPage = () => {
             }
         }
         else if (paramType === 'allocations') {
-            // For allocations, find an invest event 
-            const investEvent = selectedScenario.eventSeries.find(es => es.type === 'invest');
+            // Reset investment event selections
+            setSelectedInvestEventB(null);
+            setInvestmentPairB(null);
 
-            if (investEvent && investEvent.initialAllocations) {
-                // Set default allocation range
-                setParamBRangeMin(0);
-                setParamBRangeMax(100);
-                setParamBRangeStep(10);
-            }
+            // Set default range
+            setParamBRangeMin(0);
+            setParamBRangeMax(100);
+            setParamBRangeStep(10);
+
+            console.log('Parameter B set to allocations. Please select an investment event.');
         }
     };
 
@@ -371,17 +381,29 @@ const Exploration2DPage = () => {
                         targetEventA.amount = valueA;
                     }
                 } else if (parameterA === 'allocations') {
-                    // Find an invest type event
-                    const investEvent = modifiedScenario.eventSeries.find(es => es.type === 'invest');
+                    // Use the selected invest event for Parameter A
+                    if (selectedInvestEventA && investmentPairA) {
+                        // Find the event in the modified scenario
+                        const eventIndex = modifiedScenario.eventSeries.findIndex(
+                            es => (es.title === selectedInvestEventA.title || es.name === selectedInvestEventA.name) && es.type === 'invest'
+                        );
 
-                    if (investEvent && investEvent.initialAllocations) {
-                        const allocationKeys = Object.keys(investEvent.initialAllocations);
+                        if (eventIndex !== -1) {
+                            const event = modifiedScenario.eventSeries[eventIndex];
 
-                        if (allocationKeys.length >= 2) {
-                            // Set the first allocation to the value
-                            investEvent.initialAllocations[allocationKeys[0]] = valueA;
-                            // Set the second allocation to the complement
-                            investEvent.initialAllocations[allocationKeys[1]] = 100 - valueA;
+                            // Make sure initialAllocations exists
+                            if (!event.initialAllocations) {
+                                event.initialAllocations = {};
+                            }
+
+                            // Update the percentages
+                            event.initialAllocations[investmentPairA.first.name] = valueA;
+                            event.initialAllocations[investmentPairA.second.name] = 100 - valueA;
+
+                            // Log the investment event and updated allocations
+                            console.log(`Updated investment allocations for "${event.name}": ${investmentPairA.first.name}=${valueA}%, ${investmentPairA.second.name}=${100 - valueA}%`);
+                        } else {
+                            console.error(`Could not find investment event "${selectedInvestEventA.name || selectedInvestEventA.title}" with type="invest"`);
                         }
                     }
                 }
@@ -410,17 +432,29 @@ const Exploration2DPage = () => {
                         targetEventB.amount = valueB;
                     }
                 } else if (parameterB === 'allocations') {
-                    // Find an invest type event
-                    const investEvent = modifiedScenario.eventSeries.find(es => es.type === 'invest');
+                    // Use the selected invest event for Parameter B
+                    if (selectedInvestEventB && investmentPairB) {
+                        // Find the event in the modified scenario
+                        const eventIndex = modifiedScenario.eventSeries.findIndex(
+                            es => (es.title === selectedInvestEventB.title || es.name === selectedInvestEventB.name) && es.type === 'invest'
+                        );
 
-                    if (investEvent && investEvent.initialAllocations) {
-                        const allocationKeys = Object.keys(investEvent.initialAllocations);
+                        if (eventIndex !== -1) {
+                            const event = modifiedScenario.eventSeries[eventIndex];
 
-                        if (allocationKeys.length >= 2) {
-                            // Set the first allocation to the value
-                            investEvent.initialAllocations[allocationKeys[0]] = valueB;
-                            // Set the second allocation to the complement
-                            investEvent.initialAllocations[allocationKeys[1]] = 100 - valueB;
+                            // Make sure initialAllocations exists
+                            if (!event.initialAllocations) {
+                                event.initialAllocations = {};
+                            }
+
+                            // Update the percentages
+                            event.initialAllocations[investmentPairB.first.name] = valueB;
+                            event.initialAllocations[investmentPairB.second.name] = 100 - valueB;
+
+                            // Log the investment event and updated allocations
+                            console.log(`Updated investment allocations for "${event.name}": ${investmentPairB.first.name}=${valueB}%, ${investmentPairB.second.name}=${100 - valueB}%`);
+                        } else {
+                            console.error(`Could not find investment event "${selectedInvestEventB.name || selectedInvestEventB.title}" with type="invest"`);
                         }
                     }
                 }
@@ -437,6 +471,9 @@ const Exploration2DPage = () => {
                 } else if (parameterA === 'eventSeriesAmount') {
                     const seriesName = selectedEventSeriesA?.name || selectedEventSeriesA?.title || 'Event';
                     paramADesc = `${seriesName} Amount=${formatCurrency(valueA)}`;
+                } else if (parameterA === 'allocations' && selectedInvestEventA && investmentPairA) {
+                    const investName = selectedInvestEventA?.name || selectedInvestEventA?.title || 'Investment';
+                    paramADesc = `${investName} ${investmentPairA.first.name}=${valueA}%`;
                 } else {
                     paramADesc = `${parameterA}=${valueA}`;
                 }
@@ -448,6 +485,9 @@ const Exploration2DPage = () => {
                 } else if (parameterB === 'eventSeriesAmount') {
                     const seriesName = selectedEventSeriesB?.name || selectedEventSeriesB?.title || 'Event';
                     paramBDesc = `${seriesName} Amount=${formatCurrency(valueB)}`;
+                } else if (parameterB === 'allocations' && selectedInvestEventB && investmentPairB) {
+                    const investName = selectedInvestEventB?.name || selectedInvestEventB?.title || 'Investment';
+                    paramBDesc = `${investName} ${investmentPairB.first.name}=${valueB}%`;
                 } else {
                     paramBDesc = `${parameterB}=${valueB}`;
                 }
@@ -539,6 +579,19 @@ const Exploration2DPage = () => {
                 setFeedbackMessage(`Error: ${error.message}`);
                 console.error('Network error:', error);
             });
+
+        console.log(`Exploring with parameter A: ${parameterA}, range: ${paramARangeMin} to ${paramARangeMax}, steps: ${paramARangeStep}`);
+        console.log(`Exploring with parameter B: ${parameterB}, range: ${paramBRangeMin} to ${paramBRangeMax}, steps: ${paramBRangeStep}`);
+
+        if (parameterA === 'allocations' && selectedInvestEventA) {
+            console.log(`Allocation parameter A: Modifying ${investmentPairA.first.name} and ${investmentPairA.second.name} in ${selectedInvestEventA.title || selectedInvestEventA.name}`);
+        }
+
+        if (parameterB === 'allocations' && selectedInvestEventB) {
+            console.log(`Allocation parameter B: Modifying ${investmentPairB.first.name} and ${investmentPairB.second.name} in ${selectedInvestEventB.title || selectedInvestEventB.name}`);
+        }
+
+        console.log(`Generated ${scenarios.length} scenarios for exploration.`);
     };
 
     // Handle automatic parameter changes when both are the same
@@ -636,6 +689,7 @@ const Exploration2DPage = () => {
                                                 <select
                                                     value={selectedEventSeriesIndexA}
                                                     onChange={(e) => {
+                                                        if (!e.target.value) return; // Handle empty selection
                                                         const index = parseInt(e.target.value);
                                                         const series = selectedScenario.eventSeries[index];
                                                         setSelectedEventSeriesA(series);
@@ -693,6 +747,161 @@ const Exploration2DPage = () => {
                                             </div>
                                         )}
 
+                                        {/* Allocation selection for Parameter A */}
+                                        {parameterA === 'allocations' && (
+                                            <div>
+                                                <label className="block text-xs text-gray-500 mb-1">
+                                                    Select Investment Event for Parameter A
+                                                </label>
+                                                <select
+                                                    className="w-full p-2 border rounded-md bg-gray-50 border-gray-300 text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                                    value=""
+                                                    onChange={(e) => {
+                                                        if (!e.target.value) return; // Handle empty selection
+                                                        const selectedInvestEventIndex = parseInt(e.target.value);
+                                                        const investEvents = selectedScenario.eventSeries.filter(es => es.type === 'invest');
+                                                        const selectedEvent = investEvents[selectedInvestEventIndex];
+
+                                                        // Only proceed if event has initialAllocations with at least 2 items
+                                                        if (selectedEvent && selectedEvent.initialAllocations &&
+                                                            Object.keys(selectedEvent.initialAllocations).length >= 2) {
+
+                                                            setSelectedInvestEventA(selectedEvent);
+                                                            console.log(`Selected investment event for Parameter A: "${selectedEvent.name}" (type: ${selectedEvent.type})`);
+
+                                                            // Get allocation keys
+                                                            const allocationKeys = Object.keys(selectedEvent.initialAllocations);
+
+                                                            // Create the investment pair
+                                                            const firstInvestment = {
+                                                                name: allocationKeys[0],
+                                                                percentage: selectedEvent.initialAllocations[allocationKeys[0]]
+                                                            };
+
+                                                            const secondInvestment = {
+                                                                name: allocationKeys[1],
+                                                                percentage: selectedEvent.initialAllocations[allocationKeys[1]]
+                                                            };
+
+                                                            setInvestmentPairA({ first: firstInvestment, second: secondInvestment });
+
+                                                            // Set default allocation range based on current allocation
+                                                            const currentPercentage = firstInvestment.percentage;
+                                                            // Provide a reasonable range for exploration
+                                                            const minValue = Math.max(0, Math.round(currentPercentage - 30));
+                                                            const maxValue = Math.min(100, Math.round(currentPercentage + 30));
+
+                                                            setParamARangeMin(minValue);
+                                                            setParamARangeMax(maxValue);
+                                                            setParamARangeStep(10);
+                                                        }
+                                                    }}
+                                                >
+                                                    <option value="">-- Select Investment Event --</option>
+                                                    {selectedScenario.eventSeries
+                                                        .filter(es => es.type === 'invest' && es.initialAllocations && Object.keys(es.initialAllocations).length >= 2)
+                                                        .map((event, index) => (
+                                                            <option key={index} value={index}>
+                                                                {event.name || event.title || `Investment ${index + 1}`}
+                                                            </option>
+                                                        ))
+                                                    }
+                                                </select>
+                                            </div>
+                                        )}
+
+                                        {/* Allocation details for Parameter A */}
+                                        {parameterA === 'allocations' && selectedInvestEventA && investmentPairA && (
+                                            <div className="mt-4 p-3 bg-blue-50 rounded-md">
+                                                <h4 className="text-sm font-medium text-blue-700 mb-2">Allocation Details (Parameter A)</h4>
+                                                <div className="space-y-2">
+                                                    <p className="text-xs text-blue-600">
+                                                        Investment: <span className="font-semibold">{selectedInvestEventA.title || selectedInvestEventA.name}</span>
+                                                    </p>
+                                                    <div className="grid grid-cols-1 gap-4">
+                                                        <div className="bg-white p-3 rounded border border-blue-200">
+                                                            <p className="text-xs font-medium mb-2">{investmentPairA.first.name}</p>
+                                                            <div className="grid grid-cols-2 gap-3">
+                                                                <div>
+                                                                    <label className="block text-xs text-gray-500 mb-1">Min %</label>
+                                                                    <input
+                                                                        type="number"
+                                                                        value={paramARangeMin}
+                                                                        onChange={(e) => {
+                                                                            const newMin = Number(e.target.value);
+                                                                            if (newMin >= 0 && newMin <= 100 && newMin <= paramARangeMax) {
+                                                                                setParamARangeMin(newMin);
+                                                                                // No need to update other values as the second investment's
+                                                                                // max is calculated as 100 - min
+                                                                            }
+                                                                        }}
+                                                                        min={0}
+                                                                        max={100}
+                                                                        className="w-full p-1 border rounded-md bg-gray-50 border-gray-300 text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                                                    />
+                                                                </div>
+                                                                <div>
+                                                                    <label className="block text-xs text-gray-500 mb-1">Max %</label>
+                                                                    <input
+                                                                        type="number"
+                                                                        value={paramARangeMax}
+                                                                        onChange={(e) => {
+                                                                            const newMax = Number(e.target.value);
+                                                                            if (newMax >= 0 && newMax <= 100) {
+                                                                                setParamARangeMax(newMax);
+                                                                                // No need to update other values as the second investment's
+                                                                                // min is calculated as 100 - max
+                                                                            }
+                                                                        }}
+                                                                        min={0}
+                                                                        max={100}
+                                                                        className="w-full p-1 border rounded-md bg-gray-50 border-gray-300 text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                                                    />
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                        <div className="bg-white p-3 rounded border border-blue-200">
+                                                            <p className="text-xs font-medium mb-2">{investmentPairA.second.name}</p>
+                                                            <div className="grid grid-cols-2 gap-3">
+                                                                <div>
+                                                                    <label className="block text-xs text-gray-500 mb-1">Min % (= 100 - {investmentPairA.first.name} Min %)</label>
+                                                                    <input
+                                                                        type="number"
+                                                                        value={100 - paramARangeMin}
+                                                                        disabled
+                                                                        className="w-full p-1 border rounded-md bg-gray-100 border-gray-300 text-gray-600"
+                                                                    />
+                                                                </div>
+                                                                <div>
+                                                                    <label className="block text-xs text-gray-500 mb-1">Max % (= 100 - {investmentPairA.first.name} Max %)</label>
+                                                                    <input
+                                                                        type="number"
+                                                                        value={100 - paramARangeMax}
+                                                                        disabled
+                                                                        className="w-full p-1 border rounded-md bg-gray-100 border-gray-300 text-gray-600"
+                                                                    />
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                    <div>
+                                                        <label className="block text-xs text-gray-500 mb-1">Step %</label>
+                                                        <input
+                                                            type="number"
+                                                            value={paramARangeStep}
+                                                            onChange={(e) => setParamARangeStep(Number(e.target.value))}
+                                                            min={1}
+                                                            max={20}
+                                                            className="w-1/3 p-1 border rounded-md bg-gray-50 border-gray-300 text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                                        />
+                                                    </div>
+                                                    <p className="text-xs text-gray-500 mt-2">
+                                                        For each allocation value, {investmentPairA.first.name} and {investmentPairA.second.name} percentages will always sum to 100%.
+                                                    </p>
+                                                </div>
+                                            </div>
+                                        )}
+
                                         {/* Start Year or Duration selection for Parameter A */}
                                         {parameterA === 'eventSeriesTiming' && selectedEventSeriesA && (
                                             <div>
@@ -723,7 +932,7 @@ const Exploration2DPage = () => {
                                         )}
 
                                         {/* Parameter A range */}
-                                        <div>
+                                        <div className={parameterA === 'allocations' ? 'hidden' : ''}>
                                             <label className="block text-sm font-medium text-gray-700 mb-2">
                                                 Parameter A Range
                                             </label>
@@ -793,6 +1002,7 @@ const Exploration2DPage = () => {
                                                 <select
                                                     value={selectedEventSeriesIndexB}
                                                     onChange={(e) => {
+                                                        if (!e.target.value) return; // Handle empty selection
                                                         const index = parseInt(e.target.value);
                                                         const series = selectedScenario.eventSeries[index];
                                                         setSelectedEventSeriesB(series);
@@ -850,6 +1060,161 @@ const Exploration2DPage = () => {
                                             </div>
                                         )}
 
+                                        {/* Allocation selection for Parameter B */}
+                                        {parameterB === 'allocations' && (
+                                            <div>
+                                                <label className="block text-xs text-gray-500 mb-1">
+                                                    Select Investment Event for Parameter B
+                                                </label>
+                                                <select
+                                                    className="w-full p-2 border rounded-md bg-gray-50 border-gray-300 text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                                    value=""
+                                                    onChange={(e) => {
+                                                        if (!e.target.value) return; // Handle empty selection
+                                                        const selectedInvestEventIndex = parseInt(e.target.value);
+                                                        const investEvents = selectedScenario.eventSeries.filter(es => es.type === 'invest');
+                                                        const selectedEvent = investEvents[selectedInvestEventIndex];
+
+                                                        // Only proceed if event has initialAllocations with at least 2 items
+                                                        if (selectedEvent && selectedEvent.initialAllocations &&
+                                                            Object.keys(selectedEvent.initialAllocations).length >= 2) {
+
+                                                            setSelectedInvestEventB(selectedEvent);
+                                                            console.log(`Selected investment event for Parameter B: "${selectedEvent.name}" (type: ${selectedEvent.type})`);
+
+                                                            // Get allocation keys
+                                                            const allocationKeys = Object.keys(selectedEvent.initialAllocations);
+
+                                                            // Create the investment pair
+                                                            const firstInvestment = {
+                                                                name: allocationKeys[0],
+                                                                percentage: selectedEvent.initialAllocations[allocationKeys[0]]
+                                                            };
+
+                                                            const secondInvestment = {
+                                                                name: allocationKeys[1],
+                                                                percentage: selectedEvent.initialAllocations[allocationKeys[1]]
+                                                            };
+
+                                                            setInvestmentPairB({ first: firstInvestment, second: secondInvestment });
+
+                                                            // Set default allocation range based on current allocation
+                                                            const currentPercentage = firstInvestment.percentage;
+                                                            // Provide a reasonable range for exploration
+                                                            const minValue = Math.max(0, Math.round(currentPercentage - 30));
+                                                            const maxValue = Math.min(100, Math.round(currentPercentage + 30));
+
+                                                            setParamBRangeMin(minValue);
+                                                            setParamBRangeMax(maxValue);
+                                                            setParamBRangeStep(10);
+                                                        }
+                                                    }}
+                                                >
+                                                    <option value="">-- Select Investment Event --</option>
+                                                    {selectedScenario.eventSeries
+                                                        .filter(es => es.type === 'invest' && es.initialAllocations && Object.keys(es.initialAllocations).length >= 2)
+                                                        .map((event, index) => (
+                                                            <option key={index} value={index}>
+                                                                {event.name || event.title || `Investment ${index + 1}`}
+                                                            </option>
+                                                        ))
+                                                    }
+                                                </select>
+                                            </div>
+                                        )}
+
+                                        {/* Allocation details for Parameter B */}
+                                        {parameterB === 'allocations' && selectedInvestEventB && investmentPairB && (
+                                            <div className="mt-4 p-3 bg-green-50 rounded-md">
+                                                <h4 className="text-sm font-medium text-green-700 mb-2">Allocation Details (Parameter B)</h4>
+                                                <div className="space-y-2">
+                                                    <p className="text-xs text-green-600">
+                                                        Investment: <span className="font-semibold">{selectedInvestEventB.title || selectedInvestEventB.name}</span>
+                                                    </p>
+                                                    <div className="grid grid-cols-1 gap-4">
+                                                        <div className="bg-white p-3 rounded border border-green-200">
+                                                            <p className="text-xs font-medium mb-2">{investmentPairB.first.name}</p>
+                                                            <div className="grid grid-cols-2 gap-3">
+                                                                <div>
+                                                                    <label className="block text-xs text-gray-500 mb-1">Min %</label>
+                                                                    <input
+                                                                        type="number"
+                                                                        value={paramBRangeMin}
+                                                                        onChange={(e) => {
+                                                                            const newMin = Number(e.target.value);
+                                                                            if (newMin >= 0 && newMin <= 100 && newMin <= paramBRangeMax) {
+                                                                                setParamBRangeMin(newMin);
+                                                                                // No need to update other values as the second investment's
+                                                                                // max is calculated as 100 - min
+                                                                            }
+                                                                        }}
+                                                                        min={0}
+                                                                        max={100}
+                                                                        className="w-full p-1 border rounded-md bg-gray-50 border-gray-300 text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                                                    />
+                                                                </div>
+                                                                <div>
+                                                                    <label className="block text-xs text-gray-500 mb-1">Max %</label>
+                                                                    <input
+                                                                        type="number"
+                                                                        value={paramBRangeMax}
+                                                                        onChange={(e) => {
+                                                                            const newMax = Number(e.target.value);
+                                                                            if (newMax >= 0 && newMax <= 100) {
+                                                                                setParamBRangeMax(newMax);
+                                                                                // No need to update other values as the second investment's
+                                                                                // min is calculated as 100 - max
+                                                                            }
+                                                                        }}
+                                                                        min={0}
+                                                                        max={100}
+                                                                        className="w-full p-1 border rounded-md bg-gray-50 border-gray-300 text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                                                    />
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                        <div className="bg-white p-3 rounded border border-green-200">
+                                                            <p className="text-xs font-medium mb-2">{investmentPairB.second.name}</p>
+                                                            <div className="grid grid-cols-2 gap-3">
+                                                                <div>
+                                                                    <label className="block text-xs text-gray-500 mb-1">Min % (= 100 - {investmentPairB.first.name} Min %)</label>
+                                                                    <input
+                                                                        type="number"
+                                                                        value={100 - paramBRangeMin}
+                                                                        disabled
+                                                                        className="w-full p-1 border rounded-md bg-gray-100 border-gray-300 text-gray-600"
+                                                                    />
+                                                                </div>
+                                                                <div>
+                                                                    <label className="block text-xs text-gray-500 mb-1">Max % (= 100 - {investmentPairB.first.name} Max %)</label>
+                                                                    <input
+                                                                        type="number"
+                                                                        value={100 - paramBRangeMax}
+                                                                        disabled
+                                                                        className="w-full p-1 border rounded-md bg-gray-100 border-gray-300 text-gray-600"
+                                                                    />
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                    <div>
+                                                        <label className="block text-xs text-gray-500 mb-1">Step %</label>
+                                                        <input
+                                                            type="number"
+                                                            value={paramBRangeStep}
+                                                            onChange={(e) => setParamBRangeStep(Number(e.target.value))}
+                                                            min={1}
+                                                            max={20}
+                                                            className="w-1/3 p-1 border rounded-md bg-gray-50 border-gray-300 text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                                        />
+                                                    </div>
+                                                    <p className="text-xs text-gray-500 mt-2">
+                                                        For each allocation value, {investmentPairB.first.name} and {investmentPairB.second.name} percentages will always sum to 100%.
+                                                    </p>
+                                                </div>
+                                            </div>
+                                        )}
+
                                         {/* Start Year or Duration selection for Parameter B */}
                                         {parameterB === 'eventSeriesTiming' && selectedEventSeriesB && (
                                             <div>
@@ -880,7 +1245,7 @@ const Exploration2DPage = () => {
                                         )}
 
                                         {/* Parameter B range */}
-                                        <div>
+                                        <div className={parameterB === 'allocations' ? 'hidden' : ''}>
                                             <label className="block text-sm font-medium text-gray-700 mb-2">
                                                 Parameter B Range
                                             </label>
