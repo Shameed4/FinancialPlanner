@@ -453,6 +453,8 @@ const ExplorationPage = () => {
                 // Get complementary percentage
                 const secondPercentage = 100 - firstPercentage;
 
+                console.log(`Creating scenario with ${investmentPair.first.name}: ${firstPercentage}%, ${investmentPair.second.name}: ${secondPercentage}%`);
+
                 // Create a deep copy of the scenario
                 const modifiedScenario = JSON.parse(JSON.stringify(selectedScenario));
 
@@ -482,7 +484,7 @@ const ExplorationPage = () => {
 
                 // Add this scenario to our array
                 scenarios.push({
-                    parameterValue: stepValues,
+                    parameterValue: firstPercentage, // Use the specific first percentage value for this scenario
                     scenario: modifiedScenario
                 });
             });
@@ -493,12 +495,25 @@ const ExplorationPage = () => {
                 return `Scenario ${index + 1}: ${investmentPair.first.name}: ${firstPercentage}%, ${investmentPair.second.name}: ${secondPercentage}%`;
             });
 
+            console.log('===== ALLOCATION SCENARIOS SUMMARY =====');
+            console.log('Generated the following allocation scenarios:');
+            allocationPairs.forEach(pair => console.log(pair));
+            console.log('Each scenario is a separate test with a specific allocation.');
+            console.log('Number of scenarios:', scenarios.length);
+            console.log('Step values:', stepValues);
+            console.log('=========================================');
+
             // Send scenarios to backend for processing
             const exploreData = {
                 scenarios: scenarios,
                 simulationCount: simulationCount,
                 parameterType: 'allocations',
                 changedPath: `${selectedInvestEvent.title || 'Investment Event'}.initialAllocations`,
+                stepValues: stepValues, // Include the step values for reference
+                parameterInfo: {
+                    name: 'Allocations',
+                    id: 'allocations',
+                },
                 details: {
                     firstInvestment: investmentPair.first.name,
                     secondInvestment: investmentPair.second.name,
@@ -511,6 +526,21 @@ const ExplorationPage = () => {
                     }
                 }
             };
+
+            // Debug: Verify scenarios structure
+            console.log("Final scenarios structure check:");
+            scenarios.forEach((scenario, index) => {
+                // Find the event index in this specific scenario
+                const thisEventIndex = scenario.scenario.eventSeries.findIndex(
+                    es => es.title === selectedInvestEvent.title
+                );
+
+                if (thisEventIndex !== -1) {
+                    console.log(`Scenario ${index}: parameterValue=${scenario.parameterValue}, first=${scenario.scenario.eventSeries[thisEventIndex].initialAllocations[investmentPair.first.name]}%, second=${scenario.scenario.eventSeries[thisEventIndex].initialAllocations[investmentPair.second.name]}%`);
+                } else {
+                    console.log(`Scenario ${index}: parameterValue=${scenario.parameterValue}, but event not found in scenario`);
+                }
+            });
 
             // Show loading state
             setIsProcessing(true);
@@ -533,7 +563,21 @@ const ExplorationPage = () => {
 
                     // Store the exploration results if they exist
                     if (data.results) {
+                        console.log('Results structure:', Object.keys(data.results));
+                        console.log('Result keys (parameter values):', Object.keys(data.results));
+
+                        // Log specific details about each result
+                        Object.entries(data.results).forEach(([paramValue, result]) => {
+                            console.log(`Result for parameter value ${paramValue}:`, {
+                                finalSuccessProb: result.finalSuccessProb,
+                                finalMedianInvest: result.finalMedianInvest,
+                                hasTimeSeries: !!result.successProbTimeSeries || !!result.medianInvestTimeSeries
+                            });
+                        });
+
                         setExplorationResults(data.results);
+                    } else {
+                        console.warn('No results data in the response');
                     }
 
                     console.log('===============================');
@@ -800,21 +844,13 @@ const ExplorationPage = () => {
 
                 modifiedScenario.name = `${data.selectedScenario.name} (${data.parameter}: ${value})`;
                 scenarios.push({
-                    parameterValue: firstPercentage, // The specific value being tested
+                    parameterValue: value, // Use the specific value being tested
                     scenario: modifiedScenario // The scenario modified for this value
                 });
             });
         }
 
         // Prepare data for the backend
-        // const exploreData = {
-        //     scenarios: scenarios,
-        //     simulationCount: simulationCount,
-        //     parameterType: data.parameter,
-        //     changedPath: data.itemName || data.parameter,
-        //     details: data,
-        //     stepValues: stepValues
-        // };
         const exploreData = {
             scenarios: scenarios, // Use the correctly structured array
             simulationCount: simulationCount,
@@ -836,7 +872,13 @@ const ExplorationPage = () => {
         console.log('Number of scenarios:', scenarios.length);
         console.log('Original step size:', data.steps || data.step);
         console.log('Adjusted step size:', adjustedStepSize);
-        console.log('Scenarios:', scenarios);
+
+        // Log each scenario with its parameter value
+        console.log('Scenarios details:');
+        scenarios.forEach((scenario, index) => {
+            console.log(`Scenario ${index + 1}: parameterValue = ${scenario.parameterValue}, name = ${scenario.scenario.name}`);
+        });
+
         console.log('Full request payload:', exploreData);
         console.log('===================================');
 
@@ -861,7 +903,21 @@ const ExplorationPage = () => {
 
                 // Store the exploration results if they exist
                 if (data.results) {
+                    console.log('Results structure:', Object.keys(data.results));
+                    console.log('Result keys (parameter values):', Object.keys(data.results));
+
+                    // Log specific details about each result
+                    Object.entries(data.results).forEach(([paramValue, result]) => {
+                        console.log(`Result for parameter value ${paramValue}:`, {
+                            finalSuccessProb: result.finalSuccessProb,
+                            finalMedianInvest: result.finalMedianInvest,
+                            hasTimeSeries: !!result.successProbTimeSeries || !!result.medianInvestTimeSeries
+                        });
+                    });
+
                     setExplorationResults(data.results);
+                } else {
+                    console.warn('No results data in the response');
                 }
 
                 console.log('===============================');

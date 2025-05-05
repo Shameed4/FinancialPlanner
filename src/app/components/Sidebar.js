@@ -143,8 +143,8 @@ const Sidebar = () => {
                             icon={<ChartScatter size={20} />}
                             label="2D Parameter Exploration"
                             isCollapsed={isCollapsed}
-                            onClick={() => navigateTo('/')}
-                            isActive={router.pathname === '/'}
+                            onClick={() => navigateTo('/exploration-2d')}
+                            isActive={router.pathname === '/exploration-2d'}
                         />
                     </li>
                     <li>
