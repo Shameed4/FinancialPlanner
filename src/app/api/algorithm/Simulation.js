@@ -159,14 +159,14 @@ function calculateMarginalTax(taxableIncome, brackets) {
   return totalTax;
 }
 
-export default async function runSimulation(initialState) {
+export default async function runSimulation(initialState, userName, generateLog = false) {
   let state = deepCopy(initialState);
-  
+
   // Ensure 'Cash' asset type exists in assetTypes
   if (!state.assetTypes) {
     state.assetTypes = [];
   }
-  
+
   const cashAssetType = state.assetTypes.find(assetType => assetType.name === 'Cash');
   if (!cashAssetType) {
     console.log("No Cash asset type found. Creating a default Cash asset type.");
@@ -180,9 +180,9 @@ export default async function runSimulation(initialState) {
       taxability: 'taxable'
     });
   }
-  
+
   let params = await buildParams(state);
-  
+
   // Check if Cash investment exists, create one if it doesn't
   let cash = state.investments.find(investment => investment.assetType === 'Cash');
   if (!cash) {
@@ -195,7 +195,7 @@ export default async function runSimulation(initialState) {
     };
     state.investments.push(cash);
   }
-  
+
   let iteration = 1;
   let resObject = {};
 
@@ -364,24 +364,29 @@ export default async function runSimulation(initialState) {
     }
   });
 
-  console.log(state.eventSeries);
+  // (state.eventSeries);
 
-  // Setup logging
-  const userId = initialState.userId || 'anonymous';
-  const dtString = new Date().toISOString().replace(/[:.]/g, '-');
-  const logDir = path.join(process.cwd(), 'logs');
-  fs.mkdirSync(logDir, { recursive: true });
-  const csvPath = path.join(logDir, `${dtString}_${userId}.csv`);
-  const logPath = path.join(logDir, `${dtString}_${userId}.log`);
-  const logStream = fs.createWriteStream(logPath, { flags: 'a' });
+  let logStream;
+  let logPath;
+  let csvPath;
   const csvData = [];
 
-  // Write initial log entry
-  logEvent(logStream, params.curYear, 'Simulation Start', {
-    UserId: userId,
-    InitialAssets: computeTotalAssets(state),
-    FinancialGoal: state.financialGoal
-  });
+  // Setup logging
+  if (generateLog) {
+    const dtString = new Date().toISOString().replace(/[:.]/g, '-');
+    const logDir = path.join(process.cwd(), 'logs');
+    fs.mkdirSync(logDir, { recursive: true });
+    csvPath = path.join(logDir, `${userName}_${dtString}.csv`);
+    logPath = path.join(logDir, `${userName}_${dtString}.log`);
+    logStream = fs.createWriteStream(logPath, { flags: 'a' });
+
+    // Write initial log entry
+    logEvent(logStream, params.curYear, 'Simulation Start', {
+      userName: userName,
+      InitialAssets: computeTotalAssets(state),
+      FinancialGoal: state.financialGoal
+    });
+  }
 
   // this while loop performs the simulation iteratively each year while at least one user is still alive
   while (params.userAlive) {
@@ -389,7 +394,7 @@ export default async function runSimulation(initialState) {
     let assetTotals = computeTotalAssetsByType(state);
 
     params.curYear += 1;
-    console.log(`[----------------------------------------------------]`)
+    //console.log(`[----------------------------------------------------]`)
     console.log(`Iteration ${iteration}`)
 
     // Age the user and update their alive status
@@ -405,11 +410,13 @@ export default async function runSimulation(initialState) {
     }
 
     if (!params.userAlive) {
-      logEvent(logStream, params.curYear, 'Simulation End', {
-        Reason: 'User reached life expectancy',
-        FinalAssets: computeTotalAssets(state),
-        GoalMet: computeTotalAssets(state) >= state.financialGoal
-      });
+      if (generateLog) {
+        logEvent(logStream, params.curYear, 'Simulation End', {
+          Reason: 'User reached life expectancy',
+          FinalAssets: computeTotalAssets(state),
+          GoalMet: computeTotalAssets(state) >= state.financialGoal
+        });
+      }
       continue;
     }
 
@@ -459,7 +466,7 @@ export default async function runSimulation(initialState) {
     params.afterTaxRetirementContributionLimit = params.afterTaxRetirementContributionLimit * (1 + params.inflationRate / 100);
 
     // Step 2: run the income events, adding income to the cash investment
-    console.log("Running income events...");
+    //console.log("Running income events...");
     let activeIncomeEvents = state.eventSeries.filter(event =>
       event && event.type === "income" &&
       event.startYear && params.curYear >= event.startYear &&
@@ -515,15 +522,17 @@ export default async function runSimulation(initialState) {
         params.curYearSS += event.amount;
       }
       // Log income event
-      logEvent(logStream, params.curYear, 'Income', {
-        EventName: event.name,
-        Amount: event.amount,
-        IsSocialSecurity: event.isSocialSecurity
-      });
+      if (generateLog) {
+        logEvent(logStream, params.curYear, 'Income', {
+          EventName: event.name,
+          Amount: event.amount,
+          IsSocialSecurity: event.isSocialSecurity
+        });
+      }
     });
 
     // Step 3: Perform the RMD (Calculation for Current Year, Transfer for Previous Year)
-    console.log("Running RMD processing...");
+    //console.log("Running RMD processing...");
 
     // --- Part 1: Calculate RMD for Current Year (Based on Prev Year End) ---
     let calculatedRmdCurrentYear = 0;
@@ -543,9 +552,11 @@ export default async function runSimulation(initialState) {
       params.prevRMD = calculatedRmdCurrentYear;
       // Log RMD calculation
       if (calculatedRmdCurrentYear > 0) {
-        logEvent(logStream, params.curYear, 'RMD Calculation', {
-          Amount: calculatedRmdCurrentYear
-        });
+        if (generateLog) {
+          logEvent(logStream, params.curYear, 'RMD Calculation', {
+            Amount: calculatedRmdCurrentYear
+          });
+        }
       }
     } else {
       // Ensure prevRMD is zeroed out if user is younger than RMD age
@@ -602,11 +613,13 @@ export default async function runSimulation(initialState) {
       // Log RMD transfer
       const actualTransferred = rmdToTransfer - remainingToTransfer;
       if (actualTransferred > 0 || rmdToTransfer > 0) {
-        logEvent(logStream, params.curYear, 'RMD Transfer', {
-          RequiredAmount: rmdToTransfer,
-          TransferredAmount: actualTransferred,
-          Shortfall: remainingToTransfer
-        });
+        if (generateLog) {
+          logEvent(logStream, params.curYear, 'RMD Transfer', {
+            RequiredAmount: rmdToTransfer,
+            TransferredAmount: actualTransferred,
+            Shortfall: remainingToTransfer
+          });
+        }
       }
 
       if (remainingToTransfer > 0.01) { // Tolerance for floating point issues
@@ -615,7 +628,7 @@ export default async function runSimulation(initialState) {
     }
 
     // Step 4: Update the values of investments, reflecting expected annual return, reinvestment of generated income, and subtraction of expenses.
-    console.log("Running investment updates...");
+    //console.log("Running investment updates...");
     state.investments.forEach(investment => {
       let type = investment.assetType;
       let assetType = state.assetTypes.find(at => at.name === type);
@@ -660,19 +673,21 @@ export default async function runSimulation(initialState) {
       investment.value -= expenses;
 
       // Log investment update
-      logEvent(logStream, params.curYear, 'Investment Update', {
-        AssetType: type,
-        TaxStatus: investment.taxStatus,
-        GeneratedIncome: generatedIncome,
-        ReturnChange: changeInValue,
-        Expenses: expenses,
-        FinalValue: investment.value
-      });
+      if (generateLog) {
+        logEvent(logStream, params.curYear, 'Investment Update', {
+          AssetType: type,
+          TaxStatus: investment.taxStatus,
+          GeneratedIncome: generatedIncome,
+          ReturnChange: changeInValue,
+          Expenses: expenses,
+          FinalValue: investment.value
+        });
+      }
     });
 
     // Step 5: Run the Roth conversion (RC) optimizer, if it is enabled
     if (state.rothOptimizationStartYear && state.rothOptimizationEndYear) {
-      console.log("Running roth conversion optimizer...");
+      //console.log("Running roth conversion optimizer...");
 
       // Calculate the user's federal taxable income for the year.
       // This subtracts 85% of Social Security from the total income.
@@ -777,16 +792,18 @@ export default async function runSimulation(initialState) {
       // Log Roth conversion event
       const totalConverted = rothConversionAmount - remainingConversion;
       if (totalConverted > 0) {
-        logEvent(logStream, params.curYear, 'Roth Conversion', {
-          TotalConverted: totalConverted,
-          TargetBracketMax: taxBracket.max
-        });
+        if (generateLog) {
+          logEvent(logStream, params.curYear, 'Roth Conversion', {
+            TotalConverted: totalConverted,
+            TargetBracketMax: taxBracket.max
+          });
+        }
       }
     }
 
     // Step 6: Pay non-discretionary expenses and the previous year's taxes,
     // i.e., subtract them from the cash investment. Perform additional withdrawals if needed to pay them.
-    console.log("Running non-discretionary expense and tax processing...");
+    //console.log("Running non-discretionary expense and tax processing...");
 
     let prevYearFedTax = 0;
     let prevYearStateTax = 0;
@@ -848,16 +865,18 @@ export default async function runSimulation(initialState) {
 
     // Log tax payment with detailed breakdown
     if (totalTaxes > 0) {
-      logEvent(logStream, params.curYear, 'Tax Payment (Prev Year)', {
-        Total: totalTaxes,
-        FedIncome: prevYearFedTax,
-        StateIncome: prevYearStateTax,
-        CapGains: prevYearCapitalGainsTax,
-        EarlyWithdrawal: earlyWithdrawalTax,
-        IncomeBeforeDeduction: prevYearFedTaxableIncome,
-        StandardDeduction: prevStandardDeduction,
-        IncomeAfterDeduction: prevYearIncomeAfterDeduction
-      });
+      if (generateLog) {
+        logEvent(logStream, params.curYear, 'Tax Payment (Prev Year)', {
+          Total: totalTaxes,
+          FedIncome: prevYearFedTax,
+          StateIncome: prevYearStateTax,
+          CapGains: prevYearCapitalGainsTax,
+          EarlyWithdrawal: earlyWithdrawalTax,
+          IncomeBeforeDeduction: prevYearFedTaxableIncome,
+          StandardDeduction: prevStandardDeduction,
+          IncomeAfterDeduction: prevYearIncomeAfterDeduction
+        });
+      }
     }
 
     // --- Non-Discretionary Expense Summation ---
@@ -903,10 +922,12 @@ export default async function runSimulation(initialState) {
       nonDiscretionarySum += calculatedExpenseAmount;
 
       // Log non-discretionary expense
-      logEvent(logStream, params.curYear, 'Expense (Non-Disc)', {
-        EventName: event.name,
-        AmountPaid: calculatedExpenseAmount
-      });
+      if (generateLog) {
+        logEvent(logStream, params.curYear, 'Expense (Non-Disc)', {
+          EventName: event.name,
+          AmountPaid: calculatedExpenseAmount
+        });
+      }
     });
 
     // Calculate the total payment amount: non-discretionary expenses plus last year's taxes.
@@ -969,21 +990,25 @@ export default async function runSimulation(initialState) {
         totalWithdrawn += amountSold;
 
         // Log investment sale
-        logEvent(logStream, params.curYear, 'Investment Sale', {
-          AssetType: inv.assetType,
-          TaxStatus: inv.taxStatus,
-          AmountSold: amountSold,
-          CapitalGain: saleCapitalGain
-        });
+        if (generateLog) {
+          logEvent(logStream, params.curYear, 'Investment Sale', {
+            AssetType: inv.assetType,
+            TaxStatus: inv.taxStatus,
+            AmountSold: amountSold,
+            CapitalGain: saleCapitalGain
+          });
+        }
       }
 
       if (totalWithdrawn < withdrawalAmount) {
         // console.warn("Withdrawal shortfall: unable to fully cover the required non-discretionary expenses and taxes from investments.");
-        logEvent(logStream, params.curYear, 'Withdrawal Shortfall', {
-          Required: withdrawalAmount,
-          Actual: totalWithdrawn,
-          Shortfall: withdrawalAmount - totalWithdrawn
-        });
+        if (generateLog) {
+          logEvent(logStream, params.curYear, 'Withdrawal Shortfall', {
+            Required: withdrawalAmount,
+            Actual: totalWithdrawn,
+            Shortfall: withdrawalAmount - totalWithdrawn
+          });
+        }
       }
     }
 
@@ -999,7 +1024,7 @@ export default async function runSimulation(initialState) {
     // except stop if continuing would reduce the user's total assets below the financial goal.
     // The last discretionary expense to be paid can be partially paid if incurring the entire expense would violate the financial goal.
     // Perform additional withdrawals if needed to pay them.
-    console.log("Running discretionary expense processing...");
+    //console.log("Running discretionary expense processing...");
 
     const financialGoal = state.financialGoal;
 
@@ -1082,12 +1107,14 @@ export default async function runSimulation(initialState) {
           totalWithdrawn += withdrawalAmount;
 
           // Log investment sale for discretionary expense
-          logEvent(logStream, params.curYear, 'Investment Sale (Disc)', {
-            AssetType: inv.assetType,
-            TaxStatus: inv.taxStatus,
-            AmountSold: withdrawalAmount,
-            CapitalGain: realizedGain
-          });
+          if (generateLog) {
+            logEvent(logStream, params.curYear, 'Investment Sale (Disc)', {
+              AssetType: inv.assetType,
+              TaxStatus: inv.taxStatus,
+              AmountSold: withdrawalAmount,
+              CapitalGain: realizedGain
+            });
+          }
         }
 
         // Increase cash by the total amount withdrawn from investments.
@@ -1106,10 +1133,12 @@ export default async function runSimulation(initialState) {
       }
 
       // Log discretionary expense
-      logEvent(logStream, params.curYear, 'Expense (Disc)', {
-        EventName: event.name,
-        AmountPaid: expenseAmount
-      });
+      if (generateLog) {
+        logEvent(logStream, params.curYear, 'Expense (Disc)', {
+          EventName: event.name,
+          AmountPaid: expenseAmount
+        });
+      }
 
       // Update total assets after paying the expense.
       totalAssets = computeTotalAssets(state);
@@ -1122,7 +1151,7 @@ export default async function runSimulation(initialState) {
 
     // Step 8: Run the invest event scheduled for the current year, if any, by using excess cash to buy investments included in the asset allocation in the invest event,
     // apportioning the excess cash according to that asset allocation.
-    console.log("Running invest events...");
+    //console.log("Running invest events...");
     let activeInvestEvents = state.eventSeries.filter(event =>
       event.type === "invest" &&
       params.curYear >= event.startYear &&
@@ -1251,11 +1280,13 @@ export default async function runSimulation(initialState) {
         totalAmountInvested += planned.amountToBuy;
 
         // Log investment purchase
-        logEvent(logStream, params.curYear, 'Investment Purchase', {
-          AssetType: planned.assetType,
-          TaxStatus: planned.taxStatus,
-          Amount: planned.amountToBuy
-        });
+        if (generateLog) {
+          logEvent(logStream, params.curYear, 'Investment Purchase', {
+            AssetType: planned.assetType,
+            TaxStatus: planned.taxStatus,
+            Amount: planned.amountToBuy
+          });
+        }
       }
 
       // Reduce cash by the total amount actually invested
@@ -1263,15 +1294,17 @@ export default async function runSimulation(initialState) {
 
       // Log invest event
       if (totalAmountInvested > 0) {
-        logEvent(logStream, params.curYear, 'Invest Event', {
-          TotalInvested: totalAmountInvested,
-          ExcessCashAvailable: excessCash
-        });
+        if (generateLog) {
+          logEvent(logStream, params.curYear, 'Invest Event', {
+            TotalInvested: totalAmountInvested,
+            ExcessCashAvailable: excessCash
+          });
+        }
       }
     }
 
     // Step 9: Run rebalance events scheduled for the current year, by selling and buying the investments included in the specified asset allocation to achieve the specified ratios between their values.
-    console.log("Running rebalance events");
+    //console.log("Running rebalance events");
     let activeRebalanceEvents = state.eventSeries.filter(event =>
       event.type === "rebalance" &&
       params.curYear >= event.startYear &&
@@ -1339,10 +1372,12 @@ export default async function runSimulation(initialState) {
             cash.value -= valueDiff;
 
             // Log rebalance buy
-            logEvent(logStream, params.curYear, 'Rebalance Buy', {
-              Investment: `${alloc.assetType}_${alloc.taxStatus}`,
-              Amount: valueDiff
-            });
+            if (generateLog) {
+              logEvent(logStream, params.curYear, 'Rebalance Buy', {
+                Investment: `${alloc.assetType}_${alloc.taxStatus}`,
+                Amount: valueDiff
+              });
+            }
           } else {
             console.warn(`Insufficient cash for rebalancing: needed ${valueDiff}, have ${cash.value}`);
           }
@@ -1370,11 +1405,13 @@ export default async function runSimulation(initialState) {
           cash.value += amountToSell;
 
           // Log rebalance sell
-          logEvent(logStream, params.curYear, 'Rebalance Sell', {
-            Investment: `${alloc.assetType}_${alloc.taxStatus}`,
-            Amount: amountToSell,
-            CapitalGain: saleCapitalGain
-          });
+          if (generateLog) {
+            logEvent(logStream, params.curYear, 'Rebalance Sell', {
+              Investment: `${alloc.assetType}_${alloc.taxStatus}`,
+              Amount: amountToSell,
+              CapitalGain: saleCapitalGain
+            });
+          }
         }
       }
     }
@@ -1401,7 +1438,7 @@ export default async function runSimulation(initialState) {
       .filter(inv => inv.taxStatus === "pretax-retirement")
       .reduce((sum, inv) => sum + inv.value, 0); // Store the current year-end pre-tax sum
 
-    console.log(params.totalDiscExpenses);
+    //console.log(params.totalDiscExpenses);
     // set fields for the return object, which will be used in generating the charts
     resObject[params.curYear] = {}
     resObject[params.curYear].success = computeTotalAssets(state) >= state.financialGoal;
@@ -1431,40 +1468,45 @@ export default async function runSimulation(initialState) {
       const investmentKey = `${inv.assetType}_${inv.taxStatus}`;
       yearlySnapshot[investmentKey] = inv.value;
     });
-    csvData.push(yearlySnapshot);
+    if (generateLog) {
+      csvData.push(yearlySnapshot);
+    }
 
     iteration += 1;
   }
   // Close the log stream
-  logStream.end();
+  if (generateLog) {
+    logStream.end();
+  }
 
-  // Write the CSV file
-  if (csvData.length > 0) {
-    // Dynamically get all unique investment keys used across all years for the header
-    const allKeys = new Set(['Year']);
-    csvData.forEach(row => Object.keys(row).forEach(key => allKeys.add(key)));
-    const header = Array.from(allKeys);
+  if (generateLog) {
+    // Write the CSV file
+    if (csvData.length > 0) {
+      // Dynamically get all unique investment keys used across all years for the header
+      const allKeys = new Set(['Year']);
+      csvData.forEach(row => Object.keys(row).forEach(key => allKeys.add(key)));
+      const header = Array.from(allKeys);
 
-    // Map data to ensure all rows have all columns, defaulting missing to 0 or ''
-    const csvRows = csvData.map(row => {
-      return header.map(key => row[key] ?? 0); // Default missing investment value to 0
-    });
+      // Map data to ensure all rows have all columns, defaulting missing to 0 or ''
+      const csvRows = csvData.map(row => {
+        return header.map(key => row[key] ?? 0); // Default missing investment value to 0
+      });
 
-    // Prepend header row
-    csvRows.unshift(header);
+      // Prepend header row
+      csvRows.unshift(header);
 
-    // Write using fs
-    const csvContent = csvRows.map(row => row.join(',')).join('\n');
-    try {
-      fs.writeFileSync(csvPath, csvContent);
-      console.log(`CSV log written to ${csvPath}`);
-    } catch (err) {
-      console.error(`Error writing CSV log to ${csvPath}:`, err);
+      // Write using fs
+      const csvContent = csvRows.map(row => row.join(',')).join('\n');
+      try {
+        fs.writeFileSync(csvPath, csvContent);
+        console.log(`CSV log written to ${csvPath}`);
+      } catch (err) {
+        console.error(`Error writing CSV log to ${csvPath}:`, err);
+      }
     }
   }
 
-  console.log(`Event log written to ${logPath}`);
-  console.log("simulation done");
+  console.log("Simulation done");
   if (computeTotalAssets(state) >= state.financialGoal) {
     console.log("Financial goal was met");
   }

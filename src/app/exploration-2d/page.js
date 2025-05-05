@@ -761,7 +761,8 @@ const Exploration2DPage = () => {
         // Prepare data for backend
         const requestData = {
             scenarios: scenarios,
-            simulationCount: simulationCount
+            simulationCount: simulationCount,
+            userName: session.user.name,
         };
 
         // Call the API endpoint
@@ -1515,7 +1516,7 @@ const Exploration2DPage = () => {
                                 </div>
 
                                 {/* Simulation count field */}
-                                <div className="p-4 border border-gray-200 rounded-lg bg-gray-50">
+                                <div className="text-black p-4 border border-gray-200 rounded-lg bg-gray-50">
                                     <h3 className="font-medium mb-2">Simulation Settings</h3>
                                     <div className="flex items-center">
                                         <label className="w-40 text-sm">Simulation Count:</label>
@@ -1569,7 +1570,7 @@ const Exploration2DPage = () => {
                         <div className="mt-10">
                             <h2 className="text-2xl font-semibold mb-6 text-gray-900">Exploration Visualization</h2>
 
-                            <div className="flex flex-col md:flex-row gap-6 mb-6">
+                            <div className="text-black flex flex-col md:flex-row gap-6 mb-6">
                                 <div className="flex-1 p-4 bg-white rounded-lg shadow">
                                     <div className="mb-4 flex justify-between items-center">
                                         <h3 className="text-lg font-medium">2D Parameter Visualization</h3>

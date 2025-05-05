@@ -7,7 +7,7 @@ export async function POST(request) {
         const body = await request.json();
 
         // Extract the data
-        const { scenarios, simulationCount, parameterType, changedPath, baseSeed } = body;
+        const { scenarios, simulationCount, parameterType, changedPath, baseSeed, userName } = body;
 
         console.log('========================');
         console.log('RECEIVED EXPLORATION REQUEST:');
@@ -47,7 +47,8 @@ export async function POST(request) {
         const explorationResults = await run1DExploration(
             scenarios,
             simsToRun,
-            baseSeed
+            baseSeed,
+            userName,
         );
 
         console.log("1D Exploration completed successfully.");

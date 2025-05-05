@@ -80,7 +80,7 @@ function aggregateSimulationResults(simulationResults, numberOfSimulations) {
 }
 
 
-export async function run2DExploration(explorationRuns, numberOfSimulationsInput, baseSeed = 'exploration-2d-' + Date.now()) {
+export async function run2DExploration(explorationRuns, numberOfSimulationsInput, baseSeed = 'exploration-2d-' + Date.now(), userName) {
     console.log("Starting 2D Exploration (Frontend handles modifications)...");
     // Structure results for easy plotting: { param1Value: { param2Value: { finalResult } } }
     const explorationResults = {};
@@ -123,16 +123,17 @@ export async function run2DExploration(explorationRuns, numberOfSimulationsInput
         try {
             // Pass the validated numberOfSimulations to runAlgorithm
             console.log(`Calling runAlgorithm for combo: ${comboKey} with ${numberOfSimulations} simulations...`);
-            await runAlgorithm(scenario, numberOfSimulations, 4); // Updates global chartData
+            await runAlgorithm(scenario, numberOfSimulations, 4, userName); // Updates global chartData
             console.log(`runAlgorithm completed for combo: ${comboKey}.`);
 
             // 4. Extract Results (Workaround)
             if (chartData && chartData[scenarioKey]) {
+                console.log(`Not empty ${chartData[scenarioKey]}`);
                 parameterValueResults = deepCopy(chartData[scenarioKey]); // Extract results
                 if (!parameterValueResults) throw new Error("Deep copy failed.");
 
                 console.log(`--- Raw Results for Combo ${comboKey} ---`);
-                console.log(JSON.stringify(parameterValueResults, null, 2));
+                // console.log(JSON.stringify(parameterValueResults, null, 2));
                 console.log(`--- End Raw Results ---`);
                 console.log(`Extracted results from global chartData for key: ${scenarioKey}`);
                 // delete chartData[scenarioKey]; // Optional cleanup
@@ -191,7 +192,6 @@ export async function run2DExploration(explorationRuns, numberOfSimulationsInput
                 finalMedianInvest: aggregatedData.finalMedianInvest
             };
         }
-
         console.log(`--- Finished processing combo: ${comboKey} ---`);
     } // End of exploration runs loop
 

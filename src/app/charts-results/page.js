@@ -435,7 +435,7 @@ const DetailedView = ({ result, onBack, financialGoal }) => {
             tooltip: {
               // change trigger to 'axis' so it groups all stacks for a given year
               trigger: 'axis',
-              axisPointer: { type: 'shadow' },
+              axispointer: { type: 'shadow' },
               // formatter now receives an array of all series at that category
               formatter: (params) => {
                 // params is an array of { seriesName, data, axisValue } for each stack

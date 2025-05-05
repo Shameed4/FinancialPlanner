@@ -76,7 +76,7 @@ function aggregateSimulationResults(simulationResults, numberOfSimulations) {
 }
 
 
-export async function run1DExploration(explorationRuns, numberOfSimulationsInput, baseSeed = 'exploration-1d-' + Date.now()) {
+export async function run1DExploration(explorationRuns, numberOfSimulationsInput, baseSeed = 'exploration-1d-' + Date.now(), userName) {
     console.log("Starting 1D Exploration (Frontend handles modifications)...");
     const explorationResults = {};
 
@@ -105,7 +105,7 @@ export async function run1DExploration(explorationRuns, numberOfSimulationsInput
         let parameterValueResults = null;
         try {
             console.log(`Calling runAlgorithm for value: ${valueKey}...`);
-            await runAlgorithm(scenario, numberOfSimulations, 4); // Updates global chartData
+            await runAlgorithm(scenario, numberOfSimulations, 4, userName); // Updates global chartData
             console.log(`runAlgorithm completed for value: ${valueKey}.`);
 
             if (chartData && chartData[scenarioKey]) {

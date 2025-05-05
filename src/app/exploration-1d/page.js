@@ -524,7 +524,8 @@ const ExplorationPage = () => {
                         secondUpper: secondAllocationUpperBound,
                         step: allocationSteps
                     }
-                }
+                },
+                userName: session.user.name,
             };
 
             // Debug: Verify scenarios structure
@@ -912,6 +913,7 @@ const ExplorationPage = () => {
             },
             stepValues: stepValues, // Send the values tested
             // baseSeed: "your-seed-value" // Optional
+            userName: session.user.name,
         };
 
         // Log detailed information about what we're sending

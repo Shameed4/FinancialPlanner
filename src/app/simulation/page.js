@@ -113,7 +113,7 @@ const SimulationPage = () => {
             className="p-8 relative"
         >
             {isRunning && (
-                <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center">
+                <div className="text-black fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center">
                     <div className="bg-white p-8 rounded-lg shadow-xl text-center">
                         <div className="inline-block h-12 w-12 animate-spin rounded-full border-4 border-solid border-blue-600 border-r-transparent mb-4"></div>
                         <p className="text-lg font-semibold">Running simulation...</p>
@@ -226,7 +226,8 @@ const SimulationPage = () => {
                                         cache: 'no-store',
                                         body: JSON.stringify({
                                             scenario: selectedScenario,
-                                            numberOfSimulations: simulationCount
+                                            numberOfSimulations: simulationCount,
+                                            userName: session.user.name
                                         }),
                                     });
 

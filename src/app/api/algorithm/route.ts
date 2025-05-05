@@ -8,14 +8,14 @@ export async function POST(request: Request) {
   try {
     // Parse the incoming JSON
     const simulationData = await request.json();
-    const { scenario, numberOfSimulations } = simulationData;
+    const { scenario, numberOfSimulations, userName } = simulationData;
 
     // console.log(numberOfSimulations);
     // console.log(scenario);
 
     // Run the simulation algorithm multiple times.
     console.time('runAlgorithm');
-    const simulationResults = await runAlgorithm(scenario, Number(numberOfSimulations), 4);
+    const simulationResults = await runAlgorithm(scenario, Number(numberOfSimulations), 4, userName);
     console.timeEnd('runAlgorithm');
 
     // Save chart data to ensure it's persisted (runAlgorithm already calls this, but double-check)

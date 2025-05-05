@@ -7,7 +7,7 @@ export async function POST(request) {
     try {
         const body = await request.json();
 
-        const { scenarios, simulationCount, baseSeed, parameterInfo } = body; // Added parameterInfo extraction
+        const { scenarios, simulationCount, baseSeed, parameterInfo, userName } = body; // Added parameterInfo extraction
 
         // --- Basic Validation ---
         if (!Array.isArray(scenarios) || scenarios.length === 0) {
@@ -71,7 +71,8 @@ export async function POST(request) {
         const explorationResults = await run2DExploration(
             scenarios, // Pass the array received from the frontend
             simsToRun,
-            baseSeed // Pass the seed (will use default if undefined)
+            baseSeed, // Pass the seed (will use default if undefined)
+            userName,
         );
 
         console.log("2D Exploration completed successfully.");
