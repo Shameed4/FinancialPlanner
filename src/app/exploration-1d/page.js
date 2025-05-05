@@ -684,11 +684,41 @@ const ExplorationPage = () => {
                     const attributeLabel = data.modifyAttribute === 'startYear' ? 'Start Year' : 'Duration';
                     modifiedScenario.name = `${data.selectedScenario.name} (${data.selectedEventSeries.name || data.selectedEventSeries.title || 'Event'}: ${attributeLabel} = ${stepValue})`;
 
-                    // Use the stored index to find the event series directly - much more reliable
+                    // Use the stored index to find the event series directly
                     const eventSeriesIndex = data.selectedEventSeriesIndex;
                     console.log(`Using index ${eventSeriesIndex} to update event`);
 
-                    if (eventSeriesIndex !== -1 && eventSeriesIndex < modifiedScenario.eventSeries.length) {
+                    // Check if we have a valid index
+                    if (eventSeriesIndex === undefined || eventSeriesIndex === null || eventSeriesIndex < 0) {
+                        console.warn(`No valid eventSeriesIndex provided, trying to find by name/title instead`);
+                        // Try to find the event series by name or title as fallback
+                        const foundIndex = modifiedScenario.eventSeries.findIndex(es =>
+                            (data.selectedEventSeries.name && es.name === data.selectedEventSeries.name) ||
+                            (data.selectedEventSeries.title && es.title === data.selectedEventSeries.title)
+                        );
+
+                        if (foundIndex !== -1) {
+                            console.log(`Found event series at index ${foundIndex} by name/title`);
+                            // Use the found index instead
+                            const targetEventSeries = modifiedScenario.eventSeries[foundIndex];
+                            console.log(`Modifying event series: ${targetEventSeries.name || targetEventSeries.title || 'Unknown'}`);
+
+                            if (data.modifyAttribute === 'startYear') {
+                                // Update start year
+                                targetEventSeries.startYear = stepValue;
+                                targetEventSeries.startYearType = 'fixed';
+                                console.log(`Updated startYear to ${stepValue}`);
+                            } else if (data.modifyAttribute === 'duration') {
+                                // Update duration - use durationFixed as the property name
+                                targetEventSeries.durationFixed = stepValue;
+                                targetEventSeries.durationType = 'fixed';
+                                console.log(`Updated durationFixed to ${stepValue}`);
+                            }
+                            console.log('Updated event series:', targetEventSeries);
+                        } else {
+                            console.error(`Could not find event series by name or title`);
+                        }
+                    } else if (eventSeriesIndex !== -1 && eventSeriesIndex < modifiedScenario.eventSeries.length) {
                         // Modify the event series based on the attribute
                         const targetEventSeries = modifiedScenario.eventSeries[eventSeriesIndex];
                         console.log(`Modifying event series: ${targetEventSeries.name || targetEventSeries.title || 'Unknown'}`);
@@ -713,11 +743,31 @@ const ExplorationPage = () => {
 
                     // Use the stored index to find the event series directly
                     const eventSeriesIndex = data.selectedEventSeriesIndex;
+                    console.log(`Using index ${eventSeriesIndex} to update event amount`);
 
-                    if (eventSeriesIndex !== -1 && eventSeriesIndex < modifiedScenario.eventSeries.length) {
+                    // Check if we have a valid index
+                    if (eventSeriesIndex === undefined || eventSeriesIndex === null || eventSeriesIndex < 0) {
+                        console.warn(`No valid eventSeriesIndex provided, trying to find by name/title instead`);
+                        // Try to find the event series by name or title as fallback
+                        const foundIndex = modifiedScenario.eventSeries.findIndex(es =>
+                            (data.selectedEventSeries.name && es.name === data.selectedEventSeries.name) ||
+                            (data.selectedEventSeries.title && es.title === data.selectedEventSeries.title)
+                        );
+
+                        if (foundIndex !== -1) {
+                            console.log(`Found event series at index ${foundIndex} by name/title`);
+                            // Update the amount in the event series
+                            modifiedScenario.eventSeries[foundIndex].initialAmount = stepValue;
+                            modifiedScenario.eventSeries[foundIndex].amount = stepValue;
+                            console.log(`Updated amount to ${stepValue}`);
+                        } else {
+                            console.error(`Could not find event series by name or title`);
+                        }
+                    } else if (eventSeriesIndex !== -1 && eventSeriesIndex < modifiedScenario.eventSeries.length) {
                         // Update the amount in the event series
                         modifiedScenario.eventSeries[eventSeriesIndex].initialAmount = stepValue;
                         modifiedScenario.eventSeries[eventSeriesIndex].amount = stepValue;
+                        console.log(`Updated amount to ${stepValue}`);
                     } else {
                         console.error(`Invalid event series index: ${eventSeriesIndex} (total: ${modifiedScenario.eventSeries.length})`);
                     }
