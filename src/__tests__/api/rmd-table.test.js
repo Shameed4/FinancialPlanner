@@ -1,4 +1,15 @@
+// Mock Request class globally before any imports
+global.Request = class {
+    constructor(url, options = {}) {
+        this.url = url;
+        this.method = options.method || 'GET';
+        this.headers = new Headers(options.headers || {});
+        this.body = options.body;
+    }
+};
+
 // Used Cursor AI for help with test setup and mocking strategy
+import { jest } from '@jest/globals';
 import { NextResponse } from 'next/server'
 
 // Mock the RMD table route module
