@@ -119,48 +119,35 @@ const Exploration2DPage = () => {
         { id: 'allocations', name: 'Allocations', min: 0, max: 100, step: 5 },
     ];
 
-    // Function to update nested fields for parameter A
-    const updateParameterAFields = (paramType) => {
-        if (!selectedScenario || !selectedScenario.eventSeries) return;
-
-        // Update the parameter range first
-        const selectedParam = explorationParameters.find(p => p.id === paramType);
+    // Update parameter A range when parameter changes
+    useEffect(() => {
+        const selectedParam = explorationParameters.find(p => p.id === parameterA);
         if (selectedParam) {
             setParamARangeMin(selectedParam.min);
             setParamARangeMax(selectedParam.max);
             setParamARangeStep(selectedParam.step);
         }
 
-        // Reset event series selection
-        setSelectedEventSeriesA(null);
-        setSelectedEventSeriesIndexA(-1);
+        // Initialize event series for parameter A
+        if (parameterA === 'eventSeriesTiming' && selectedScenario) {
+            // Default to first event series if available
+            if (selectedScenario.eventSeries && selectedScenario.eventSeries.length > 0) {
+                const firstEventSeries = selectedScenario.eventSeries[0];
+                setSelectedEventSeriesA(firstEventSeries);
+                setSelectedEventSeriesIndexA(0);
+                setEventSeriesModifyAttributeA('startYear');
 
-        if (paramType === 'eventSeriesTiming' && selectedScenario.eventSeries.length > 0) {
-            // For timing parameter, select first event series
-            const eventSeries = selectedScenario.eventSeries[0];
-            setSelectedEventSeriesA(eventSeries);
-            setSelectedEventSeriesIndexA(0);
-
-            // Check if we should keep the current attribute or default to startYear
-            const attribute = eventSeriesModifyAttributeA || 'startYear';
-            setEventSeriesModifyAttributeA(attribute);
-
-            // Set bounds based on the selected attribute
-            if (attribute === 'startYear') {
-                const currentStartYear = eventSeries.startYear || new Date().getFullYear();
+                // Set initial bounds based on the selected event series
+                const currentStartYear = firstEventSeries.startYear || new Date().getFullYear();
                 setParamARangeMin(currentStartYear);
                 setParamARangeMax(currentStartYear + 10);
-                setParamARangeStep(1);
-            } else if (attribute === 'duration') {
-                const currentDuration = eventSeries.durationFixed || 10;
-                setParamARangeMin(currentDuration);
-                setParamARangeMax(currentDuration + 10);
-                setParamARangeStep(1);
+            } else {
+                setSelectedEventSeriesA(null);
+                setSelectedEventSeriesIndexA(-1);
             }
-        }
-        else if (paramType === 'eventSeriesAmount') {
-            // For amount parameter, find first income or expense event
-            const incomeOrExpenseSeries = selectedScenario.eventSeries.find(
+        } else if (parameterA === 'eventSeriesAmount' && selectedScenario) {
+            // Find first income or expense event series
+            const incomeOrExpenseSeries = selectedScenario.eventSeries?.find(
                 es => es.type === 'income' || es.type === 'expense'
             );
 
@@ -169,68 +156,49 @@ const Exploration2DPage = () => {
                 setSelectedEventSeriesA(incomeOrExpenseSeries);
                 setSelectedEventSeriesIndexA(index);
 
-                // Set bounds based on amount
+                // Set bounds based on the current amount
                 const currentAmount = incomeOrExpenseSeries.initialAmount || 0;
                 setParamARangeMin(currentAmount);
-                setParamARangeMax(currentAmount * 2);
-                setParamARangeStep(Math.round(Math.max(1, currentAmount / 5)));
+                setParamARangeMax(currentAmount * 2); // Double as upper bound
+                setParamARangeStep(Math.round(currentAmount / 5)); // Default step size to 1/5 of amount
+            } else {
+                setSelectedEventSeriesA(null);
+                setSelectedEventSeriesIndexA(-1);
             }
         }
-        else if (paramType === 'allocations') {
-            // For allocations, find an invest event 
-            const investEvent = selectedScenario.eventSeries.find(es => es.type === 'invest');
+    }, [parameterA, selectedScenario]);
 
-            if (investEvent && investEvent.initialAllocations) {
-                // Set default allocation range
-                setParamARangeMin(0);
-                setParamARangeMax(100);
-                setParamARangeStep(10);
-            }
-        }
-    };
-
-    // Function to update nested fields for parameter B
-    const updateParameterBFields = (paramType) => {
-        if (!selectedScenario || !selectedScenario.eventSeries) return;
-
-        // Update the parameter range first
-        const selectedParam = explorationParameters.find(p => p.id === paramType);
+    // Update parameter B range when parameter changes
+    useEffect(() => {
+        const selectedParam = explorationParameters.find(p => p.id === parameterB);
         if (selectedParam) {
             setParamBRangeMin(selectedParam.min);
             setParamBRangeMax(selectedParam.max);
             setParamBRangeStep(selectedParam.step);
         }
 
-        // Reset event series selection
-        setSelectedEventSeriesB(null);
-        setSelectedEventSeriesIndexB(-1);
+        // Initialize event series for parameter B
+        if (parameterB === 'eventSeriesTiming' && selectedScenario) {
+            // Default to first event series if available
+            if (selectedScenario.eventSeries && selectedScenario.eventSeries.length > 0) {
+                const eventSeries = selectedScenario.eventSeries[0];
+                const index = 0;
 
-        if (paramType === 'eventSeriesTiming' && selectedScenario.eventSeries.length > 0) {
-            // For timing parameter, select first event series
-            const eventSeries = selectedScenario.eventSeries[0];
-            setSelectedEventSeriesB(eventSeries);
-            setSelectedEventSeriesIndexB(0);
+                setSelectedEventSeriesB(eventSeries);
+                setSelectedEventSeriesIndexB(index);
+                setEventSeriesModifyAttributeB('startYear');
 
-            // Check if we should keep the current attribute or default to startYear
-            const attribute = eventSeriesModifyAttributeB || 'startYear';
-            setEventSeriesModifyAttributeB(attribute);
-
-            // Set bounds based on the selected attribute
-            if (attribute === 'startYear') {
+                // Set initial bounds based on the selected event series
                 const currentStartYear = eventSeries.startYear || new Date().getFullYear();
                 setParamBRangeMin(currentStartYear);
                 setParamBRangeMax(currentStartYear + 10);
-                setParamBRangeStep(1);
-            } else if (attribute === 'duration') {
-                const currentDuration = eventSeries.durationFixed || 10;
-                setParamBRangeMin(currentDuration);
-                setParamBRangeMax(currentDuration + 10);
-                setParamBRangeStep(1);
+            } else {
+                setSelectedEventSeriesB(null);
+                setSelectedEventSeriesIndexB(-1);
             }
-        }
-        else if (paramType === 'eventSeriesAmount') {
-            // For amount parameter, find first income or expense event
-            const incomeOrExpenseSeries = selectedScenario.eventSeries.find(
+        } else if (parameterB === 'eventSeriesAmount' && selectedScenario) {
+            // Find any income or expense event series
+            const incomeOrExpenseSeries = selectedScenario.eventSeries?.find(
                 es => es.type === 'income' || es.type === 'expense'
             );
 
@@ -239,25 +207,31 @@ const Exploration2DPage = () => {
                 setSelectedEventSeriesB(incomeOrExpenseSeries);
                 setSelectedEventSeriesIndexB(index);
 
-                // Set bounds based on amount
+                // Set bounds based on the current amount
                 const currentAmount = incomeOrExpenseSeries.initialAmount || 0;
                 setParamBRangeMin(currentAmount);
                 setParamBRangeMax(currentAmount * 2);
-                setParamBRangeStep(Math.round(Math.max(1, currentAmount / 5)));
+                setParamBRangeStep(Math.round(currentAmount / 5)); // Default step size to 1/5 of amount
+            } else {
+                setSelectedEventSeriesB(null);
+                setSelectedEventSeriesIndexB(-1);
             }
-        }
-        else if (paramType === 'allocations') {
-            // For allocations, find an invest event 
+        } else if (parameterB === 'allocations' && selectedScenario) {
+            // Find an invest type event
             const investEvent = selectedScenario.eventSeries.find(es => es.type === 'invest');
 
             if (investEvent && investEvent.initialAllocations) {
-                // Set default allocation range
-                setParamBRangeMin(0);
-                setParamBRangeMax(100);
-                setParamBRangeStep(10);
+                const allocationKeys = Object.keys(investEvent.initialAllocations);
+
+                if (allocationKeys.length >= 2) {
+                    // Set default allocation range
+                    setParamBRangeMin(0);
+                    setParamBRangeMax(100);
+                    setParamBRangeStep(10);
+                }
             }
         }
-    };
+    }, [parameterB, selectedScenario]);
 
     // Handle scenario selection
     const handleScenarioSelect = (scenario) => {
@@ -339,91 +313,17 @@ const Exploration2DPage = () => {
         console.log(`Parameter A (${parameterA}): Values [${valuesA.join(', ')}], EventSeriesIndex: ${selectedEventSeriesIndexA}`);
         console.log(`Parameter B (${parameterB}): Values [${valuesB.join(', ')}], EventSeriesIndex: ${selectedEventSeriesIndexB}`);
 
-        console.log(`Generating ${valuesA.length * valuesB.length} scenario combinations...`);
-
         // Create all combinations of scenarios
-        valuesA.forEach((valueA, indexA) => {
-            valuesB.forEach((valueB, indexB) => {
+        valuesA.forEach(valueA => {
+            valuesB.forEach(valueB => {
                 // Create a deep copy of the scenario
                 const modifiedScenario = JSON.parse(JSON.stringify(selectedScenario));
 
-                // Modify parameter A based on its type and attribute
-                if (parameterA === 'eventSeriesTiming') {
-                    const attributeA = eventSeriesModifyAttributeA;
-                    const eventIndexA = selectedEventSeriesIndexA;
+                // Modify parameter A
+                modifyScenario(modifiedScenario, parameterA, valueA, selectedEventSeriesIndexA, eventSeriesModifyAttributeA);
 
-                    if (eventIndexA !== -1 && eventIndexA < modifiedScenario.eventSeries.length) {
-                        const targetEventA = modifiedScenario.eventSeries[eventIndexA];
-                        if (attributeA === 'startYear') {
-                            targetEventA.startYear = valueA;
-                            targetEventA.startYearType = 'fixed';
-                        } else if (attributeA === 'duration') {
-                            targetEventA.durationFixed = valueA;
-                            targetEventA.durationType = 'fixed';
-                        }
-                    }
-                } else if (parameterA === 'eventSeriesAmount') {
-                    const eventIndexA = selectedEventSeriesIndexA;
-
-                    if (eventIndexA !== -1 && eventIndexA < modifiedScenario.eventSeries.length) {
-                        const targetEventA = modifiedScenario.eventSeries[eventIndexA];
-                        targetEventA.initialAmount = valueA;
-                        targetEventA.amount = valueA;
-                    }
-                } else if (parameterA === 'allocations') {
-                    // Find an invest type event
-                    const investEvent = modifiedScenario.eventSeries.find(es => es.type === 'invest');
-
-                    if (investEvent && investEvent.initialAllocations) {
-                        const allocationKeys = Object.keys(investEvent.initialAllocations);
-
-                        if (allocationKeys.length >= 2) {
-                            // Set the first allocation to the value
-                            investEvent.initialAllocations[allocationKeys[0]] = valueA;
-                            // Set the second allocation to the complement
-                            investEvent.initialAllocations[allocationKeys[1]] = 100 - valueA;
-                        }
-                    }
-                }
-
-                // Modify parameter B based on its type and attribute
-                if (parameterB === 'eventSeriesTiming') {
-                    const attributeB = eventSeriesModifyAttributeB;
-                    const eventIndexB = selectedEventSeriesIndexB;
-
-                    if (eventIndexB !== -1 && eventIndexB < modifiedScenario.eventSeries.length) {
-                        const targetEventB = modifiedScenario.eventSeries[eventIndexB];
-                        if (attributeB === 'startYear') {
-                            targetEventB.startYear = valueB;
-                            targetEventB.startYearType = 'fixed';
-                        } else if (attributeB === 'duration') {
-                            targetEventB.durationFixed = valueB;
-                            targetEventB.durationType = 'fixed';
-                        }
-                    }
-                } else if (parameterB === 'eventSeriesAmount') {
-                    const eventIndexB = selectedEventSeriesIndexB;
-
-                    if (eventIndexB !== -1 && eventIndexB < modifiedScenario.eventSeries.length) {
-                        const targetEventB = modifiedScenario.eventSeries[eventIndexB];
-                        targetEventB.initialAmount = valueB;
-                        targetEventB.amount = valueB;
-                    }
-                } else if (parameterB === 'allocations') {
-                    // Find an invest type event
-                    const investEvent = modifiedScenario.eventSeries.find(es => es.type === 'invest');
-
-                    if (investEvent && investEvent.initialAllocations) {
-                        const allocationKeys = Object.keys(investEvent.initialAllocations);
-
-                        if (allocationKeys.length >= 2) {
-                            // Set the first allocation to the value
-                            investEvent.initialAllocations[allocationKeys[0]] = valueB;
-                            // Set the second allocation to the complement
-                            investEvent.initialAllocations[allocationKeys[1]] = 100 - valueB;
-                        }
-                    }
-                }
+                // Modify parameter B
+                modifyScenario(modifiedScenario, parameterB, valueB, selectedEventSeriesIndexB, eventSeriesModifyAttributeB);
 
                 // Add descriptive name based on what was modified
                 let paramADesc = '';
@@ -453,7 +353,6 @@ const Exploration2DPage = () => {
                 }
 
                 modifiedScenario.name = `${selectedScenario.name} (${paramADesc}, ${paramBDesc})`;
-                modifiedScenario.id = `${selectedScenario.id}-${indexA}-${indexB}`;
 
                 // Add to scenarios array
                 scenarios.push({
@@ -463,30 +362,54 @@ const Exploration2DPage = () => {
                     },
                     scenario: modifiedScenario
                 });
-
-                // Log scenario details to console
-                console.log(`Created scenario ${scenarios.length}: ${modifiedScenario.name}`);
             });
         });
 
-        // Show feedback message
-        setFeedbackMessage(`Generated ${scenarios.length} scenarios with all parameter combinations. Check console for details.`);
+        // Show loading state
+        setIsProcessing(true);
+        setFeedbackMessage(`Generated ${scenarios.length} scenarios with all parameter combinations`);
 
-        // Log a summary of all scenarios
-        console.log('===== SCENARIO COMBINATIONS SUMMARY =====');
-        console.log(`Total scenarios generated: ${scenarios.length}`);
-        console.log('Parameter Combinations:');
-        scenarios.forEach((scenarioData, index) => {
-            const values = scenarioData.parameterValues;
-            console.log(`  [${index + 1}] ${parameterA}: ${values[parameterA]}, ${parameterB}: ${values[parameterB]}`);
+        // Prepare data for display
+        const exploreData = {
+            scenarios: scenarios,
+            simulationCount: simulationCount,
+            parameterInfo: {
+                parameterA: {
+                    id: parameterA,
+                    name: explorationParameters.find(p => p.id === parameterA)?.name || parameterA,
+                    values: valuesA
+                },
+                parameterB: {
+                    id: parameterB,
+                    name: explorationParameters.find(p => p.id === parameterB)?.name || parameterB,
+                    values: valuesB
+                }
+            }
+        };
+
+        // Log the created scenarios for debugging
+        console.log('2D Exploration Data:', exploreData);
+
+        // Display details about all generated scenarios
+        const scenarioTable = scenarios.map((item, index) => {
+            return {
+                index,
+                paramA: item.parameterValues[parameterA],
+                paramB: item.parameterValues[parameterB],
+                name: item.scenario.name
+            };
         });
 
-        // Log detailed scenario data
-        console.log('===== DETAILED SCENARIO DATA =====');
-        console.log(scenarios);
-        console.log('==================================');
+        console.table(scenarioTable);
 
-        // Store the exploration results in state for potential visualization later
+        // Show success message
+        setTimeout(() => {
+            setIsProcessing(false);
+            setFeedbackMessage(`Successfully created ${scenarios.length} scenario combinations for exploration. 
+                Check browser console to see all combinations.`);
+        }, 1000);
+
+        // For now, store the exploration results in state for potential visualization later
         setExplorationResults({
             parameterA: {
                 id: parameterA,
@@ -496,72 +419,84 @@ const Exploration2DPage = () => {
                 id: parameterB,
                 values: valuesB
             },
-            scenarios: scenarios.map((item, index) => ({
-                index,
-                paramA: item.parameterValues[parameterA],
-                paramB: item.parameterValues[parameterB],
-                name: item.scenario.name
-            }))
+            scenarios: scenarioTable
         });
-
-        // Send scenarios to backend
-        setIsProcessing(true);
-        setFeedbackMessage(`Sending ${scenarios.length} scenarios to backend for processing...`);
-
-        // Prepare data for backend
-        const requestData = {
-            scenarios: scenarios,
-            simulationCount: simulationCount
-        };
-
-        // Call the API endpoint
-        fetch('/api/explore-2d', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify(requestData),
-        })
-            .then(response => response.json())
-            .then(data => {
-                setIsProcessing(false);
-
-                if (data.success) {
-                    setFeedbackMessage(`Success: ${data.message}`);
-                    console.log('Backend response:', data);
-                } else {
-                    setFeedbackMessage(`Error: ${data.error || 'Unknown error occurred'}`);
-                    console.error('Backend error:', data);
-                }
-            })
-            .catch(error => {
-                setIsProcessing(false);
-                setFeedbackMessage(`Error: ${error.message}`);
-                console.error('Network error:', error);
-            });
     };
 
-    // Handle automatic parameter changes when both are the same
-    useEffect(() => {
-        if (parameterA === parameterB && selectedScenario) {
-            // Find the next available parameter type
-            const nextType = explorationParameters.find(p => p.id !== parameterA)?.id;
-            if (nextType) {
-                console.log(`Both parameters are ${parameterA}, changing parameter B to ${nextType}`);
-                setParameterB(nextType);
-                // Update nested fields for parameter B
-                updateParameterBFields(nextType);
-            }
-        }
-    }, [parameterA, parameterB, selectedScenario]);
+    // Helper function to modify a scenario based on the parameter type
+    const modifyScenario = (scenario, paramType, value, eventSeriesIndex, modifyAttribute = 'startYear') => {
+        switch (paramType) {
+            case 'eventSeriesTiming':
+                // Find the event series to modify
+                if (eventSeriesIndex !== -1 && eventSeriesIndex < scenario.eventSeries.length) {
+                    const targetEventSeries = scenario.eventSeries[eventSeriesIndex];
 
-    // Initial setup of fields when scenario is selected
-    useEffect(() => {
-        if (selectedScenario) {
-            updateParameterAFields(parameterA);
-            updateParameterBFields(parameterB);
+                    // Modify based on attribute (startYear or duration)
+                    if (modifyAttribute === 'startYear') {
+                        targetEventSeries.startYear = value;
+                        targetEventSeries.startYearType = 'fixed';
+                        console.log(`Modified scenario: ${scenario.name}, Event series #${eventSeriesIndex}, Set startYear=${value}`);
+                    } else if (modifyAttribute === 'duration') {
+                        targetEventSeries.durationFixed = value;
+                        targetEventSeries.durationType = 'fixed';
+                        console.log(`Modified scenario: ${scenario.name}, Event series #${eventSeriesIndex}, Set duration=${value}`);
+                    }
+                } else {
+                    console.warn(`Invalid event series index: ${eventSeriesIndex}`);
+                }
+                break;
+
+            case 'eventSeriesAmount':
+                // Find the event series to modify
+                if (eventSeriesIndex !== -1 && eventSeriesIndex < scenario.eventSeries.length) {
+                    const targetEventSeries = scenario.eventSeries[eventSeriesIndex];
+                    targetEventSeries.initialAmount = value;
+                    targetEventSeries.amount = value;
+                    console.log(`Modified scenario: ${scenario.name}, Event series #${eventSeriesIndex}, Set amount=${value}`);
+                } else {
+                    console.warn(`Invalid event series index: ${eventSeriesIndex}`);
+                }
+                break;
+
+            case 'allocations':
+                // Find an invest type event
+                const investEvent = scenario.eventSeries.find(es => es.type === 'invest');
+
+                if (investEvent && investEvent.initialAllocations) {
+                    const allocationKeys = Object.keys(investEvent.initialAllocations);
+
+                    if (allocationKeys.length >= 2) {
+                        // Set the first allocation to the value
+                        investEvent.initialAllocations[allocationKeys[0]] = value;
+                        // Set the second allocation to the complement
+                        investEvent.initialAllocations[allocationKeys[1]] = 100 - value;
+                        console.log(`Modified scenario: ${scenario.name}, Investment allocations: ${allocationKeys[0]}=${value}%, ${allocationKeys[1]}=${100 - value}%`);
+                    }
+                }
+                break;
+
+            case 'rothConversion':
+                // Toggle Roth conversion setting
+                scenario.enableTaxOptimization = value === 1 || value === true;
+
+                if (scenario.enableTaxOptimization) {
+                    // Set default values if they don't exist
+                    if (!scenario.rothOptimizationStartYear || !scenario.rothOptimizationEndYear) {
+                        const currentYear = new Date().getFullYear();
+                        scenario.rothOptimizationStartYear = String(currentYear);
+                        scenario.rothOptimizationEndYear = String(currentYear + 20);
+                    }
+                } else {
+                    // Disable by setting to null
+                    scenario.rothOptimizationStartYear = null;
+                    scenario.rothOptimizationEndYear = null;
+                }
+                console.log(`Modified scenario: ${scenario.name}, Roth Conversion=${scenario.enableTaxOptimization}`);
+                break;
         }
-    }, [selectedScenario]);
+
+        return scenario;
+    };
 
     return (
         <motion.div
@@ -614,8 +549,40 @@ const Exploration2DPage = () => {
                                             <select
                                                 value={parameterA}
                                                 onChange={(e) => {
-                                                    setParameterA(e.target.value);
-                                                    updateParameterAFields(e.target.value);
+                                                    const newParameterA = e.target.value;
+                                                    setParameterA(newParameterA);
+
+                                                    // Reset associated fields
+                                                    setSelectedEventSeriesA(null);
+                                                    setSelectedEventSeriesIndexA(-1);
+
+                                                    // Set appropriate ranges for the new parameter type
+                                                    const selectedParam = explorationParameters.find(p => p.id === newParameterA);
+                                                    if (selectedParam) {
+                                                        setParamARangeMin(selectedParam.min);
+                                                        setParamARangeMax(selectedParam.max);
+                                                        setParamARangeStep(selectedParam.step);
+                                                    }
+
+                                                    // If Parameter B is now the same type, change it
+                                                    if (newParameterA === parameterB) {
+                                                        // Find a different parameter type
+                                                        const differentParam = explorationParameters.find(
+                                                            p => p.id !== newParameterA
+                                                        );
+
+                                                        if (differentParam) {
+                                                            setParameterB(differentParam.id);
+                                                            // Reset Parameter B associated fields too
+                                                            setSelectedEventSeriesB(null);
+                                                            setSelectedEventSeriesIndexB(-1);
+
+                                                            // Set appropriate ranges for the new parameter type
+                                                            setParamBRangeMin(differentParam.min);
+                                                            setParamBRangeMax(differentParam.max);
+                                                            setParamBRangeStep(differentParam.step);
+                                                        }
+                                                    }
                                                 }}
                                                 className="w-full p-2 border rounded-md bg-gray-50 border-gray-300 text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                                             >
@@ -643,18 +610,9 @@ const Exploration2DPage = () => {
 
                                                         // Update bounds based on the selected event series
                                                         if (parameterA === 'eventSeriesTiming') {
-                                                            // Keep the current attribute (startYear or duration)
-                                                            if (eventSeriesModifyAttributeA === 'startYear') {
-                                                                const currentStartYear = series.startYear || new Date().getFullYear();
-                                                                setParamARangeMin(currentStartYear);
-                                                                setParamARangeMax(currentStartYear + 10);
-                                                                setParamARangeStep(1);
-                                                            } else if (eventSeriesModifyAttributeA === 'duration') {
-                                                                const currentDuration = series.durationFixed || 10;
-                                                                setParamARangeMin(currentDuration);
-                                                                setParamARangeMax(currentDuration + 10);
-                                                                setParamARangeStep(1);
-                                                            }
+                                                            const currentStartYear = series.startYear || new Date().getFullYear();
+                                                            setParamARangeMin(currentStartYear);
+                                                            setParamARangeMax(currentStartYear + 10);
                                                         } else if (parameterA === 'eventSeriesAmount') {
                                                             const currentAmount = series.initialAmount || 0;
                                                             setParamARangeMin(currentAmount);
@@ -768,8 +726,40 @@ const Exploration2DPage = () => {
                                             <select
                                                 value={parameterB}
                                                 onChange={(e) => {
-                                                    setParameterB(e.target.value);
-                                                    updateParameterBFields(e.target.value);
+                                                    const newParameterB = e.target.value;
+                                                    setParameterB(newParameterB);
+
+                                                    // Reset associated fields
+                                                    setSelectedEventSeriesB(null);
+                                                    setSelectedEventSeriesIndexB(-1);
+
+                                                    // Set appropriate ranges for the new parameter type
+                                                    const selectedParam = explorationParameters.find(p => p.id === newParameterB);
+                                                    if (selectedParam) {
+                                                        setParamBRangeMin(selectedParam.min);
+                                                        setParamBRangeMax(selectedParam.max);
+                                                        setParamBRangeStep(selectedParam.step);
+                                                    }
+
+                                                    // If Parameter A is now the same type, change it
+                                                    if (parameterA === newParameterB) {
+                                                        // Find a different parameter type
+                                                        const differentParam = explorationParameters.find(
+                                                            p => p.id !== newParameterB
+                                                        );
+
+                                                        if (differentParam) {
+                                                            setParameterA(differentParam.id);
+                                                            // Reset Parameter A associated fields too
+                                                            setSelectedEventSeriesA(null);
+                                                            setSelectedEventSeriesIndexA(-1);
+
+                                                            // Set appropriate ranges for the new parameter type
+                                                            setParamARangeMin(differentParam.min);
+                                                            setParamARangeMax(differentParam.max);
+                                                            setParamARangeStep(differentParam.step);
+                                                        }
+                                                    }
                                                 }}
                                                 className="w-full p-2 border rounded-md bg-gray-50 border-gray-300 text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                                             >
@@ -800,18 +790,9 @@ const Exploration2DPage = () => {
 
                                                         // Update bounds based on the selected event series
                                                         if (parameterB === 'eventSeriesTiming') {
-                                                            // Keep the current attribute (startYear or duration)
-                                                            if (eventSeriesModifyAttributeB === 'startYear') {
-                                                                const currentStartYear = series.startYear || new Date().getFullYear();
-                                                                setParamBRangeMin(currentStartYear);
-                                                                setParamBRangeMax(currentStartYear + 10);
-                                                                setParamBRangeStep(1);
-                                                            } else if (eventSeriesModifyAttributeB === 'duration') {
-                                                                const currentDuration = series.durationFixed || 10;
-                                                                setParamBRangeMin(currentDuration);
-                                                                setParamBRangeMax(currentDuration + 10);
-                                                                setParamBRangeStep(1);
-                                                            }
+                                                            const currentStartYear = series.startYear || new Date().getFullYear();
+                                                            setParamBRangeMin(currentStartYear);
+                                                            setParamBRangeMax(currentStartYear + 10);
                                                         } else if (parameterB === 'eventSeriesAmount') {
                                                             const currentAmount = series.initialAmount || 0;
                                                             setParamBRangeMin(currentAmount);
@@ -916,69 +897,71 @@ const Exploration2DPage = () => {
                                         </div>
                                     </div>
                                 </div>
+                            </div>
 
-                                {/* Simulation count field */}
-                                <div className="p-4 border border-gray-200 rounded-lg bg-gray-50">
-                                    <h3 className="font-medium mb-2">Simulation Settings</h3>
-                                    <div className="flex items-center">
-                                        <label className="w-40 text-sm">Simulation Count:</label>
-                                        <input
-                                            type="number"
-                                            value={simulationCount}
-                                            onChange={(e) => setSimulationCount(Math.max(1, parseInt(e.target.value) || 1))}
-                                            min="1"
-                                            max="1000"
-                                            className="w-32 p-2 border rounded-md bg-white border-gray-300 text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                                        />
-                                        <p className="ml-4 text-xs text-gray-500">Number of simulations to run for each combination</p>
-                                    </div>
+                            {/* Simulation count field */}
+                            <div className="p-4 border border-gray-200 rounded-lg bg-gray-50">
+                                <h3 className="font-medium mb-2">Simulation Settings</h3>
+                                <div className="flex items-center">
+                                    <label className="w-40 text-sm">Simulation Count:</label>
+                                    <input
+                                        type="number"
+                                        value={simulationCount}
+                                        onChange={(e) => setSimulationCount(Math.max(1, parseInt(e.target.value) || 1))}
+                                        min="1"
+                                        max="1000"
+                                        className="w-32 p-2 border rounded-md bg-white border-gray-300 text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                    />
+                                    <p className="ml-4 text-xs text-gray-500">Number of simulations to run for each combination</p>
                                 </div>
+                            </div>
+                        </div>
+                        </div>
+            )}
+
+            {/* Button to run the exploration */}
+            {selectedScenario && (
+                <div className="flex flex-col">
+                    {/* Feedback message */}
+                    {feedbackMessage && (
+                        <div className={`p-4 mb-4 rounded-md ${isProcessing ? 'bg-blue-50 text-blue-800' : feedbackMessage.includes('Success') ? 'bg-green-50 text-green-800' : 'bg-yellow-50 text-yellow-800'}`}>
+                            <div className="flex">
+                                {isProcessing && (
+                                    <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-blue-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                    </svg>
+                                )}
+                                <p>{feedbackMessage}</p>
                             </div>
                         </div>
                     )}
 
-                    {/* Button to run the exploration */}
-                    {selectedScenario && (
-                        <div className="flex flex-col">
-                            {/* Feedback message */}
-                            {feedbackMessage && (
-                                <div className={`p-4 mb-4 rounded-md ${isProcessing ? 'bg-blue-50 text-blue-800' : feedbackMessage.includes('Success') ? 'bg-green-50 text-green-800' : 'bg-yellow-50 text-yellow-800'}`}>
-                                    <div className="flex">
-                                        {isProcessing && (
-                                            <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-blue-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                                            </svg>
-                                        )}
-                                        <p>{feedbackMessage}</p>
-                                    </div>
-                                </div>
-                            )}
-
-                            <div className="flex justify-end">
-                                <button
-                                    className={`px-8 py-3 rounded-md font-medium ${isProcessing ? 'bg-gray-400 cursor-not-allowed' : 'bg-black text-white hover:bg-gray-800 cursor-pointer'} transition-colors duration-200`}
-                                    onClick={handleExploreClick}
-                                    disabled={isProcessing}
-                                >
-                                    {isProcessing ? 'Processing...' : 'Explore Parameters'}
-                                </button>
-                            </div>
-                        </div>
-                    )}
-                </div>
-            ) : (
-                <div className="flex flex-col items-center justify-center h-[60vh]">
-                    <p className="text-lg text-gray-700 mb-4">Create a scenario first to explore parameters</p>
-                    <button
-                        onClick={() => router.push('/scenario')}
-                        className="px-6 py-2 rounded-md bg-gray-900 text-white hover:bg-gray-800 cursor-pointer"
-                    >
-                        Create a Scenario
-                    </button>
+                    <div className="flex justify-end">
+                        <button
+                            className={`px-8 py-3 rounded-md font-medium ${isProcessing ? 'bg-gray-400 cursor-not-allowed' : 'bg-black text-white hover:bg-gray-800 cursor-pointer'} transition-colors duration-200`}
+                            onClick={handleExploreClick}
+                            disabled={isProcessing}
+                        >
+                            {isProcessing ? 'Processing...' : 'Explore Parameters'}
+                        </button>
+                    </div>
                 </div>
             )}
-        </motion.div>
+        </div>
+    ) : (
+        <div className="flex flex-col items-center justify-center h-[60vh]">
+            <p className="text-lg text-gray-700 mb-4">Create a scenario first to explore parameters</p>
+            <button
+                onClick={() => router.push('/scenario')}
+                className="px-6 py-2 rounded-md bg-gray-900 text-white hover:bg-gray-800 cursor-pointer"
+            >
+                Create a Scenario
+            </button>
+        </div>
+    )
+}
+        </motion.div >
     );
 };
 
