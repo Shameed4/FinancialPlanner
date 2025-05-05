@@ -36,10 +36,10 @@ type YamlFixedDistribution = {
     name: string;
     description: string;
     returnAmtOrPct: "amount" | "percent";
-    returnDistribution: YamlDistribution;
+    returnDistribution: YamlFixedDistribution | YamlNormalDistribution;
     expenseRatio: number;
     incomeAmtOrPct: "amount" | "percent";
-    incomeDistribution: YamlDistribution;
+    incomeDistribution: YamlFixedDistribution | YamlNormalDistribution;
     taxability: boolean;
   };
   
@@ -109,13 +109,13 @@ type YamlFixedDistribution = {
   
   type YamlScenario = {
     name: string;
-    maritalStatus: "single" | "couple";
+    maritalStatus: "individual" | "couple";
     birthYears: number[];
     lifeExpectancy: YamlLifeExpectancy[];
     investmentTypes: YamlInvestmentType[];
     investments: YamlInvestment[];
     eventSeries: YamlEventSeries[];
-    inflationAssumption: YamlFixedDistribution;
+    inflationAssumption: YamlDistribution;
     afterTaxContributionLimit: number;
     spendingStrategy: string[];
     expenseWithdrawalStrategy: string[];

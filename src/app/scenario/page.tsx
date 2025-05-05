@@ -28,6 +28,8 @@ const FormSection = ({ title, children, isActive, errors = {} }: { title: string
     if (!isActive) return null;
 
     const hasErrors = Object.keys(errors).length > 0;
+    if (hasErrors)
+        console.log(errors);
     // console.log(JSON.stringify(errors));
 
     return (
@@ -560,6 +562,7 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel, initialData = null }: 
             } transition-colors`;
     };
 
+    const [stockImportErrors, setStockImportErrors] = useState<Record<number, string>>({});
     return (
         <motion.div
             initial={{ opacity: 0, y: 20 }}
@@ -855,18 +858,57 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel, initialData = null }: 
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-2">
                                     <div>
                                         <label className="block text-sm font-medium text-gray-700 mb-1">Asset Name</label>
-                                        <input
-                                            type="text"
-                                            value={asset.name}
-                                            onChange={(e) => {
-                                                const newAssetTypes = [...formData.assetTypes];
-                                                newAssetTypes[index].name = e.target.value;
-                                                setFormData({ ...formData, assetTypes: newAssetTypes });
-                                            }}
-                                            className={`${getInputClassName(`assetTypes.${index}.name`)} text-black`}
-                                            placeholder="Asset Type Name"
-                                            disabled={index == 0}
-                                        />
+                                        <div className="flex items-center gap-2">
+                                            <input
+                                                type="text"
+                                                value={asset.name}
+                                                onChange={(e) => {
+                                                    const newAssetTypes = [...formData.assetTypes];
+                                                    newAssetTypes[index].name = e.target.value;
+                                                    setFormData({ ...formData, assetTypes: newAssetTypes });
+                                                }}
+                                                className={`${getInputClassName(`assetTypes.${index}.name`)} text-black flex-1`}
+                                                placeholder="Asset Type Name"
+                                                disabled={index == 0}
+                                            />
+                                            {index !== 0 && (
+                                                <button
+                                                    type="button"
+                                                    className="text-sm px-2 py-1 bg-blue-100 text-blue-800 rounded hover:bg-blue-200"
+                                                    onClick={async () => {
+                                                        const symbol = asset.name.trim();
+                                                        if (!symbol) {
+                                                            setStockImportErrors((prev) => ({ ...prev, [index]: 'Symbol required' }));
+                                                            return;
+                                                        }
+                                                        try {
+                                                            const res = await fetch(`/api/stocks?stock=${encodeURIComponent(symbol)}`);
+                                                            const data = await res.json();
+                                                            if (!res.ok) {
+                                                                throw new Error(data.error || 'Unknown error');
+                                                            }
+
+                                                            const newAssetTypes = [...formData.assetTypes];
+                                                            newAssetTypes[index].normalReturnMean = data.normalReturnMean;
+                                                            newAssetTypes[index].normalReturnStd = data.normalReturnStd;
+                                                            newAssetTypes[index].returnType = 'random_normal';
+                                                            newAssetTypes[index].returnAmtOrPct = 'percent';
+
+                                                            setFormData({ ...formData, assetTypes: newAssetTypes });
+                                                            setStockImportErrors((prev) => ({ ...prev, [index]: '' }));
+                                                        } catch (err: any) {
+                                                            setStockImportErrors((prev) => ({ ...prev, [index]: err.message }));
+                                                        }
+                                                    }}
+                                                >
+                                                    Set from Stock Data
+                                                </button>
+                                            )}
+                                        </div>
+                                        {stockImportErrors[index] && (
+                                            <p className="mt-1 text-sm text-red-600">{stockImportErrors[index]}</p>
+                                        )}
+
                                         {errors[`assetTypes.${index}.name`] && (
                                             <p className="mt-1 text-sm text-red-600">{errors[`assetTypes.${index}.name`]}</p>
                                         )}

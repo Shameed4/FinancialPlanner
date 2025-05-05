@@ -53,21 +53,44 @@ export type StringScenarioFormData =
   | IndividualScenarioFormData
   | JointScenarioFormData;
 
+type FixedReturn = {
+  returnType: 'fixed';
+  fixedReturn: string;
+};
+
+type NormalReturn = {
+  returnType: 'random_normal';
+  normalReturnMean: string;
+  normalReturnStd: string;
+};
+
+export type ReturnSpec = FixedReturn | NormalReturn;
+
+type FixedIncome = {
+  incomeType: 'fixed';
+  fixedIncome: string;
+};
+
+type NormalIncome = {
+  incomeType: 'random_normal';
+  normalIncomeMean: string;
+  normalIncomeStd: string;
+};
+
+export type IncomeSpec = FixedIncome | NormalIncome;
+
 export type AssetType = {
   name: string;
   description?: string;
-  fixedReturn?: string;
-  normalReturnMean?: string;
-  normalReturnStd?: string;
   expenseRatio: string;
-  normalIncomeMean?: string;
-  normalIncomeStd?: string;
   taxable: boolean;
   returnAmtOrPct: AmountOrPercent;
   incomeAmtOrPct: AmountOrPercent;
-} & (
-  | { returnType: 'fixed'; fixedReturn: 'string'; }
-  | { returnType: 'random_normal'; normalReturnMean: string; normalReturnStd: string; }
+} & ReturnSpec & IncomeSpec;
+
+export type TaxInfo = (
+  | { taxStatus: 'non-retirement' | 'after-tax-retirement' }
+  | { taxStatus: 'pre-tax-retirement', rothConversionStrategy: string, rmdStrategy: string; }
 )
 
 export type Investment = {
@@ -76,10 +99,7 @@ export type Investment = {
   rothConversionStrategy?: string;
   rmdStrategy?: string;
   expenseWithdrawalStrategy: string;
-} & (
-  | { taxStatus: 'non-retirement' | 'after-tax-retirement'}
-  | { taxStatus: 'pre-tax-retirement', rothConversionStrategy: string, rmdStrategy: string; }
-)
+} & TaxInfo
 
 export type Event = {
   name: string;
@@ -96,25 +116,25 @@ export type Event = {
 
   changeAmtOrPct?: 'amount' | 'percent';
 } & (
-  | { startYearType: 'fixed'; startYear: string }
-  | { startYearType: 'random_uniform'; startYearMin: string; startYearMax: string }
-  | { startYearType: 'random_normal'; startYearMean: string; startYearStd: string }
-  | { startYearType: 'same_as'; startOnOtherSeries: string }
-  | { startYearType: 'after'; startOnOtherSeries: string }
-) & (
-  | { durationType: 'fixed'; durationFixed: string }
-  | { durationType: 'random_uniform'; durationMin: string; durationMax: string }
-  | { durationType: 'random_normal'; durationMean: string; durationStd: string }
-) & (
-  | { annualChangeType: 'fixed'; annualChange: string }
-  | { annualChangeType: 'random_uniform'; annualChangeMin: string; annualChangeMax: string }
-  | { annualChangeType: 'random_normal'; annualChangeMean: string; annualChangeStd: string }
-) & (
-  | IncomeEvent
-  | ExpenseEvent
-  | InvestEvent
-  | RebalanceEvent
-);
+    | { startYearType: 'fixed'; startYear: string }
+    | { startYearType: 'random_uniform'; startYearMin: string; startYearMax: string }
+    | { startYearType: 'random_normal'; startYearMean: string; startYearStd: string }
+    | { startYearType: 'same_as'; startOnOtherSeries: string }
+    | { startYearType: 'after'; startOnOtherSeries: string }
+  ) & (
+    | { durationType: 'fixed'; durationFixed: string }
+    | { durationType: 'random_uniform'; durationMin: string; durationMax: string }
+    | { durationType: 'random_normal'; durationMean: string; durationStd: string }
+  ) & (
+    | { annualChangeType: 'fixed'; annualChange: string }
+    | { annualChangeType: 'random_uniform'; annualChangeMin: string; annualChangeMax: string }
+    | { annualChangeType: 'random_normal'; annualChangeMean: string; annualChangeStd: string }
+  ) & (
+    | IncomeEvent
+    | ExpenseEvent
+    | InvestEvent
+    | RebalanceEvent
+  );
 
 // Shared across income/expense
 type AnnualChange =
@@ -140,9 +160,9 @@ export type IncomeEvent = {
 export type ExpenseEvent = {
   type: 'expense';
 } & BaseIncomeExpense & AnnualChange & (
-  | { isDiscretionary: true; spendingStrategy: number }
-  | { isDiscretionary: false }
-);
+    | { isDiscretionary: true; spendingStrategy: number }
+    | { isDiscretionary: false }
+  );
 
 // Asset Allocation Types
 type FixedAllocation = {
@@ -159,8 +179,8 @@ type GlideAllocation = {
 export type InvestEvent = {
   type: 'invest';
   maxCashValue?: string;
-} & (FixedAllocation | GlideAllocation );
+} & (FixedAllocation | GlideAllocation);
 
 export type RebalanceEvent = {
   type: 'rebalance';
-} & (FixedAllocation | GlideAllocation );
+} & (FixedAllocation | GlideAllocation);
