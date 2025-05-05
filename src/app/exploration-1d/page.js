@@ -1006,7 +1006,7 @@ const ExplorationPage = () => {
         }));
 
         return (
-            <div className="p-4 bg-white rounded shadow">
+            <div className="p-4 bg-white rounded shadow text-black">
                 <h3 className="font-semibold mb-2">
                     {selectedMetric === 'probability' ? 'Probability of Success' : 'Median Investment Value'} Over Time
                 </h3>
@@ -1028,7 +1028,7 @@ const ExplorationPage = () => {
                         slotProps={{
                             legend: {
                                 position: 'bottom',
-                                itemWidth: 80
+                                itemwidth: 80
                             }
                         }}
                     />
@@ -1095,7 +1095,7 @@ const ExplorationPage = () => {
         }
 
         return (
-            <div className="p-4 bg-white rounded shadow">
+            <div className="text-black p-4 bg-white rounded shadow">
                 <h3 className="font-semibold mb-2">
                     Final {selectedMetric === 'probability' ? 'Probability of Success' : 'Median Investment'} by Parameter Value
                 </h3>
@@ -1166,7 +1166,7 @@ const ExplorationPage = () => {
 
                     {/* Parameter selection */}
                     {selectedScenario && (
-                        <div className="max-w-xl">
+                        <div className="max-w-xl text-black">
                             <h2 className="text-xl font-semibold mb-4 text-gray-900">Select Parameter to Explore</h2>
                             <div className="space-y-6">
                                 <div>
