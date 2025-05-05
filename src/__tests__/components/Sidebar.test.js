@@ -70,7 +70,7 @@ describe('Sidebar Component', () => {
             'Home',
             'Scenario',
             'Simulation',
-            'Your Account'
+            'Account Settings'
         ]
 
         expectedItems.forEach(itemText => {
@@ -142,7 +142,7 @@ describe('Sidebar Component', () => {
             )
         })
 
-        const accountButton = screen.getByText('Your Account')
+        const accountButton = screen.getByText('Account Settings')
         await act(async () => {
             fireEvent.click(accountButton)
         })
