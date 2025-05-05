@@ -1,11 +1,151 @@
 'use client'
 
 import { motion } from 'framer-motion'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import pageVariants from "../components/PageAnimation";
 import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
 import { LineChart } from '@mui/x-charts/LineChart';
+import Script from 'next/script';
+
+// Chart component for 2D visualization - direct Plotly implementation
+const PlotlyChart = ({ plotType, xValues, yValues, zValues, parameterA, parameterB, metric }) => {
+    const chartRef = useRef(null);
+    const [isPlotlyLoaded, setIsPlotlyLoaded] = useState(false);
+    const [error, setError] = useState(null);
+
+    // Handle Plotly script loading
+    const handlePlotlyLoad = () => {
+        setIsPlotlyLoaded(true);
+    };
+
+    // Create the chart once Plotly is loaded
+    useEffect(() => {
+        if (!isPlotlyLoaded || !chartRef.current || !xValues || !yValues || !zValues) return;
+
+        try {
+            // Log the current metric for debugging
+            console.log('Creating chart with metric:', metric);
+
+            let plotData = [];
+            let layout = {};
+
+            // Common properties for both types
+            const isInvestmentMetric = metric === 'finalMedianInvest';
+            const title = isInvestmentMetric ? 'Median Investment' : 'Success Probability';
+            const hoverTemplate =
+                `${parameterA}: %{x}<br>` +
+                `${parameterB}: %{y}<br>` +
+                `${title}: %{z}` +
+                (isInvestmentMetric ? '<extra></extra>' : '%<extra></extra>');
+
+            if (plotType === 'surface') {
+                plotData = [{
+                    type: 'surface',
+                    x: xValues,
+                    y: yValues,
+                    z: zValues,
+                    colorscale: 'Viridis',
+                    contours: {
+                        z: {
+                            show: true,
+                            usecolormap: true,
+                            highlightcolor: "#42f462",
+                            project: { z: true }
+                        }
+                    },
+                    hovertemplate: hoverTemplate
+                }];
+
+                layout = {
+                    title: `${title} by Parameter Values`,
+                    autosize: true,
+                    scene: {
+                        xaxis: { title: parameterA },
+                        yaxis: { title: parameterB },
+                        zaxis: {
+                            title: title,
+                            tickprefix: isInvestmentMetric ? '$' : '',
+                            ticksuffix: !isInvestmentMetric ? '%' : ''
+                        }
+                    },
+                    margin: { l: 0, r: 0, b: 0, t: 40 }
+                };
+            } else {
+                // Contour plot
+                plotData = [{
+                    type: 'contour',
+                    x: xValues,
+                    y: yValues,
+                    z: zValues,
+                    colorscale: 'Viridis',
+                    contours: {
+                        coloring: 'heatmap',
+                        showlabels: true,
+                        labelfont: {
+                            family: 'Raleway',
+                            size: 12,
+                            color: 'white',
+                        }
+                    },
+                    hovertemplate: hoverTemplate
+                }];
+
+                layout = {
+                    title: `${title} by Parameter Values`,
+                    autosize: true,
+                    xaxis: { title: parameterA },
+                    yaxis: { title: parameterB },
+                    margin: { l: 50, r: 50, b: 50, t: 50 }
+                };
+            }
+
+            // Clear previous chart
+            window.Plotly.purge(chartRef.current);
+
+            // Create new chart
+            window.Plotly.newPlot(chartRef.current, plotData, layout, { responsive: true });
+        } catch (err) {
+            console.error('Error creating chart:', err);
+            setError(err.message);
+        }
+
+        // Cleanup on unmount
+        return () => {
+            if (chartRef.current && window.Plotly) {
+                window.Plotly.purge(chartRef.current);
+            }
+        };
+    }, [isPlotlyLoaded, plotType, xValues, yValues, zValues, parameterA, parameterB, metric]);
+
+    if (error) {
+        return (
+            <div className="h-[500px] w-full flex items-center justify-center bg-red-50">
+                <p className="text-red-600">Error loading visualization: {error}</p>
+            </div>
+        );
+    }
+
+    return (
+        <>
+            <Script
+                src="https://cdn.plot.ly/plotly-2.29.1.min.js"
+                onLoad={handlePlotlyLoad}
+                strategy="afterInteractive"
+            />
+            {!isPlotlyLoaded && (
+                <div className="h-[500px] w-full flex items-center justify-center bg-gray-100">
+                    <p>Loading visualization library...</p>
+                </div>
+            )}
+            <div
+                ref={chartRef}
+                className="h-[500px] w-full"
+                style={{ display: isPlotlyLoaded ? 'block' : 'none' }}
+            />
+        </>
+    );
+};
 
 // Helper function to format currency values
 const formatCurrency = (value) => {
@@ -88,6 +228,12 @@ const Exploration2DPage = () => {
 
     // State for exploration results
     const [explorationResults, setExplorationResults] = useState(null);
+
+    // New state for 2D visualization
+    const [visualizationData, setVisualizationData] = useState(null);
+    const [selectedMetric, setSelectedMetric] = useState('finalMedianInvest');
+    const [showVisualization, setShowVisualization] = useState(false);
+    const [plotType, setPlotType] = useState('surface'); // 'surface' or 'contour'
 
     // Event series selection state for Parameter A
     const [selectedEventSeriesIndexA, setSelectedEventSeriesIndexA] = useState(-1);
@@ -329,6 +475,84 @@ const Exploration2DPage = () => {
         };
     };
 
+    // New helper function to update visualization data with current metric
+    const updateVisualizationData = (resultsData, metricToUse) => {
+        if (!resultsData) return;
+
+        console.log('Updating visualization with metric:', metricToUse);
+
+        // Extract parameters
+        const outerKey = Object.keys(resultsData)[0];
+        if (!outerKey || !resultsData[outerKey]) {
+            console.error('Invalid results data structure');
+            return;
+        }
+
+        // Get parameter A values
+        const parameterAValues = Object.keys(resultsData[outerKey]);
+        if (!parameterAValues.length) return;
+
+        // Get parameter B
+        const innerKeys = Object.keys(resultsData[outerKey][parameterAValues[0]]);
+        if (!innerKeys.length) return;
+        const parameterB = innerKeys[0];
+
+        // Get parameter B values
+        const parameterBValues = Object.keys(resultsData[outerKey][parameterAValues[0]][parameterB]);
+        if (!parameterBValues.length) return;
+
+        // Create data arrays
+        const xValues = parameterAValues.map(Number);
+        const yValues = parameterBValues.map(Number);
+
+        // Create z-value grid specifically for the requested metric
+        const zValues = [];
+        for (const aValue of parameterAValues) {
+            const row = [];
+            for (const bValue of parameterBValues) {
+                const dataPoint = resultsData[outerKey][aValue][parameterB][bValue];
+                // Use the specified metric, not the state variable
+                const value = dataPoint[metricToUse] || 0;
+                row.push(value);
+            }
+            zValues.push(row);
+        }
+
+        console.log(`Z-value range for ${metricToUse}:`,
+            Math.min(...zValues.flat()), 'to',
+            Math.max(...zValues.flat()));
+
+        // Return the processed data
+        return {
+            x: xValues,
+            y: yValues,
+            z: zValues,
+            parameterA: outerKey,
+            parameterB,
+            results: resultsData
+        };
+    };
+
+    // Function to process exploration results for 3D visualization
+    const processVisualizationData = (results) => {
+        if (!results) return null;
+        // Use the updateVisualizationData helper with the current selectedMetric
+        return updateVisualizationData(results, selectedMetric);
+    };
+
+    // Format value for display based on the metric
+    const formatMetricValue = (value, metric) => {
+        if (metric === 'finalSuccessProb') {
+            return `${value.toFixed(0)}%`;
+        }
+        return new Intl.NumberFormat('en-US', {
+            style: 'currency',
+            currency: 'USD',
+            minimumFractionDigits: 0,
+            maximumFractionDigits: 0
+        }).format(value);
+    };
+
     // Handle exploration
     const handleExploreClick = () => {
         // Clear any previous feedback
@@ -512,20 +736,6 @@ const Exploration2DPage = () => {
         // Show feedback message
         setFeedbackMessage(`Generated ${scenarios.length} scenarios with all parameter combinations. Check console for details.`);
 
-        // Log a summary of all scenarios
-        console.log('===== SCENARIO COMBINATIONS SUMMARY =====');
-        console.log(`Total scenarios generated: ${scenarios.length}`);
-        console.log('Parameter Combinations:');
-        scenarios.forEach((scenarioData, index) => {
-            const values = scenarioData.parameterValues;
-            console.log(`  [${index + 1}] ${parameterA}: ${values[parameterA]}, ${parameterB}: ${values[parameterB]}`);
-        });
-
-        // Log detailed scenario data
-        console.log('===== DETAILED SCENARIO DATA =====');
-        console.log(scenarios);
-        console.log('==================================');
-
         // Store the exploration results in state for potential visualization later
         setExplorationResults({
             parameterA: {
@@ -569,6 +779,28 @@ const Exploration2DPage = () => {
                 if (data.success) {
                     setFeedbackMessage(`Success: ${data.message}`);
                     console.log('Backend response:', data);
+
+                    // If we have visualization results, process them
+                    if (data.results) {
+                        console.log('Processing visualization data from results');
+                        try {
+                            // Store the raw results first
+                            setExplorationResults(data.results);
+
+                            // Then process it for visualization
+                            const visData = processVisualizationData(data.results);
+                            if (visData) {
+                                setVisualizationData(visData);
+                                setShowVisualization(true);
+                            } else {
+                                console.error('Could not process visualization data');
+                                setFeedbackMessage(prev => prev + ' Could not process visualization data.');
+                            }
+                        } catch (error) {
+                            console.error('Error processing visualization data:', error);
+                            setFeedbackMessage(prev => prev + ' Error processing results for visualization.');
+                        }
+                    }
                 } else {
                     setFeedbackMessage(`Error: ${data.error || 'Unknown error occurred'}`);
                     console.error('Backend error:', data);
@@ -812,10 +1044,10 @@ const Exploration2DPage = () => {
 
                                         {/* Allocation details for Parameter A */}
                                         {parameterA === 'allocations' && selectedInvestEventA && investmentPairA && (
-                                            <div className="mt-4 p-3 bg-blue-50 rounded-md">
-                                                <h4 className="text-sm font-medium text-blue-700 mb-2">Allocation Details (Parameter A)</h4>
+                                            <div className="mt-4 p-3 bg-gray-50 rounded-md">
+                                                <h4 className="text-sm font-medium text-gray-700 mb-2">Allocation Details (Parameter A)</h4>
                                                 <div className="space-y-2">
-                                                    <p className="text-xs text-blue-600">
+                                                    <p className="text-xs text-gray-600">
                                                         Investment: <span className="font-semibold">{selectedInvestEventA.title || selectedInvestEventA.name}</span>
                                                     </p>
                                                     <div className="grid grid-cols-1 gap-4">
@@ -1125,10 +1357,10 @@ const Exploration2DPage = () => {
 
                                         {/* Allocation details for Parameter B */}
                                         {parameterB === 'allocations' && selectedInvestEventB && investmentPairB && (
-                                            <div className="mt-4 p-3 bg-green-50 rounded-md">
-                                                <h4 className="text-sm font-medium text-green-700 mb-2">Allocation Details (Parameter B)</h4>
+                                            <div className="mt-4 p-3 bg-gray-50 rounded-md">
+                                                <h4 className="text-sm font-medium text-gray-700 mb-2">Allocation Details (Parameter B)</h4>
                                                 <div className="space-y-2">
-                                                    <p className="text-xs text-green-600">
+                                                    <p className="text-xs text-gray-600">
                                                         Investment: <span className="font-semibold">{selectedInvestEventB.title || selectedInvestEventB.name}</span>
                                                     </p>
                                                     <div className="grid grid-cols-1 gap-4">
@@ -1328,6 +1560,86 @@ const Exploration2DPage = () => {
                                 >
                                     {isProcessing ? 'Processing...' : 'Explore Parameters'}
                                 </button>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* 2D Visualization Section */}
+                    {showVisualization && visualizationData && (
+                        <div className="mt-10">
+                            <h2 className="text-2xl font-semibold mb-6 text-gray-900">Exploration Visualization</h2>
+
+                            <div className="flex flex-col md:flex-row gap-6 mb-6">
+                                <div className="flex-1 p-4 bg-white rounded-lg shadow">
+                                    <div className="mb-4 flex justify-between items-center">
+                                        <h3 className="text-lg font-medium">2D Parameter Visualization</h3>
+                                        <div className="flex space-x-4">
+                                            <select
+                                                value={selectedMetric}
+                                                onChange={(e) => {
+                                                    const newMetric = e.target.value;
+                                                    console.log('Changing metric from', selectedMetric, 'to', newMetric);
+
+                                                    // Update the metric state
+                                                    setSelectedMetric(newMetric);
+
+                                                    // Reprocess data with new metric
+                                                    if (visualizationData && visualizationData.results) {
+                                                        try {
+                                                            // Process directly with the new metric
+                                                            const newVisData = updateVisualizationData(
+                                                                visualizationData.results,
+                                                                newMetric
+                                                            );
+
+                                                            if (newVisData) {
+                                                                console.log('Updated visualization data with new metric:', newMetric);
+                                                                setVisualizationData(newVisData);
+                                                            }
+                                                        } catch (error) {
+                                                            console.error('Error updating visualization metric:', error);
+                                                        }
+                                                    }
+                                                }}
+                                                className="px-3 py-1 border border-gray-300 rounded text-sm"
+                                            >
+                                                <option value="finalMedianInvest">Median Investment</option>
+                                                <option value="finalSuccessProb">Success Probability</option>
+                                            </select>
+                                            <select
+                                                value={plotType}
+                                                onChange={(e) => setPlotType(e.target.value)}
+                                                className="px-3 py-1 border border-gray-300 rounded text-sm"
+                                            >
+                                                <option value="surface">Surface Plot</option>
+                                                <option value="contour">Contour Plot</option>
+                                            </select>
+                                        </div>
+                                    </div>
+
+                                    <div className="h-[500px] w-full">
+                                        {!visualizationData ? (
+                                            <div className="h-full w-full flex items-center justify-center bg-gray-100">
+                                                <p>No visualization data available</p>
+                                            </div>
+                                        ) : (
+                                            <PlotlyChart
+                                                plotType={plotType}
+                                                xValues={visualizationData.x}
+                                                yValues={visualizationData.y}
+                                                zValues={visualizationData.z}
+                                                parameterA={visualizationData.parameterA}
+                                                parameterB={visualizationData.parameterB}
+                                                metric={selectedMetric}
+                                            />
+                                        )}
+                                    </div>
+
+                                    <div className="mt-4 text-sm text-gray-600">
+                                        <p>This visualization shows how {selectedMetric === 'finalMedianInvest' ? 'median investment value' : 'success probability'}
+                                            varies across different combinations of {visualizationData.parameterA} and {visualizationData.parameterB}.</p>
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     )}
