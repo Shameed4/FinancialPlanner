@@ -5,6 +5,7 @@ import { useState, useEffect } from 'react'
 import pageVariants from "../components/PageAnimation";
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
+import { LineChart } from '@mui/x-charts/LineChart';
 
 // Card component representing a single scenario
 const ScenarioCard = ({ scenario, isSelected, onClick }) => (
@@ -61,6 +62,14 @@ const formatCurrency = (value) => {
     }).format(value);
 };
 
+// Add new helper function for chart formatting
+const formatValue = (value, type) => {
+    if (type === 'probability') {
+        return `${value.toFixed(0)}%`;
+    }
+    return formatCurrency(value);
+};
+
 const ExplorationPage = () => {
     const router = useRouter();
     const [selectedScenario, setSelectedScenario] = useState(null);
@@ -82,7 +91,7 @@ const ExplorationPage = () => {
     const [allocationUpperBound, setAllocationUpperBound] = useState(100);
     const [allocationSteps, setAllocationSteps] = useState(10);
     // Number of simulations to run
-    const [simulationCount, setSimulationCount] = useState(100);
+    const [simulationCount, setSimulationCount] = useState(1);
     // Second investment's bounds are calculated as complementary values
     const secondAllocationLowerBound = allocationLowerBound !== null ? 100 - allocationLowerBound : null;
     const secondAllocationUpperBound = allocationUpperBound !== null ? 100 - allocationUpperBound : null;
@@ -95,6 +104,11 @@ const ExplorationPage = () => {
 
     // Add a state variable to track the index of the selected event series
     const [selectedEventSeriesIndex, setSelectedEventSeriesIndex] = useState(-1);
+
+    // Add state for exploration results
+    const [explorationResults, setExplorationResults] = useState(null);
+    const [displayChart, setDisplayChart] = useState('timeSeries'); // 'timeSeries' or 'parameterValue'
+    const [selectedMetric, setSelectedMetric] = useState('probability'); // 'probability' or 'medianInvestment'
 
     useEffect(() => {
         if (session) {
@@ -514,12 +528,22 @@ const ExplorationPage = () => {
                 .then(data => {
                     setIsProcessing(false);
                     setFeedbackMessage(`Success: ${data.message}`);
-                    console.log('Exploration response:', data);
+                    console.log('===== EXPLORATION RESPONSE =====');
+                    console.log('Response data:', data);
+
+                    // Store the exploration results if they exist
+                    if (data.results) {
+                        setExplorationResults(data.results);
+                    }
+
+                    console.log('===============================');
                 })
                 .catch(error => {
                     setIsProcessing(false);
                     setFeedbackMessage(`Error: ${error.message}`);
-                    console.error('Exploration error:', error);
+                    console.error('===== EXPLORATION ERROR =====');
+                    console.error('Error:', error);
+                    console.error('=============================');
                 });
 
             return;
@@ -834,6 +858,12 @@ const ExplorationPage = () => {
                 setFeedbackMessage(`Success: ${data.message}`);
                 console.log('===== EXPLORATION RESPONSE =====');
                 console.log('Response data:', data);
+
+                // Store the exploration results if they exist
+                if (data.results) {
+                    setExplorationResults(data.results);
+                }
+
                 console.log('===============================');
             })
             .catch(error => {
@@ -843,6 +873,204 @@ const ExplorationPage = () => {
                 console.error('Error:', error);
                 console.error('=============================');
             });
+    };
+
+    // Chart components for exploration results
+    const TimeSeriesChart = ({ results }) => {
+        if (!results || Object.keys(results).length === 0) {
+            return <div className="p-4 bg-gray-50 rounded text-gray-600">No time series data available</div>;
+        }
+
+        // Extract parameter values (keys in results)
+        // Check if this is a boolean parameter like Roth conversion
+        const paramKeys = Object.keys(results);
+        const isBooleanParam = paramKeys.every(key => key === 'true' || key === 'false');
+
+        // Sort numerically for number params, or as boolean for boolean params
+        const paramValues = isBooleanParam
+            ? ['false', 'true'].filter(val => paramKeys.includes(val))
+            : paramKeys.sort((a, b) => Number(a) - Number(b));
+
+        // Log for debugging
+        console.log('TimeSeriesChart - paramValues:', paramValues);
+        console.log('TimeSeriesChart - isBooleanParam:', isBooleanParam);
+
+        // Extract time series data based on selected metric
+        const seriesData = paramValues.map(paramValue => {
+            const data = results[paramValue];
+            if (!data) {
+                console.warn(`No data found for parameter value: ${paramValue}`);
+                return { paramValue, series: [] };
+            }
+
+            // Check if the expected data structures exist
+            if (selectedMetric === 'probability' && !data.successProbTimeSeries) {
+                console.warn(`No successProbTimeSeries found for ${paramValue}`);
+                return { paramValue, series: [] };
+            }
+            if (selectedMetric !== 'probability' && !data.medianInvestTimeSeries) {
+                console.warn(`No medianInvestTimeSeries found for ${paramValue}`);
+                return { paramValue, series: [] };
+            }
+
+            const series = selectedMetric === 'probability'
+                ? data.successProbTimeSeries.map(point => ({
+                    year: point.year,
+                    value: point.probability
+                }))
+                : data.medianInvestTimeSeries.map(point => ({
+                    year: point.year,
+                    value: point.medianInvestment
+                }));
+
+            return {
+                paramValue,
+                series
+            };
+        }).filter(item => item.series.length > 0);
+
+        // If no valid series data after filtering, show a message
+        if (seriesData.length === 0) {
+            return <div className="p-4 bg-yellow-50 rounded text-yellow-700">
+                No valid time series data available for the selected metric.
+            </div>;
+        }
+
+        // Extract all unique years across all series
+        const allYears = [...new Set(
+            seriesData.flatMap(s => s.series.map(point => point.year))
+        )].sort((a, b) => a - b);
+
+        // Prepare the chart data
+        const chartSeries = seriesData.map(s => ({
+            data: s.series.map(point => point.value),
+            label: isBooleanParam
+                ? `${s.paramValue === 'true' ? 'Enabled' : 'Disabled'}`
+                : `Param: ${s.paramValue}`,
+        }));
+
+        return (
+            <div className="p-4 bg-white rounded shadow">
+                <h3 className="font-semibold mb-2">
+                    {selectedMetric === 'probability' ? 'Probability of Success' : 'Median Investment Value'} Over Time
+                </h3>
+                <div className="h-80">
+                    <LineChart
+                        xAxis={[{
+                            data: allYears,
+                            label: 'Year',
+                            tickMinStep: 5
+                        }]}
+                        yAxis={[{
+                            label: selectedMetric === 'probability' ? 'Probability (%)' : 'Value ($)',
+                            tickFormatter: (value) => formatValue(value, selectedMetric),
+                            min: selectedMetric === 'probability' ? 0 : undefined,
+                            max: selectedMetric === 'probability' ? 100 : undefined
+                        }]}
+                        series={chartSeries}
+                        height={300}
+                        slotProps={{
+                            legend: {
+                                position: 'bottom',
+                                itemWidth: 80
+                            }
+                        }}
+                    />
+                </div>
+            </div>
+        );
+    };
+
+    const ParameterValueChart = ({ results }) => {
+        if (!results || Object.keys(results).length === 0) {
+            return <div className="p-4 bg-gray-50 rounded text-gray-600">No parameter data available</div>;
+        }
+
+        // Check if this is a boolean parameter like Roth conversion
+        const paramKeys = Object.keys(results);
+        const isBooleanParam = paramKeys.every(key => key === 'true' || key === 'false');
+
+        // Sort numerically for number params, or as boolean for boolean params
+        const paramValues = isBooleanParam
+            ? ['false', 'true'].filter(val => paramKeys.includes(val))
+            : paramKeys.sort((a, b) => Number(a) - Number(b));
+
+        // Log for debugging
+        console.log('ParameterValueChart - paramValues:', paramValues);
+        console.log('ParameterValueChart - isBooleanParam:', isBooleanParam);
+
+        // Extract final values for each parameter value
+        const finalValues = paramValues.map(paramValue => {
+            const data = results[paramValue];
+            if (!data) {
+                console.warn(`No data found for parameter value: ${paramValue}`);
+                return null;
+            }
+
+            // Check if we have the expected values
+            if (selectedMetric === 'probability' && data.finalSuccessProb === undefined) {
+                console.warn(`Missing finalSuccessProb for ${paramValue}`);
+                return null;
+            }
+            if (selectedMetric !== 'probability' && data.finalMedianInvest === undefined) {
+                console.warn(`Missing finalMedianInvest for ${paramValue}`);
+                return null;
+            }
+
+            return {
+                // For boolean params, use 0 and 1 for x-axis display
+                paramValue: isBooleanParam
+                    ? (paramValue === 'true' ? 1 : 0)
+                    : Number(paramValue),
+                paramLabel: isBooleanParam
+                    ? (paramValue === 'true' ? 'Enabled' : 'Disabled')
+                    : paramValue,
+                value: selectedMetric === 'probability'
+                    ? data.finalSuccessProb
+                    : data.finalMedianInvest
+            };
+        }).filter(Boolean); // Remove any null entries
+
+        // If no valid values after filtering, show message
+        if (finalValues.length === 0) {
+            return <div className="p-4 bg-yellow-50 rounded text-yellow-700">
+                No valid data available for the selected metric.
+            </div>;
+        }
+
+        return (
+            <div className="p-4 bg-white rounded shadow">
+                <h3 className="font-semibold mb-2">
+                    Final {selectedMetric === 'probability' ? 'Probability of Success' : 'Median Investment'} by Parameter Value
+                </h3>
+                <div className="h-80">
+                    <LineChart
+                        xAxis={[{
+                            data: finalValues.map(d => d.paramValue),
+                            label: 'Parameter Value',
+                            tickMinStep: Math.max(1, Math.floor((finalValues[finalValues.length - 1]?.paramValue - finalValues[0]?.paramValue) / 10)),
+                            // For boolean parameters, use custom formatter
+                            valueFormatter: isBooleanParam
+                                ? (value) => value === 1 ? 'Enabled' : 'Disabled'
+                                : undefined
+                        }]}
+                        yAxis={[{
+                            label: selectedMetric === 'probability' ? 'Probability (%)' : 'Value ($)',
+                            tickFormatter: (value) => formatValue(value, selectedMetric),
+                            min: selectedMetric === 'probability' ? 0 : undefined,
+                            max: selectedMetric === 'probability' ? 100 : undefined
+                        }]}
+                        series={[{
+                            data: finalValues.map(d => d.value),
+                            label: selectedMetric === 'probability' ? 'Success Probability' : 'Median Investment',
+                            showMark: true,
+                            color: selectedMetric === 'probability' ? '#4CAF50' : '#2196F3'
+                        }]}
+                        height={300}
+                    />
+                </div>
+            </div>
+        );
     };
 
     return (
@@ -1388,6 +1616,47 @@ const ExplorationPage = () => {
                                     {isProcessing ? 'Processing...' : 'Explore Parameter'}
                                 </button>
                             </div>
+                        </div>
+                    )}
+
+                    {/* Results section - Show charts if exploration results exist */}
+                    {explorationResults && Object.keys(explorationResults).length > 0 && (
+                        <div className="mt-10 space-y-6">
+                            <h2 className="text-2xl font-semibold text-gray-900">Exploration Results</h2>
+
+                            {/* Chart Controls */}
+                            <div className="flex flex-wrap gap-4 items-center">
+                                <div className="flex items-center space-x-2">
+                                    <label className="text-sm font-medium text-gray-700">Chart Type:</label>
+                                    <select
+                                        value={displayChart}
+                                        onChange={(e) => setDisplayChart(e.target.value)}
+                                        className="p-2 border rounded-md bg-gray-50 border-gray-300 text-gray-900"
+                                    >
+                                        <option value="timeSeries">Time Series</option>
+                                        <option value="parameterValue">Parameter Function</option>
+                                    </select>
+                                </div>
+
+                                <div className="flex items-center space-x-2">
+                                    <label className="text-sm font-medium text-gray-700">Metric:</label>
+                                    <select
+                                        value={selectedMetric}
+                                        onChange={(e) => setSelectedMetric(e.target.value)}
+                                        className="p-2 border rounded-md bg-gray-50 border-gray-300 text-gray-900"
+                                    >
+                                        <option value="probability">Probability of Success</option>
+                                        <option value="medianInvestment">Median Total Investments</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            {/* Charts */}
+                            {displayChart === 'timeSeries' ? (
+                                <TimeSeriesChart results={explorationResults} />
+                            ) : (
+                                <ParameterValueChart results={explorationResults} />
+                            )}
                         </div>
                     )}
                 </div>
