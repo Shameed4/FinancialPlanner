@@ -1208,22 +1208,22 @@ export default async function runSimulation(initialState, userName, generateLog 
 
     for (let event of activeInvestEvents) {
       const {
-        allocationType,        // "fixed" or "glide"
-        initialAllocations,    // e.g. { 'Cash non-retirement': 30, 'A3 after-tax-retirement': 70 }
+        allocationType, // "fixed" or "glide"
+        initialAllocations,
         finalAllocations = {}, // only for glide
-        maxCashValue           // threshold below which we won’t invest
+        maxCashValue // threshold below which we won’t invest
       } = event;
 
       // 1) compute how much cash we can invest
       let excessCash = Math.max(0, cash.value - maxCashValue);
       if (excessCash <= 0) continue;
 
-      // 2) helper to split your keys into assetType & taxStatus
+      // 2) helper to split keys into assetType & taxStatus
       function parseAllocs(obj) {
         return Object.entries(obj).map(([key, pct]) => {
           const parts = key.split(" ");
-          const taxStatus = parts.pop();       // e.g. "non-retirement"
-          const assetType = parts.join(" ");   // e.g. "Cash"
+          const taxStatus = parts.pop();
+          const assetType = parts.join(" ");
           return { assetType, taxStatus, percentage: pct };
         });
       }
@@ -1344,146 +1344,138 @@ export default async function runSimulation(initialState, userName, generateLog 
       params.curYear >= event.startYear &&
       params.curYear <= event.endYear
     );
-
-    console.log(activeRebalanceEvents);
-
+    
     for (let event of activeRebalanceEvents) {
-      const {
-        allocationType, // "fixed" or "glide"
-        initialAllocations,
-        finalAllocations = {} // only used if allocationType === "glide"
-      } = event;
-
-      // 1) Build rawAllocation: [{ assetType, taxStatus, percentage }, …]
-      let rawAllocation;
-      if (allocationType === "glide") {
-        const duration = event.endYear - event.startYear;
-        const t = duration === 0
-          ? 1
-          : Math.min(1, Math.max(0, (params.curYear - event.startYear) / duration));
-
-        // helper to parse keys like "A1 after-tax-retirement"
-        const parseAlloc = ([key, pct]) => {
+      // 1) Determine whether fixed or glide, and pull in the right allocation objects:
+      const allocationType = event.allocationType; // "fixed" or "glide"
+      const fixedAllocs = event.allocations;       // for fixed
+      const initialAllocs = event.initialAllocations; // for glide
+      const finalAllocs   = event.finalAllocations   || {};
+    
+      // 2) Helper to parse keys like "S&P 500 non-retirement" → { assetType, taxStatus, percentage }
+      function parseAllocs(obj) {
+        return Object.entries(obj).map(([key, pct]) => {
           const parts = key.split(" ");
           const taxStatus = parts.pop();
           const assetType = parts.join(" ");
           return { assetType, taxStatus, percentage: pct };
-        };
-
-        const initialArray = Object.entries(initialAllocations).map(parseAlloc);
-        const finalArray = Object.entries(finalAllocations).map(parseAlloc);
-
-        rawAllocation = initialArray.map(init => {
-          const fin = finalArray.find(f =>
+        });
+      }
+    
+      // 3) Build rawAllocation array:
+      let rawAllocation;
+      if (allocationType === "glide") {
+        // glide-path interpolation
+        const duration = event.endYear - event.startYear;
+        const t = duration === 0 ? 1
+          : Math.min(1, Math.max(0, (params.curYear - event.startYear) / duration));
+    
+        const initArr  = parseAllocs(initialAllocs);
+        const finalArr = parseAllocs(finalAllocs);
+    
+        rawAllocation = initArr.map(init => {
+          const fin = finalArr.find(f =>
             f.assetType === init.assetType &&
-            f.taxStatus === init.taxStatus
+            f.taxStatus  === init.taxStatus
           ) || { percentage: 0 };
           return {
             assetType: init.assetType,
-            taxStatus: init.taxStatus,
+            taxStatus:  init.taxStatus,
             percentage: init.percentage * (1 - t) + fin.percentage * t
           };
         });
       } else {
-        rawAllocation = Object.entries(initialAllocations).map(([key, pct]) => {
-          const parts = key.split(" ");
-          const taxStatus = parts.pop();
-          const assetType = parts.join(" ");
-          return { assetType, taxStatus, percentage: pct };
-        });
+        // fixed allocation
+        rawAllocation = parseAllocs(fixedAllocs);
       }
-
-      // 2) Compute totalValue of all assets in this allocation
+    
+      // 4) Compute total current value of those investments
       const totalValue = state.investments
         .filter(inv => rawAllocation.some(a =>
           a.assetType === inv.assetType &&
-          a.taxStatus === inv.taxStatus
+          a.taxStatus  === inv.taxStatus
         ))
         .reduce((sum, inv) => sum + inv.value, 0);
       if (totalValue <= 0) continue;
-
-      // 3a) Process all SALES first (valueDiff < 0)
+    
+      // 5a) SALES first
       for (const alloc of rawAllocation) {
-        const investment = state.investments.find(inv =>
-          inv.assetType === alloc.assetType &&
-          inv.taxStatus === alloc.taxStatus
+        const inv = state.investments.find(i =>
+          i.assetType === alloc.assetType &&
+          i.taxStatus  === alloc.taxStatus
         );
-        if (!investment) continue;
-
-        const targetValue = (totalValue * alloc.percentage) / 100;
-        const diff = targetValue - investment.value;
+        if (!inv) continue;
+    
+        const targetValue = totalValue * (alloc.percentage / 100);
+        const diff = targetValue - inv.value;
         if (diff < 0) {
           const amountToSell = -diff;
-          const fractionSold = amountToSell / investment.value;
-          const saleGain = fractionSold * (investment.value - investment.purchasePrice);
-
-          // record gains or ordinary income
-          if (investment.taxStatus === "non-retirement") {
-            params.curYearGains += saleGain;
-          } else if (investment.taxStatus === "pre-tax-retirement") {
+          const frac = amountToSell / inv.value;
+          const gain = frac * (inv.value - inv.purchasePrice);
+    
+          // record gain or ordinary income
+          if (inv.taxStatus === "non-retirement") {
+            params.curYearGains += gain;
+          } else {
             params.curYearIncome += amountToSell;
           }
-
-          // early withdrawal penalty if under 59
-          if ((investment.taxStatus === "pre-tax-retirement" ||
-            investment.taxStatus === "after-tax-retirement")
-            && params.userAge < 59) {
+          // early-withdrawal penalty
+          if ((inv.taxStatus === "pre-tax-retirement" || inv.taxStatus === "after-tax-retirement")
+              && params.userAge < 59) {
             params.curYearEarlyWithdrawals += amountToSell;
           }
-
-          // apply the sale
-          investment.value -= amountToSell;
-          investment.purchasePrice -= fractionSold * investment.purchasePrice;
+    
+          // adjust investment & cash
+          inv.value -= amountToSell;
+          inv.purchasePrice -= frac * inv.purchasePrice;
           cash.value += amountToSell;
-
+    
           if (generateLog) {
             logEvent(logStream, params.curYear, 'Rebalance Sell', {
-              AssetType: investment.assetType,
-              TaxStatus: investment.taxStatus,
+              AssetType: inv.assetType,
+              TaxStatus: inv.taxStatus,
               AmountSold: amountToSell,
-              CapitalGain: saleGain
+              CapitalGain: gain
             });
           }
         }
       }
-
-      // 3b) Process all BUYS (valueDiff > 0)
+    
+      // 5b) BUYS next
       for (const alloc of rawAllocation) {
-        const targetValue = (totalValue * alloc.percentage) / 100;
-        let investment = state.investments.find(inv =>
-          inv.assetType === alloc.assetType &&
-          inv.taxStatus === alloc.taxStatus
+        const targetValue = totalValue * (alloc.percentage / 100);
+        let inv = state.investments.find(i =>
+          i.assetType === alloc.assetType &&
+          i.taxStatus  === alloc.taxStatus
         );
-        if (!investment) {
-          // create if missing
-          investment = {
+        if (!inv) {
+          inv = {
             assetType: alloc.assetType,
             taxStatus: alloc.taxStatus,
             value: 0,
             purchasePrice: 0
           };
-          state.investments.push(investment);
+          state.investments.push(inv);
         }
-
-        const diff = targetValue - investment.value;
+    
+        const diff = targetValue - inv.value;
         if (diff > 0) {
-          const amountToBuy = diff;
-          if (cash.value >= amountToBuy) {
-            investment.value += amountToBuy;
-            investment.purchasePrice += amountToBuy;
-            cash.value -= amountToBuy;
-
+          if (cash.value >= diff) {
+            inv.value += diff;
+            inv.purchasePrice += diff;
+            cash.value -= diff;
+    
             if (generateLog) {
               logEvent(logStream, params.curYear, 'Rebalance Buy', {
-                AssetType: investment.assetType,
-                TaxStatus: investment.taxStatus,
-                Amount: amountToBuy
+                AssetType: inv.assetType,
+                TaxStatus: inv.taxStatus,
+                Amount: diff
               });
             }
           } else {
             console.warn(
-              `Insufficient cash for rebalance '${event.name}': ` +
-              `needed ${amountToBuy.toFixed(2)}, have ${cash.value.toFixed(2)}`
+              `Insufficient cash for rebalance '${event.name}': needed ${diff.toFixed(2)}, ` +
+              `have ${cash.value.toFixed(2)}`
             );
           }
         }
