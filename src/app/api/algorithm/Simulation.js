@@ -162,7 +162,6 @@ function calculateMarginalTax(taxableIncome, brackets) {
 export default async function runSimulation(initialState, userName, generateLog = false) {
   let state = deepCopy(initialState);
 
-  console.log(state.eventSeries);
   // Ensure 'Cash' asset type exists in assetTypes
   if (!state.assetTypes) {
     state.assetTypes = [];
@@ -869,7 +868,7 @@ export default async function runSimulation(initialState, userName, generateLog 
       prevYearFedTax = calculateMarginalTax(prevYearIncomeAfterDeduction, fedBracketsForStatus);
     } else {
       prevYearFedTax = 0;
-      console.warn(`Year ${params.curYear}: Missing or empty federal tax brackets for status ${filingStatus} for previous year tax calculation.`);
+      // console.warn(`Year ${params.curYear}: Missing or empty federal tax brackets for status ${filingStatus} for previous year tax calculation.`);
     }
 
     // --- State Income Tax Calculation ---
@@ -881,7 +880,7 @@ export default async function runSimulation(initialState, userName, generateLog 
       prevYearStateTax = calculateMarginalTax(prevYearFedTaxableIncome, stateBracketsForStatus);
     } else {
       prevYearStateTax = 0;
-      console.warn(`Year ${params.curYear}: Missing or empty state tax brackets for ${state.residenceState} ${filingStatus} for previous year tax calculation.`);
+      // console.warn(`Year ${params.curYear}: Missing or empty state tax brackets for ${state.residenceState} ${filingStatus} for previous year tax calculation.`);
     }
 
     // --- Capital Gains Tax Calculation ---
@@ -1348,11 +1347,11 @@ export default async function runSimulation(initialState, userName, generateLog 
     for (let event of activeRebalanceEvents) {
       // 1) Determine whether fixed or glide, and pull in the right allocation objects:
       const allocationType = event.allocationType; // "fixed" or "glide"
-      const fixedAllocs = event.allocations;       // for fixed
+      const fixedAllocs = event.allocations; // for fixed
       const initialAllocs = event.initialAllocations; // for glide
       const finalAllocs   = event.finalAllocations   || {};
     
-      // 2) Helper to parse keys like "S&P 500 non-retirement" → { assetType, taxStatus, percentage }
+      // 2) Helper to parse keys like "S&P 500 non-retirement" -> { assetType, taxStatus, percentage }
       function parseAllocs(obj) {
         return Object.entries(obj).map(([key, pct]) => {
           const parts = key.split(" ");
