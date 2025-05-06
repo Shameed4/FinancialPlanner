@@ -311,10 +311,17 @@ async function createAssetTypes(assetTypes: any[]) {
   const createdAssetTypes = [];
 
   for (const assetType of assetTypes) {
-    // Map the taxability from string to enum if needed
-    const taxability = typeof assetType.taxability === 'string'
-      ? mapTaxability(assetType.taxability)
-      : (assetType.taxability || Taxability.TAXABLE);
+    // Map the taxability properly - handle both string and boolean values
+    let taxability;
+    if (typeof assetType.taxability === 'string') {
+      taxability = mapTaxability(assetType.taxability);
+    } else if (typeof assetType.taxable !== 'undefined') {
+      // If the frontend passes taxable (boolean) instead of taxability (enum)
+      taxability = assetType.taxable ? Taxability.TAXABLE : Taxability.TAX_EXEMPT;
+    } else {
+      // Default if neither is provided
+      taxability = (assetType.taxability === false) ? Taxability.TAX_EXEMPT : Taxability.TAXABLE;
+    }
 
     // Map the return type from string to enum if needed
     const returnType = typeof assetType.returnType === 'string'
@@ -328,8 +335,11 @@ async function createAssetTypes(assetTypes: any[]) {
 
     let createdAssetType;
     try {
-      // console.log("---")
-      // console.log(assetType);
+      // Log the key fields
+      console.log(`Creating asset type ${assetType.name}:`);
+      console.log(`  taxable: ${assetType.taxable}, taxability: ${taxability}`);
+      console.log(`  normalIncomeMean: ${assetType.normalIncomeMean}`);
+
       createdAssetType = await prisma.assetType.create({
         data: {
           name: assetType.name,
@@ -394,9 +404,11 @@ async function createInvestments(scenarioId: number, investments: any[], assetTy
         assetTypeId: assetTypeId,
         value: investment.value,
         taxStatus: taxStatus,
-        rothConversionStrategy: investment.rothConversionStrategy,
-        rmdStrategy: investment.rmdStrategy,
-        expenseWithdrawalStrategy: investment.expenseWithdrawalStrategy,
+        // Add default values for required fields
+        expenseWithdrawalStrategy: parseInt(investment.expenseWithdrawalStrategy) || 0,
+        // Only add these fields for pre-tax-retirement investments
+        ...(investment.taxStatus === 'pre-tax-retirement' && investment.rmdStrategy ? { rmdStrategy: parseInt(investment.rmdStrategy) } : {}),
+        ...(investment.taxStatus === 'pre-tax-retirement' && investment.rothConversionStrategy ? { rothConversionStrategy: parseInt(investment.rothConversionStrategy) } : {}),
       },
       include: {
         assetType: true
@@ -426,7 +438,8 @@ const transformScenarioForFrontend = (scenario: any) => {
     incomeEventDetails?: IncomeEventDetails,
     expenseEventDetails?: ExpenseEventDetails,
     investEventDetails?: InvestEventDetails & { AssetAllocation: any },
-    rebalanceEventDetails?: RebalanceEventDetails & { AssetAllocation: any }
+    rebalanceEventDetails?: RebalanceEventDetails & { AssetAllocation: any },
+    startOnOtherSeries?: any
   }) => {
     //console.log("Event series:", es);
     const baseEvent = {
@@ -439,6 +452,7 @@ const transformScenarioForFrontend = (scenario: any) => {
       startYearMax: es.startMax,
       startYearMean: es.startMean,
       startYearStd: es.startStd,
+      // Check if startOnOtherSeries exists before accessing its name
       startOnOtherSeries: es.startOnOtherSeries?.name || '',
       durationType: es.durationType.toLowerCase(),
       durationFixed: es.duration,
@@ -1021,11 +1035,19 @@ export async function POST(request: NextRequest) {
 // deletes existing related data, and then re-creates asset types, investments, and event series.
 export async function PUT(request: NextRequest) {
   try {
-    const body = await request.json();
+    const originalBody = await request.json();
+    let body = { ...originalBody }; // Create a mutable copy of the body
     const scenarioId = body.id;
     const ownerId = body.userEmail;
 
-    console.log("Put body", body);
+    console.log("PUT request received with body:", JSON.stringify({
+      id: body.id,
+      name: body.name,
+      inflationAssumption: body.inflationAssumption,
+      partialUpdate: body.partialUpdate,
+      generalInfo: body.generalInfo,
+      assetTypeUpdates: body.assetTypeUpdates,
+    }, null, 2));
 
     if (!scenarioId) {
       return NextResponse.json({ status: 400, error: 'Scenario ID is required' });
@@ -1053,6 +1075,233 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ status: 403, error: 'Not authorized to modify this scenario' });
     }
 
+    // Check if this is a partial update (for specific fields only)
+    if (body.partialUpdate) {
+      console.log("Processing partial update");
+
+      // Handle general information updates
+      if (body.generalInfo) {
+        console.log("Updating general information:", body.generalInfo);
+
+        // Create an update object with only the provided fields
+        const updateData: any = {};
+        Object.entries(body.generalInfo).forEach(([key, value]) => {
+          if (value !== undefined) {
+            // Special handling for inflation fields
+            if (key === 'inflationAssumption') {
+              // Check if inflationAssumption is an object with type and value
+              if (typeof value === 'object' && value !== null && (value as any).type) {
+                console.log(`Processing inflationAssumption object: ${JSON.stringify(value)}`);
+
+                // Map the type string to the correct enum
+                updateData[key] = mapDistributionType((value as any).type);
+
+                // Set the appropriate inflation value based on the type
+                if ((value as any).type === 'fixed') {
+                  updateData.inflation = parseFloat(String((value as any).value || 0));
+                  console.log(`Setting fixed inflation value: ${updateData.inflation}`);
+                } else if ((value as any).type === 'normal' || (value as any).type === 'random_normal') {
+                  updateData.inflationMean = parseFloat(String((value as any).mean || 0));
+                  updateData.inflationStd = parseFloat(String((value as any).stdev || 0));
+                  console.log(`Setting normal inflation: mean=${updateData.inflationMean}, stdev=${updateData.inflationStd}`);
+                } else if ((value as any).type === 'uniform' || (value as any).type === 'random_uniform') {
+                  updateData.inflationMin = parseFloat(String((value as any).lower || 0));
+                  updateData.inflationMax = parseFloat(String((value as any).upper || 0));
+                  console.log(`Setting uniform inflation: min=${updateData.inflationMin}, max=${updateData.inflationMax}`);
+                }
+              } else if (typeof value === 'string') {
+                // If it's a string, map it directly
+                updateData[key] = mapDistributionType(value);
+                console.log(`Processing inflationAssumption string: ${value} -> ${updateData[key]}`);
+              } else {
+                // If it's another type, just use it directly
+                updateData[key] = value;
+                console.log(`Processing inflationAssumption other: ${value}`);
+              }
+            } else if (key.startsWith('inflation')) {
+              // Make sure to handle zero values properly
+              updateData[key] = parseFloat(String(value || 0));
+              console.log(`Setting inflation field ${key}: ${value} -> ${updateData[key]}`);
+            } else {
+              updateData[key] = value;
+            }
+          }
+        });
+
+        if (Object.keys(updateData).length > 0) {
+          console.log("Updating scenario with data:", updateData);
+          await prisma.scenario.update({
+            where: { id: scenarioId },
+            data: updateData
+          });
+        }
+      }
+
+      // Handle asset type updates
+      if (body.assetTypeUpdates) {
+        console.log("Processing asset type updates:", body.assetTypeUpdates);
+
+        // Process each asset type update
+        for (const update of body.assetTypeUpdates) {
+          // Find the existing asset type by name
+          const existingAssetType = await prisma.assetType.findFirst({
+            where: { name: update.name }
+          });
+
+          if (existingAssetType) {
+            console.log(`Updating asset type ${update.name}:`, update);
+
+            // Handle taxability (boolean to enum conversion)
+            let updatedTaxability;
+            if (typeof update.taxable !== 'undefined') {
+              updatedTaxability = update.taxable ? Taxability.TAXABLE : Taxability.TAX_EXEMPT;
+              console.log(`  Setting taxability to ${updatedTaxability} from taxable=${update.taxable}`);
+            }
+
+            // Update the asset type
+            await prisma.assetType.update({
+              where: { id: existingAssetType.id },
+              data: {
+                description: update.description ?? existingAssetType.description,
+                taxability: updatedTaxability ?? existingAssetType.taxability,
+                expenseRatio: update.expenseRatio !== undefined ?
+                  parseFloat(String(update.expenseRatio)) : existingAssetType.expenseRatio,
+                normalIncomeMean: update.normalIncomeMean !== undefined ?
+                  parseFloat(String(update.normalIncomeMean)) : existingAssetType.normalIncomeMean,
+                normalIncomeStd: update.normalIncomeStd !== undefined ?
+                  parseFloat(String(update.normalIncomeStd)) : existingAssetType.normalIncomeStd,
+                fixedIncome: update.fixedIncome !== undefined ?
+                  parseFloat(String(update.fixedIncome)) : existingAssetType.fixedIncome,
+              }
+            });
+          } else {
+            console.warn(`Asset type ${update.name} not found for update`);
+          }
+        }
+      }
+
+      // Get the updated scenario with all related data
+      const updatedScenario = await prisma.scenario.findUnique({
+        where: { id: scenarioId },
+        include: {
+          investmentScenario: {
+            include: {
+              investment: {
+                include: {
+                  assetType: true
+                }
+              }
+            }
+          },
+          eventSeries: {
+            include: {
+              incomeEventDetails: true,
+              expenseEventDetails: true,
+              investEventDetails: {
+                include: {
+                  AssetAllocation: {
+                    include: {
+                      investment: {
+                        include: {
+                          assetType: true
+                        }
+                      }
+                    }
+                  }
+                }
+              },
+              rebalanceEventDetails: {
+                include: {
+                  AssetAllocation: {
+                    include: {
+                      investment: {
+                        include: {
+                          assetType: true
+                        }
+                      }
+                    }
+                  }
+                }
+              },
+              startOnOtherSeries: true
+            }
+          }
+        }
+      });
+
+      // Transform the scenario for the frontend
+      const transformedScenario = transformScenarioForFrontend(updatedScenario);
+
+      // Return the updated scenario
+      return NextResponse.json({
+        status: 200,
+        result: {
+          ...transformedScenario,
+          permissions: {
+            isOwner: existingScenario.ownerId === ownerId,
+            canWrite: true,
+            canRead: true,
+            owner: { email: existingScenario.ownerId }
+          }
+        }
+      });
+    }
+
+    // Check if the frontend is sending a complete scenario or just updating specific fields
+    if (!body.partialUpdate && typeof body.inflationAssumption === 'object' && body.inflationAssumption !== null) {
+      // Handle case where inflationAssumption is sent as an object with type and value
+      console.log("Processing inflationAssumption as object:", body.inflationAssumption);
+
+      const inflationType = body.inflationAssumption.type;
+
+      // Map the type string to the correct enum
+      const processedInflationAssumption = mapDistributionType(inflationType);
+
+      // Set up base scenario update with proper inflation type
+      const scenarioUpdateData: any = {
+        ...body,
+        inflationAssumption: processedInflationAssumption
+      };
+
+      // Set the appropriate inflation value based on the type
+      if (inflationType === 'fixed') {
+        scenarioUpdateData.inflation = parseFloat(String(body.inflationAssumption.value || 0));
+        // Clear other inflation fields
+        scenarioUpdateData.inflationMin = null;
+        scenarioUpdateData.inflationMax = null;
+        scenarioUpdateData.inflationMean = null;
+        scenarioUpdateData.inflationStd = null;
+      } else if (inflationType === 'normal' || inflationType === 'random_normal') {
+        scenarioUpdateData.inflationMean = parseFloat(String(body.inflationAssumption.mean || 0));
+        scenarioUpdateData.inflationStd = parseFloat(String(body.inflationAssumption.stdev || 0));
+        // Clear other inflation fields
+        scenarioUpdateData.inflation = null;
+        scenarioUpdateData.inflationMin = null;
+        scenarioUpdateData.inflationMax = null;
+      } else if (inflationType === 'uniform' || inflationType === 'random_uniform') {
+        scenarioUpdateData.inflationMin = parseFloat(String(body.inflationAssumption.lower || 0));
+        scenarioUpdateData.inflationMax = parseFloat(String(body.inflationAssumption.upper || 0));
+        // Clear other inflation fields
+        scenarioUpdateData.inflation = null;
+        scenarioUpdateData.inflationMean = null;
+        scenarioUpdateData.inflationStd = null;
+      }
+
+      // Update the scenario with the processed inflation data
+      console.log("Updating scenario with processed inflation data:", {
+        inflationAssumption: scenarioUpdateData.inflationAssumption,
+        inflation: scenarioUpdateData.inflation,
+        inflationMin: scenarioUpdateData.inflationMin,
+        inflationMax: scenarioUpdateData.inflationMax,
+        inflationMean: scenarioUpdateData.inflationMean,
+        inflationStd: scenarioUpdateData.inflationStd
+      });
+
+      // Replace the body with the updated data for further processing
+      body = scenarioUpdateData;
+    }
+
+    // If not a partial update, proceed with the full update
     // Delete existing scenario relationships in a transaction.
     await prisma.$transaction([
       // Delete asset allocations first (they reference invest/rebalance details)
@@ -1193,11 +1442,12 @@ export async function PUT(request: NextRequest) {
         spouseLifeExpectancyMean,
         spouseLifeExpectancyStd,
         inflationAssumption: processedInflationAssumption,
-        inflation: processedInflation,
-        inflationMin: processedInflationMin,
-        inflationMax: processedInflationMax,
-        inflationMean: processedInflationMean,
-        inflationStd: processedInflationStd,
+        // Ensure inflation values are properly handled, including zeros
+        inflation: processedInflation !== null ? parseFloat(String(processedInflation || 0)) : null,
+        inflationMin: processedInflationMin !== null ? parseFloat(String(processedInflationMin || 0)) : null,
+        inflationMax: processedInflationMax !== null ? parseFloat(String(processedInflationMax || 0)) : null,
+        inflationMean: processedInflationMean !== null ? parseFloat(String(processedInflationMean || 0)) : null,
+        inflationStd: processedInflationStd !== null ? parseFloat(String(processedInflationStd || 0)) : null,
         initialAfterTaxRetirementContributionLimit,
         rothOptimizationStartYear,
         rothOptimizationEndYear,
@@ -1266,7 +1516,8 @@ export async function PUT(request: NextRequest) {
                   }
                 }
               }
-            }
+            },
+            startOnOtherSeries: true
           }
         }
       }

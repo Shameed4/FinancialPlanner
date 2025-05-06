@@ -21,6 +21,12 @@ interface YamlInvestmentType {
   incomeAmtOrPct: 'amount' | 'percent';
   incomeDistribution: YamlDistribution;
   taxability: boolean;
+  // Additional fields that may be present in the YAML
+  fixedIncome?: number;
+  normalIncomeMean?: number;
+  normalIncomeStd?: number;
+  uniformIncomeMin?: number;
+  uniformIncomeMax?: number;
 }
 
 interface YamlInvestment {
@@ -297,21 +303,21 @@ export function yamlToScenario(yaml: string): StringScenarioFormData {
     case 'fixed':
       inflationFields = {
         inflationAssumption: 'fixed',
-        inflation: String(jsonYaml.inflationAssumption.value ?? 0.03),
+        inflation: String(jsonYaml.inflationAssumption.value ?? 0),
       };
       break;
     case 'random_uniform':
       inflationFields = {
         inflationAssumption: 'random_uniform',
-        inflationMin: String(jsonYaml.inflationAssumption.lower ?? 0.02),
-        inflationMax: String(jsonYaml.inflationAssumption.upper ?? 0.04),
+        inflationMin: String(jsonYaml.inflationAssumption.lower ?? 0),
+        inflationMax: String(jsonYaml.inflationAssumption.upper ?? 0),
       };
       break;
     case 'random_normal':
       inflationFields = {
         inflationAssumption: 'random_normal',
-        inflationMean: String(jsonYaml.inflationAssumption.mean ?? 0.03),
-        inflationStd: String(jsonYaml.inflationAssumption.stdev ?? 0.01),
+        inflationMean: String(jsonYaml.inflationAssumption.mean ?? 0),
+        inflationStd: String(jsonYaml.inflationAssumption.stdev ?? 0),
       };
       break;
     default:
@@ -319,7 +325,7 @@ export function yamlToScenario(yaml: string): StringScenarioFormData {
       console.warn(`Unknown inflation assumption type: ${jsonYaml.inflationAssumption.type}. Falling back to fixed.`);
       inflationFields = {
         inflationAssumption: 'fixed',
-        inflation: '0.03',
+        inflation: '0',
       };
   }
 
@@ -338,7 +344,8 @@ export function yamlToScenario(yaml: string): StringScenarioFormData {
       returnValue: asset.returnDistribution.value,
       expenseRatio: asset.expenseRatio,
       incomeType: asset.incomeDistribution.type,
-      incomeValue: asset.incomeDistribution.value
+      incomeValue: asset.incomeDistribution.value,
+      taxability: asset.taxability // Log taxability value
     });
 
     let returnFields: any = {};
@@ -408,14 +415,30 @@ export function yamlToScenario(yaml: string): StringScenarioFormData {
         incomeFields = { incomeType: 'fixed', fixedIncome: '0' };
     }
 
+    // Also preserve additional income fields if they exist in the YAML
+    if ((asset as any).fixedIncome !== undefined) {
+      incomeFields.fixedIncome = String((asset as any).fixedIncome);
+    }
+    if ((asset as any).normalIncomeMean !== undefined) {
+      incomeFields.normalIncomeMean = String((asset as any).normalIncomeMean);
+    }
+    if ((asset as any).normalIncomeStd !== undefined) {
+      incomeFields.normalIncomeStd = String((asset as any).normalIncomeStd);
+    }
+    if ((asset as any).uniformIncomeMin !== undefined) {
+      incomeFields.uniformIncomeMin = String((asset as any).uniformIncomeMin);
+    }
+    if ((asset as any).uniformIncomeMax !== undefined) {
+      incomeFields.uniformIncomeMax = String((asset as any).uniformIncomeMax);
+    }
+
     return {
       name: asset.name,
       description: asset.description || asset.name, // Provide default description
       ...returnFields,
       expenseRatio: asset.expenseRatio === 0 ? "0" : String(asset.expenseRatio || 0),
       ...incomeFields,
-      taxable: asset.taxability ?? false, // Default taxable to false if missing
-      // expectedAnnualIncomeType: "fixed", // This seems hardcoded? Check if needed by type
+      taxable: asset.taxability, // Properly pass taxability value (including false)
       returnAmtOrPct: asset.returnAmtOrPct || 'percent', // Default if missing
       incomeAmtOrPct: asset.incomeAmtOrPct || 'percent' // Default if missing
     } as AssetType; // Cast to ensure type match
@@ -550,22 +573,27 @@ export function yamlToScenario(yaml: string): StringScenarioFormData {
       if (es.changeDistribution) {
         switch (es.changeDistribution.type) {
           case 'fixed':
-            changeFields = { annualChangeType: 'fixed', annualChange: String(es.changeDistribution.value ?? 0) };
+            const changeValue = typeof es.changeDistribution.value === 'number' ?
+              String(es.changeDistribution.value * 100) : "0"; // Multiply by 100 for percentage
+            changeFields = {
+              annualChangeType: 'fixed',
+              annualChange: changeValue
+            };
             break;
           case 'uniform':
           case 'random_uniform': // Handle both 'uniform' and 'random_uniform'
             changeFields = {
               annualChangeType: 'random_uniform',
-              annualChangeMin: String(es.changeDistribution.lower ?? 0),
-              annualChangeMax: String(es.changeDistribution.upper ?? 0)
+              annualChangeMin: String((es.changeDistribution.lower ?? 0) * 100), // Multiply by 100 for percentage
+              annualChangeMax: String((es.changeDistribution.upper ?? 0) * 100)  // Multiply by 100 for percentage
             };
             break;
           case 'normal':
           case 'random_normal': // Handle both 'normal' and 'random_normal'
             changeFields = {
               annualChangeType: 'random_normal',
-              annualChangeMean: String(es.changeDistribution.mean ?? 0),
-              annualChangeStd: String(es.changeDistribution.stdev ?? 0)
+              annualChangeMean: String((es.changeDistribution.mean ?? 0) * 100), // Multiply by 100 for percentage
+              annualChangeStd: String((es.changeDistribution.stdev ?? 0) * 100)  // Multiply by 100 for percentage
             };
             break;
           default:

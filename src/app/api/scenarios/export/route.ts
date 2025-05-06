@@ -135,6 +135,7 @@ export function scenarioToYaml(data: StringScenarioFormData): string {
             }
         }
 
+        // Include all income fields regardless of type to ensure they're preserved during export/import
         return {
             name: asset.name,
             description: asset.description || asset.name,
@@ -143,7 +144,13 @@ export function scenarioToYaml(data: StringScenarioFormData): string {
             expenseRatio: Number(asset.expenseRatio || 0),
             incomeAmtOrPct: asset.incomeAmtOrPct || "percent",
             incomeDistribution,
-            taxability: asset.taxable
+            taxability: asset.taxable !== undefined ? asset.taxable : true,
+            // Add these fields explicitly to ensure they're preserved
+            fixedIncome: Number((asset as any).fixedIncome || 0),
+            normalIncomeMean: Number((asset as any).normalIncomeMean || 0),
+            normalIncomeStd: Number((asset as any).normalIncomeStd || 0),
+            uniformIncomeMin: Number((asset as any).uniformIncomeMin || 0),
+            uniformIncomeMax: Number((asset as any).uniformIncomeMax || 0)
         };
     });
 
@@ -478,18 +485,22 @@ export function scenarioToYaml(data: StringScenarioFormData): string {
     // --- Inflation Assumption ---
     let inflationAssumption: any = {};
     if (data.inflationAssumption === "fixed") {
-        inflationAssumption = { type: "fixed", value: Number(data.inflation) };
+        // Ensure inflation value is included even if zero
+        inflationAssumption = {
+            type: "fixed",
+            value: Number(data.inflation || 0)
+        };
     } else if (data.inflationAssumption === "random_uniform") {
         inflationAssumption = {
             type: "uniform",
-            lower: Number(data.inflationMin),
-            upper: Number(data.inflationMax)
+            lower: Number(data.inflationMin || 0),
+            upper: Number(data.inflationMax || 0)
         };
     } else if (data.inflationAssumption === "random_normal") {
         inflationAssumption = {
             type: "normal",
-            mean: Number(data.inflationMean),
-            stdev: Number(data.inflationStd)
+            mean: Number(data.inflationMean || 0),
+            stdev: Number(data.inflationStd || 0)
         };
     }
 
