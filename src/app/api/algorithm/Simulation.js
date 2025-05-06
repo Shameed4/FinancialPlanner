@@ -539,8 +539,7 @@ export default async function runSimulation(initialState, userName, generateLog 
       const s = params.prevYearEndPreTaxSum ?? 0; // Use sum calculated at end of *last* year
       const rmdEntry = params.rmdTable.find(entry => entry.age === params.userAge);
       const d = rmdEntry?.distributionPeriod;
-      // console.log(params.prevYearEndPreTaxSum)
-      // console.log(s, rmdEntry, d);
+      console.log(s, rmdEntry, d);
 
       if (s > 0 && d > 0) {
         calculatedRmdCurrentYear = s / d;
@@ -802,18 +801,13 @@ export default async function runSimulation(initialState, userName, generateLog 
         if (generateLog) {
           // Create a detailed log of each investment converted
           const conversionDetails = preTaxInvestmentsForRoth
-            .filter(inv => inv.value < inv.originalValue) // Only include investments that were converted
-            .map(inv => ({
-              AssetType: inv.assetType,
-              AmountConverted: inv.originalValue - inv.value,
-              FromValue: inv.originalValue,
-              ToValue: inv.value
-            }));
+            .filter(inv => inv.value < inv.originalValue)     // only those with a conversion
+            .map(inv => inv.assetType);                       // now just the name
 
           logEvent(logStream, params.curYear, 'Roth Conversion', {
             TotalConverted: totalConverted,
             TargetBracketMax: taxBracket.max,
-            Conversions: conversionDetails
+            Conversions: conversionDetails    // e.g. ["Vanguard 401k", "Fidelity IRA", …]
           });
         }
       }
@@ -821,7 +815,7 @@ export default async function runSimulation(initialState, userName, generateLog 
 
     // Step 6: Pay non-discretionary expenses and the previous year's taxes,
     // i.e., subtract them from the cash investment. Perform additional withdrawals if needed to pay them.
-    console.log("Running non-discretionary expense and tax processing...");
+    //console.log("Running non-discretionary expense and tax processing...");
 
     let prevYearFedTax = 0;
     let prevYearStateTax = 0;
@@ -953,7 +947,6 @@ export default async function runSimulation(initialState, userName, generateLog 
 
     // Determine the shortfall that must be withdrawn from investments if available cash is insufficient.
     let withdrawalAmount = Math.max(0, totalPaymentAmount - cash.value);
-    console.log(withdrawalAmount);
 
     // If additional funds are needed, liquidate investments according to the specified ordering.
     if (withdrawalAmount > 0) {
@@ -1051,7 +1044,7 @@ export default async function runSimulation(initialState, userName, generateLog 
     // except stop if continuing would reduce the user's total assets below the financial goal.
     // The last discretionary expense to be paid can be partially paid if incurring the entire expense would violate the financial goal.
     // Perform additional withdrawals if needed to pay them.
-    console.log("Running discretionary expense processing...");
+    //console.log("Running discretionary expense processing...");
 
     const financialGoal = state.financialGoal;
 
@@ -1465,7 +1458,7 @@ export default async function runSimulation(initialState, userName, generateLog 
     params.prevYearEndPreTaxSum = state.investments
       .filter(inv => inv.taxStatus === "pre-tax-retirement")
       .reduce((sum, inv) => sum + inv.value, 0); // Store the current year-end pre-tax sum
-    // console.log(params.prevYearEndPreTaxSum);
+    console.log(params.prevYearEndPreTaxSum);
 
     //console.log(params.totalDiscExpenses);
     // set fields for the return object, which will be used in generating the charts

@@ -421,7 +421,7 @@ const DetailedView = ({ result, onBack, financialGoal }) => {
         <BarChart
           layout="vertical"
           xAxis={[{ scaleType: 'band', data: stackedData.labels, label: 'Year' }]}
-          yAxis={[{ scaleType: 'linear', label: 'Value ($)', tickFormatter: formatDollar }]}
+          yAxis={[{ scaleType: 'linear', label: 'Value ($)', valueFormatter: formatDollar }]}
           series={stackedData.series.map(s => ({
             ...s,
             stack: 'total',
