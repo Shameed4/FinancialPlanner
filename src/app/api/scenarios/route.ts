@@ -328,7 +328,8 @@ async function createAssetTypes(assetTypes: any[]) {
 
     let createdAssetType;
     try {
-      console.log(`Creating asset type: ${assetType.name} with returnType: ${returnType}, fixedReturn: ${assetType.fixedReturn}, fixedIncome: ${assetType.fixedIncome}`);
+      // console.log("---")
+      // console.log(assetType);
       createdAssetType = await prisma.assetType.create({
         data: {
           name: assetType.name,
@@ -357,7 +358,6 @@ async function createAssetTypes(assetTypes: any[]) {
           returnAmtOrPct: assetType.returnAmtOrPct || 'amount',
         }
       });
-      console.log(`Successfully created asset type: ${assetType.name} with ID: ${createdAssetType.id}`);
     } catch (error) {
       console.error(`Error creating asset type ${assetType.name}:`, error);
       throw error;
@@ -936,43 +936,6 @@ export async function POST(request: NextRequest) {
       createdInvestments = await createInvestments(scenario.id, investments, assetTypeMap);
     }
 
-    // Check for asset types without investments and create placeholder investments
-    if (createdAssetTypes && createdAssetTypes.length > 0) {
-      const assetsWithInvestments = new Set(createdInvestments.map(inv => inv.assetType.name));
-
-      for (const assetType of createdAssetTypes) {
-        if (!assetsWithInvestments.has(assetType.name)) {
-          console.log(`Creating placeholder investment for asset type: ${assetType.name}`);
-
-          // Create a placeholder investment with 0 value
-          const placeholderInvestment = await prisma.investment.create({
-            data: {
-              assetTypeId: assetType.id,
-              value: 0,
-              taxStatus: TaxStatus.NON_RETIREMENT,
-              expenseWithdrawalStrategy: 1, // Default strategy
-              rothConversionStrategy: null,
-              rmdStrategy: null
-            },
-            include: {
-              assetType: true
-            }
-          });
-
-          // Link investment to scenario
-          await prisma.investmentScenario.create({
-            data: {
-              investmentId: placeholderInvestment.id,
-              scenarioId: scenario.id
-            }
-          });
-
-          createdInvestments.push(placeholderInvestment);
-          console.log(`Created placeholder investment for ${assetType.name} with ID: ${placeholderInvestment.id}`);
-        }
-      }
-    }
-
     // Create event series and their details
     if (eventSeries && eventSeries.length > 0) {
       await createEventSeries(scenario.id, eventSeries, createdInvestments);
@@ -1267,43 +1230,6 @@ export async function PUT(request: NextRequest) {
     let createdInvestments: (Investment & { assetType: AssetType })[] = [];
     if (investments && investments.length > 0) {
       createdInvestments = await createInvestments(scenario.id, investments, assetTypeMap);
-    }
-
-    // Check for asset types without investments and create placeholder investments
-    if (createdAssetTypes && createdAssetTypes.length > 0) {
-      const assetsWithInvestments = new Set(createdInvestments.map(inv => inv.assetType.name));
-
-      for (const assetType of createdAssetTypes) {
-        if (!assetsWithInvestments.has(assetType.name)) {
-          console.log(`Creating placeholder investment for asset type: ${assetType.name}`);
-
-          // Create a placeholder investment with 0 value
-          const placeholderInvestment = await prisma.investment.create({
-            data: {
-              assetTypeId: assetType.id,
-              value: 0,
-              taxStatus: TaxStatus.NON_RETIREMENT,
-              expenseWithdrawalStrategy: 1, // Default strategy
-              rothConversionStrategy: null,
-              rmdStrategy: null
-            },
-            include: {
-              assetType: true
-            }
-          });
-
-          // Link investment to scenario
-          await prisma.investmentScenario.create({
-            data: {
-              investmentId: placeholderInvestment.id,
-              scenarioId: scenario.id
-            }
-          });
-
-          createdInvestments.push(placeholderInvestment);
-          console.log(`Created placeholder investment for ${assetType.name} with ID: ${placeholderInvestment.id}`);
-        }
-      }
     }
 
     // Create event series and their details
