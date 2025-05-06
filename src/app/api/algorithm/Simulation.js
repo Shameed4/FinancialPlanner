@@ -745,6 +745,11 @@ export default async function runSimulation(initialState, userName, generateLog 
         .filter(inv => inv.taxStatus === "pre-tax-retirement" && inv.value > 0)
         .sort((a, b) => (a.rothConversionStrategy || Infinity) - (b.rothConversionStrategy || Infinity));
 
+      // Store original values for logging
+      preTaxInvestmentsForRoth.forEach(inv => {
+        inv.originalValue = inv.value;
+      });
+
       // Assuming that 'state.investments' is ordered by your Roth conversion strategy,
       // iterate over investments to perform the conversion.
       for (let inv of preTaxInvestmentsForRoth) {
@@ -795,9 +800,20 @@ export default async function runSimulation(initialState, userName, generateLog 
       const totalConverted = rothConversionAmount - remainingConversion;
       if (totalConverted > 0) {
         if (generateLog) {
+          // Create a detailed log of each investment converted
+          const conversionDetails = preTaxInvestmentsForRoth
+            .filter(inv => inv.value < inv.originalValue) // Only include investments that were converted
+            .map(inv => ({
+              AssetType: inv.assetType,
+              AmountConverted: inv.originalValue - inv.value,
+              FromValue: inv.originalValue,
+              ToValue: inv.value
+            }));
+
           logEvent(logStream, params.curYear, 'Roth Conversion', {
             TotalConverted: totalConverted,
-            TargetBracketMax: taxBracket.max
+            TargetBracketMax: taxBracket.max,
+            Conversions: conversionDetails
           });
         }
       }
