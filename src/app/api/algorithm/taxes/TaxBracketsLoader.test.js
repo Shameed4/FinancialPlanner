@@ -264,6 +264,59 @@ NJ:
       expect(result.NJ.single[0].rate).toBeCloseTo(0.014, 5);
       expect(result.NJ.single[1].rate).toBeCloseTo(0.0175, 5);
     });
+
+    it('should throw error for invalid source type', async () => {
+      await expect(loadTaxBracketsFromYaml({ invalid: 'object' }, false))
+        .rejects
+        .toThrow('Invalid source: must be a file path or YAML content');
+    });
+
+    it('should throw error for empty YAML content', async () => {
+      await expect(loadTaxBracketsFromYaml('', false))
+        .rejects
+        .toThrow('Invalid YAML structure: root must be an object');
+    });
+
+    it('should throw error for invalid state data structure', async () => {
+      const mockYaml = `
+NY: "invalid string instead of object"
+`;
+      await expect(loadTaxBracketsFromYaml(mockYaml, false))
+        .rejects
+        .toThrow('Invalid state data structure for NY');
+    });
+
+    it('should throw error for empty filing status data', async () => {
+      const mockYaml = `
+NY: {}
+`;
+      await expect(loadTaxBracketsFromYaml(mockYaml, false))
+        .rejects
+        .toThrow('No filing status data found for state NY');
+    });
+
+    it('should throw error for invalid brackets data type', async () => {
+      const mockYaml = `
+NY:
+  single: "not an array"
+`;
+      await expect(loadTaxBracketsFromYaml(mockYaml, false))
+        .rejects
+        .toThrow('Invalid brackets data for NY single');
+    });
+
+    it('should handle null values for min/max bounds', async () => {
+      const mockYaml = `
+NY:
+  single:
+    - min: null
+      max: null
+      rate: "4%"
+`;
+      const result = await loadTaxBracketsFromYaml(mockYaml, false);
+      expect(result.NY.single[0].over).toBe(0);
+      expect(result.NY.single[0].but_not_over).toBe(Infinity);
+    });
   });
 
   describe('getTaxBracketsFilePath', () => {
