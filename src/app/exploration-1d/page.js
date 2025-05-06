@@ -364,8 +364,8 @@ const ExplorationPage = () => {
                 stepValues.push(Math.round(value)); // Round to avoid floating point issues
             }
 
-            // Make sure upper bound is included
-            if (stepValues[stepValues.length - 1] !== allocationUpperBound) {
+            // Make sure upper bound is included if it's not already
+            if (stepValues.length > 0 && stepValues[stepValues.length - 1] !== allocationUpperBound) {
                 stepValues.push(allocationUpperBound);
             }
 
@@ -618,8 +618,8 @@ const ExplorationPage = () => {
         setFeedbackMessage('');
         setExplorationResults(null);
 
-        // Calculate step size based on range and number of desired points
-        let range, stepValues, adjustedStepSize;
+        // Variables for step values and scenarios
+        let stepValues = [];
         let scenarios = [];
 
         // Set to true to show loading state
@@ -627,38 +627,34 @@ const ExplorationPage = () => {
 
         // Generate appropriate values for each parameter type
         if (['amount', 'recurringAmount', 'eventSeriesAmount'].includes(data.parameter)) {
-            range = data.upperBound - data.lowerBound;
-            const steps = data.steps || 10;
-            adjustedStepSize = Math.max(1, Math.round(range / steps));
+            const lowerBound = data.lowerBound;
+            const upperBound = data.upperBound;
+            const stepSize = data.steps;  // Use the exact step size provided
 
             // Generate step values
             stepValues = [];
-            for (let value = data.lowerBound; value <= data.upperBound; value += adjustedStepSize) {
+            for (let value = lowerBound; value <= upperBound; value += stepSize) {
                 stepValues.push(Math.round(value));
-                // Safety check to prevent too many values
-                if (stepValues.length >= 10) break;
             }
 
             // Make sure upper bound is included
-            if (stepValues[stepValues.length - 1] !== data.upperBound) {
-                stepValues.push(data.upperBound);
+            if (stepValues.length > 0 && stepValues[stepValues.length - 1] !== upperBound) {
+                stepValues.push(upperBound);
             }
         } else if (data.parameter === 'eventSeriesTiming') {
-            range = data.upperBound - data.lowerBound;
-            const steps = data.steps || Math.min(10, range);
-            adjustedStepSize = Math.max(1, Math.round(range / steps));
+            const lowerBound = data.lowerBound;
+            const upperBound = data.upperBound;
+            const stepSize = data.steps;  // Use the exact step size provided
 
             // Generate step values
             stepValues = [];
-            for (let value = data.lowerBound; value <= data.upperBound; value += adjustedStepSize) {
+            for (let value = lowerBound; value <= upperBound; value += stepSize) {
                 stepValues.push(Math.round(value));
-                // Safety check to prevent too many values
-                if (stepValues.length >= 10) break;
             }
 
             // Make sure upper bound is included
-            if (stepValues[stepValues.length - 1] !== data.upperBound) {
-                stepValues.push(data.upperBound);
+            if (stepValues.length > 0 && stepValues[stepValues.length - 1] !== upperBound) {
+                stepValues.push(upperBound);
             }
         } else if (data.parameter === 'rothConversion') {
             // For Roth conversion, we only have true/false
@@ -857,7 +853,7 @@ const ExplorationPage = () => {
         console.log('Step values:', stepValues);
         console.log('Number of scenarios:', scenarios.length);
         console.log('Original step size:', data.steps || data.step);
-        console.log('Adjusted step size:', adjustedStepSize);
+        console.log('Adjusted step size:', data.steps || data.step);
 
         // Log each scenario with its parameter value
         console.log('Scenarios details:');
