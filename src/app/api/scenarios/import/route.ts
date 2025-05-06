@@ -305,6 +305,7 @@ export function yamlToScenario(yaml: string): StringScenarioFormData {
         inflationAssumption: 'fixed',
         inflation: String(jsonYaml.inflationAssumption.value ?? 0),
       };
+      console.log("Set inflation fields:", inflationFields);
       break;
     case 'random_uniform':
       inflationFields = {
@@ -574,26 +575,43 @@ export function yamlToScenario(yaml: string): StringScenarioFormData {
         switch (es.changeDistribution.type) {
           case 'fixed':
             const changeValue = typeof es.changeDistribution.value === 'number' ?
-              String(es.changeDistribution.value * 100) : "0"; // Multiply by 100 for percentage
+              String(es.changeDistribution.value) : "0";
+            // For percentage, multiply by 100, for amount keep as is
+            const fixedValue = es.changeAmtOrPct === 'percent' ?
+              String(Number(changeValue) * 100) : changeValue;
             changeFields = {
               annualChangeType: 'fixed',
-              annualChange: changeValue
+              annualChange: fixedValue
             };
             break;
           case 'uniform':
           case 'random_uniform': // Handle both 'uniform' and 'random_uniform'
+            // For percentage, multiply by 100, for amount keep as is
+            const lowerValue = es.changeAmtOrPct === 'percent' ?
+              String((es.changeDistribution.lower ?? 0) * 100) :
+              String(es.changeDistribution.lower ?? 0);
+            const upperValue = es.changeAmtOrPct === 'percent' ?
+              String((es.changeDistribution.upper ?? 0) * 100) :
+              String(es.changeDistribution.upper ?? 0);
             changeFields = {
               annualChangeType: 'random_uniform',
-              annualChangeMin: String((es.changeDistribution.lower ?? 0) * 100), // Multiply by 100 for percentage
-              annualChangeMax: String((es.changeDistribution.upper ?? 0) * 100)  // Multiply by 100 for percentage
+              annualChangeMin: lowerValue,
+              annualChangeMax: upperValue
             };
             break;
           case 'normal':
           case 'random_normal': // Handle both 'normal' and 'random_normal'
+            // For percentage, multiply by 100, for amount keep as is
+            const meanValue = es.changeAmtOrPct === 'percent' ?
+              String((es.changeDistribution.mean ?? 0) * 100) :
+              String(es.changeDistribution.mean ?? 0);
+            const stdevValue = es.changeAmtOrPct === 'percent' ?
+              String((es.changeDistribution.stdev ?? 0) * 100) :
+              String(es.changeDistribution.stdev ?? 0);
             changeFields = {
               annualChangeType: 'random_normal',
-              annualChangeMean: String((es.changeDistribution.mean ?? 0) * 100), // Multiply by 100 for percentage
-              annualChangeStd: String((es.changeDistribution.stdev ?? 0) * 100)  // Multiply by 100 for percentage
+              annualChangeMean: meanValue,
+              annualChangeStd: stdevValue
             };
             break;
           default:
@@ -877,7 +895,7 @@ export function yamlToScenario(yaml: string): StringScenarioFormData {
     }
   }).filter((event: any) => event !== null) as (IncomeEvent | ExpenseEvent | InvestEvent | RebalanceEvent)[]; // Filter out any nulls from unknown types
 
-
+  console.log("Final imported scenario: ", res);
   return res;
 }
 
@@ -887,15 +905,16 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     console.log("Received YAML import request");
     const scenarioYaml = yamlToScenario(body.scenarioYaml);
+    // console.log("Final imported scenario: ", scenarioYaml);
 
-    console.log("Final asset types for DB:", scenarioYaml.assetTypes.map(asset => ({
-      name: asset.name,
-      returnType: asset.returnType,
-      fixedReturn: asset.fixedReturn,
-      expenseRatio: asset.expenseRatio,
-      incomeType: asset.incomeType,
-      normalIncomeMean: asset.normalIncomeMean
-    })));
+    // console.log("Final asset types for DB:", scenarioYaml.assetTypes.map(asset => ({
+    //   name: asset.name,
+    //   returnType: asset.returnType,
+    //   fixedReturn: asset.fixedReturn,
+    //   expenseRatio: asset.expenseRatio,
+    //   incomeType: asset.incomeType,
+    //   normalIncomeMean: asset.normalIncomeMean
+    // })));
 
     // If saveToDB flag is true, save the scenario to the database
     if (body.saveToDB && body.userEmail) {
@@ -917,6 +936,7 @@ export async function POST(request: NextRequest) {
         rothOptimizationStartYear: scenarioYaml.rothOptimizationStartYear ? parseInt(scenarioYaml.rothOptimizationStartYear) : null,
         rothOptimizationEndYear: scenarioYaml.rothOptimizationEndYear ? parseInt(scenarioYaml.rothOptimizationEndYear) : null,
         // Parse inflation values if available
+        inflationAssumption: scenarioYaml.inflationAssumption,
         inflation: scenarioYaml.inflation ? parseFloat(scenarioYaml.inflation) : null,
         inflationMin: scenarioYaml.inflationMin ? parseFloat(scenarioYaml.inflationMin) : null,
         inflationMax: scenarioYaml.inflationMax ? parseFloat(scenarioYaml.inflationMax) : null,
@@ -1007,14 +1027,7 @@ export async function POST(request: NextRequest) {
         })
       };
 
-      console.log("Final scenario data to be saved to DB:", JSON.stringify({
-        name: scenarioData.name,
-        eventSeriesCount: scenarioData.eventSeries.length,
-        investEventCount: scenarioData.eventSeries.filter(e => e.type === 'invest').length,
-        rebalanceEventCount: scenarioData.eventSeries.filter(e => e.type === 'rebalance').length,
-        // Show just the first invest event as an example
-        sampleInvestEvent: scenarioData.eventSeries.find(e => e.type === 'invest')
-      }, null, 2));
+      console.log("Final scenario data to be saved to DB:", scenarioData);
 
       // Call the main scenarios API endpoint
       const scenariosApiUrl = new URL(request.url);

@@ -1701,15 +1701,21 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel, initialData = null }: 
                                                     <input
                                                         type="number"
                                                         step="0.1"
-                                                        value={event.annualChange || ''}
+                                                        value={typeof event.annualChange === 'number' || event.annualChange === '0' ? event.annualChange : (event.annualChange || '0')}
                                                         onChange={(e) => {
                                                             const newEventSeries = [...formData.eventSeries];
                                                             newEventSeries[index].annualChange = e.target.value;
+
+                                                            // Also update the changeDistribution object for consistency
+                                                            newEventSeries[index].changeDistribution = {
+                                                                type: 'fixed',
+                                                                value: parseFloat(e.target.value) || 0
+                                                            };
+
                                                             setFormData({ ...formData, eventSeries: newEventSeries });
                                                         }}
-                                                        // className={`${getInputClassName('inflation')} text-black`}
                                                         className={`border border-black text-black rounded-md p-2`}
-                                                        placeholder="2.0"
+                                                        placeholder="0"
                                                     />
                                                 </div>
                                             )}

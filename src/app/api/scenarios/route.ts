@@ -431,6 +431,54 @@ async function createInvestments(scenarioId: number, investments: any[], assetTy
   return createdInvestments;
 }
 
+// Helper function to build changeDistribution object in the format expected by the frontend
+function getChangeDistribution(eventDetails: IncomeEventDetails | ExpenseEventDetails) {
+  const isPercentage = eventDetails.changeAmtOrPct === 'percent';
+
+  // If annualChangeType is fixed, return fixed distribution
+  if (eventDetails.annualChangeType === DistributionType.fixed) {
+    // Explicitly convert to number and default to 0 if undefined/null
+    let value = Number(eventDetails.annualChangeAmount ?? 0);
+
+    // For percentage values being sent to frontend, no need to convert
+    // They're already stored as percentages in the database
+
+    return {
+      type: 'fixed',
+      value: value  // Always include the value, even if it's 0
+    };
+  }
+  // If annualChangeType is random_uniform, return uniform distribution
+  else if (eventDetails.annualChangeType === DistributionType.random_uniform) {
+    // Explicitly convert to number and default to 0 if undefined/null
+    const lower = Number(eventDetails.annualChangeMin ?? 0);
+    const upper = Number(eventDetails.annualChangeMax ?? 0);
+
+    return {
+      type: 'uniform',
+      lower: lower,  // Always include lower, even if it's 0
+      upper: upper   // Always include upper, even if it's 0
+    };
+  }
+  // If annualChangeType is random_normal, return normal distribution
+  else if (eventDetails.annualChangeType === DistributionType.random_normal) {
+    // Explicitly convert to number and default to 0 if undefined/null
+    const mean = Number(eventDetails.annualChangeMean ?? 0);
+    const stdev = Number(eventDetails.annualChangeStd ?? 0);
+
+    return {
+      type: 'normal',
+      mean: mean,    // Always include mean, even if it's 0
+      stdev: stdev   // Always include stdev, even if it's 0
+    };
+  }
+  // Default to fixed with value 0
+  return {
+    type: 'fixed',
+    value: 0
+  };
+}
+
 // Transformation function to shape the scenario for the frontend with defensive checks.
 const transformScenarioForFrontend = (scenario: any) => {
   // Transform event series
@@ -607,16 +655,29 @@ const transformScenarioForFrontend = (scenario: any) => {
     }
 
     if (es.incomeEventDetails) {
+      // Ensure annualChange is always included even if it's 0
+      const annualChange = es.incomeEventDetails.annualChangeAmount !== null && es.incomeEventDetails.annualChangeAmount !== undefined
+        ? es.incomeEventDetails.annualChangeAmount
+        : (es.incomeEventDetails.annualChangePercentage !== null && es.incomeEventDetails.annualChangePercentage !== undefined
+          ? es.incomeEventDetails.annualChangePercentage
+          : 0);
+
       return {
         ...baseEvent,
         initialAmount: es.incomeEventDetails.initialAmount,
         amount: es.incomeEventDetails.initialAmount,
+        // Ensure correct changeType is returned for frontend dropdown
         changeType: es.incomeEventDetails.annualChangeType.toLowerCase(),
-        annualChange: es.incomeEventDetails.annualChangeAmount || es.incomeEventDetails.annualChangePercentage || 0,
-        annualChangeMin: es.incomeEventDetails.annualChangeMin,
-        annualChangeMax: es.incomeEventDetails.annualChangeMax,
-        annualChangeMean: es.incomeEventDetails.annualChangeMean,
-        annualChangeStd: es.incomeEventDetails.annualChangeStd,
+        // Also include annualChangeType for consistency
+        annualChangeType: es.incomeEventDetails.annualChangeType.toLowerCase(),
+        // Handle all change values, including zero values
+        annualChange: annualChange,
+        annualChangeMin: es.incomeEventDetails.annualChangeMin ?? 0,
+        annualChangeMax: es.incomeEventDetails.annualChangeMax ?? 0,
+        annualChangeMean: es.incomeEventDetails.annualChangeMean ?? 0,
+        annualChangeStd: es.incomeEventDetails.annualChangeStd ?? 0,
+        // Add proper format for changeDistribution to help frontend matching
+        changeDistribution: getChangeDistribution(es.incomeEventDetails),
         changeAmtOrPct: es.incomeEventDetails.changeAmtOrPct,
         inflationAdjusted: es.incomeEventDetails.inflationAdjustment,
         userPercentage: es.incomeEventDetails.userPercentage,
@@ -625,16 +686,29 @@ const transformScenarioForFrontend = (scenario: any) => {
     }
 
     if (es.expenseEventDetails) {
+      // Ensure annualChange is always included even if it's 0
+      const annualChange = es.expenseEventDetails.annualChangeAmount !== null && es.expenseEventDetails.annualChangeAmount !== undefined
+        ? es.expenseEventDetails.annualChangeAmount
+        : (es.expenseEventDetails.annualChangePercentage !== null && es.expenseEventDetails.annualChangePercentage !== undefined
+          ? es.expenseEventDetails.annualChangePercentage
+          : 0);
+
       return {
         ...baseEvent,
         initialAmount: es.expenseEventDetails.initialAmount,
         amount: es.expenseEventDetails.initialAmount,
+        // Ensure correct changeType is returned for frontend dropdown
         changeType: es.expenseEventDetails.annualChangeType.toLowerCase(),
-        annualChange: es.expenseEventDetails.annualChangeAmount || es.expenseEventDetails.annualChangePercentage || 0,
-        annualChangeMin: es.expenseEventDetails.annualChangeMin,
-        annualChangeMax: es.expenseEventDetails.annualChangeMax,
-        annualChangeMean: es.expenseEventDetails.annualChangeMean,
-        annualChangeStd: es.expenseEventDetails.annualChangeStd,
+        // Also include annualChangeType for consistency
+        annualChangeType: es.expenseEventDetails.annualChangeType.toLowerCase(),
+        // Handle all change values, including zero values
+        annualChange: annualChange,
+        annualChangeMin: es.expenseEventDetails.annualChangeMin ?? 0,
+        annualChangeMax: es.expenseEventDetails.annualChangeMax ?? 0,
+        annualChangeMean: es.expenseEventDetails.annualChangeMean ?? 0,
+        annualChangeStd: es.expenseEventDetails.annualChangeStd ?? 0,
+        // Add proper format for changeDistribution to help frontend matching
+        changeDistribution: getChangeDistribution(es.expenseEventDetails),
         changeAmtOrPct: es.expenseEventDetails.changeAmtOrPct,
         inflationAdjusted: es.expenseEventDetails.inflationAdjustment,
         userPercentage: es.expenseEventDetails.userPercentage,
@@ -909,6 +983,8 @@ export async function POST(request: NextRequest) {
       ? inflationStd
       : null;
 
+    console.log("Processed inflation:", processedInflation);
+
     // Create the base scenario
     const scenario = await prisma.scenario.create({
       data: {
@@ -934,6 +1010,8 @@ export async function POST(request: NextRequest) {
         residenceState
       }
     });
+
+    console.log("Created scenario", scenario, processedInflation);
 
     // Create asset types first if provided
     let assetTypeMap = new Map();
@@ -1176,6 +1254,114 @@ export async function PUT(request: NextRequest) {
             });
           } else {
             console.warn(`Asset type ${update.name} not found for update`);
+          }
+        }
+      }
+
+      // Handle event series updates
+      if (body.eventSeriesUpdates) {
+        console.log("Processing event series updates:", body.eventSeriesUpdates);
+
+        // Process each event series update
+        for (const update of body.eventSeriesUpdates) {
+          if (!update.name) {
+            console.warn("Event series update missing name:", update);
+            continue;
+          }
+
+          // Find the event series by name
+          const eventSeries = await prisma.eventSeries.findFirst({
+            where: {
+              scenarioId: scenarioId,
+              name: update.name
+            },
+            include: {
+              incomeEventDetails: true,
+              expenseEventDetails: true
+            }
+          });
+
+          if (!eventSeries) {
+            console.warn(`Event series not found: ${update.name}`);
+            continue;
+          }
+
+          console.log(`Found event series ${update.name} with type ${eventSeries.type}`);
+
+          // Handle updates based on event type
+          if ((eventSeries.type === 'income' || eventSeries.type === 'expense') &&
+            update.changeDistribution && eventSeries.id) {
+
+            console.log(`Updating ${eventSeries.type} event distribution:`, update.changeDistribution);
+
+            // Map the distribution type
+            let annualChangeType;
+            if (typeof update.changeDistribution.type === 'string') {
+              if (update.changeDistribution.type === 'fixed') {
+                annualChangeType = DistributionType.fixed;
+              } else if (update.changeDistribution.type === 'uniform' || update.changeDistribution.type === 'random_uniform') {
+                annualChangeType = DistributionType.random_uniform;
+              } else if (update.changeDistribution.type === 'normal' || update.changeDistribution.type === 'random_normal') {
+                annualChangeType = DistributionType.random_normal;
+              } else {
+                annualChangeType = DistributionType.fixed; // Default
+              }
+            } else {
+              annualChangeType = update.annualChangeType || DistributionType.fixed;
+            }
+
+            // Create update data object based on distribution type
+            const eventUpdateData: any = {
+              annualChangeType
+            };
+
+            // Set values based on distribution type
+            if (annualChangeType === DistributionType.fixed) {
+              const changeValue = typeof update.changeDistribution.value === 'number' ?
+                update.changeDistribution.value : 0;
+              eventUpdateData.annualChangeAmount = changeValue;
+              // Clear other fields
+              eventUpdateData.annualChangeMin = null;
+              eventUpdateData.annualChangeMax = null;
+              eventUpdateData.annualChangeMean = null;
+              eventUpdateData.annualChangeStd = null;
+              console.log(`Setting fixed change: ${changeValue}`);
+            } else if (annualChangeType === DistributionType.random_uniform) {
+              eventUpdateData.annualChangeMin = typeof update.changeDistribution.lower === 'number' ?
+                update.changeDistribution.lower : 0;
+              eventUpdateData.annualChangeMax = typeof update.changeDistribution.upper === 'number' ?
+                update.changeDistribution.upper : 0;
+              // Clear other fields
+              eventUpdateData.annualChangeAmount = null;
+              eventUpdateData.annualChangeMean = null;
+              eventUpdateData.annualChangeStd = null;
+              console.log(`Setting uniform change: lower=${eventUpdateData.annualChangeMin}, upper=${eventUpdateData.annualChangeMax}`);
+            } else if (annualChangeType === DistributionType.random_normal) {
+              eventUpdateData.annualChangeMean = typeof update.changeDistribution.mean === 'number' ?
+                update.changeDistribution.mean : 0;
+              eventUpdateData.annualChangeStd = typeof update.changeDistribution.stdev === 'number' ?
+                update.changeDistribution.stdev : 0;
+              // Clear other fields
+              eventUpdateData.annualChangeAmount = null;
+              eventUpdateData.annualChangeMin = null;
+              eventUpdateData.annualChangeMax = null;
+              console.log(`Setting normal change: mean=${eventUpdateData.annualChangeMean}, stdev=${eventUpdateData.annualChangeStd}`);
+            }
+
+            console.log(`Updating event details with data:`, eventUpdateData);
+
+            // Update the event details based on type
+            if (eventSeries.type === 'income' && eventSeries.incomeEventDetails) {
+              await prisma.incomeEventDetails.update({
+                where: { eventSeriesId: eventSeries.id },
+                data: eventUpdateData
+              });
+            } else if (eventSeries.type === 'expense' && eventSeries.expenseEventDetails) {
+              await prisma.expenseEventDetails.update({
+                where: { eventSeriesId: eventSeries.id },
+                data: eventUpdateData
+              });
+            }
           }
         }
       }
