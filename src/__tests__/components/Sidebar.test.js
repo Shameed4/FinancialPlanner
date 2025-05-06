@@ -169,4 +169,144 @@ describe('Sidebar Component', () => {
 
         expect(mockSignOut).toHaveBeenCalledWith({ redirect: false })
     })
+
+    it('handles unauthenticated state', async () => {
+        jest.spyOn(require('next-auth/react'), 'useSession').mockImplementation(() => ({
+            data: null,
+            status: 'unauthenticated'
+        }));
+
+        await act(async () => {
+            render(
+                <SessionProvider>
+                    <Sidebar />
+                </SessionProvider>
+            )
+        });
+
+        expect(screen.getByText('Log In')).toBeInTheDocument();
+        expect(screen.getByText('Access your account')).toBeInTheDocument();
+        expect(screen.queryByText('Account Settings')).not.toBeInTheDocument();
+        expect(screen.queryByText('Log Out')).not.toBeInTheDocument();
+    });
+
+    it('handles login navigation', async () => {
+        jest.spyOn(require('next-auth/react'), 'useSession').mockImplementation(() => ({
+            data: null,
+            status: 'unauthenticated'
+        }));
+
+        const mockPush = jest.fn();
+        jest.spyOn(require('next/navigation'), 'useRouter').mockImplementation(() => ({
+            push: mockPush,
+            pathname: '/login'
+        }));
+
+        await act(async () => {
+            render(
+                <SessionProvider>
+                    <Sidebar />
+                </SessionProvider>
+            )
+        });
+
+        const loginButton = screen.getByText('Log In');
+        await act(async () => {
+            fireEvent.click(loginButton);
+        });
+
+        expect(mockPush).toHaveBeenCalledWith('/login');
+    });
+
+    it('handles active route highlighting', async () => {
+        jest.spyOn(require('next/navigation'), 'useRouter').mockImplementation(() => ({
+            push: jest.fn(),
+            pathname: '/simulation'
+        }));
+
+        await act(async () => {
+            render(
+                <SessionProvider>
+                    <Sidebar />
+                </SessionProvider>
+            )
+        });
+
+        const simulationButton = screen.getByText('Simulation').closest('button');
+        expect(simulationButton).toHaveClass('bg-white/90');
+        expect(simulationButton).toHaveClass('text-[#616161]');
+
+        const homeButton = screen.getByText('Home').closest('button');
+        expect(homeButton).not.toHaveClass('bg-white/90');
+        expect(homeButton).not.toHaveClass('text-[#616161]');
+    });
+
+    it('handles parameter exploration navigation', async () => {
+        const mockPush = jest.fn();
+        jest.spyOn(require('next/navigation'), 'useRouter').mockImplementation(() => ({
+            push: mockPush,
+            pathname: '/'
+        }));
+
+        await act(async () => {
+            render(
+                <SessionProvider>
+                    <Sidebar />
+                </SessionProvider>
+            )
+        });
+
+        const exploration1dButton = screen.getByText('1D Parameter Exploration');
+        await act(async () => {
+            fireEvent.click(exploration1dButton);
+        });
+        expect(mockPush).toHaveBeenCalledWith('/exploration-1d');
+
+        const exploration2dButton = screen.getByText('2D Parameter Exploration');
+        await act(async () => {
+            fireEvent.click(exploration2dButton);
+        });
+        expect(mockPush).toHaveBeenCalledWith('/exploration-2d');
+    });
+
+    it('handles notice navigation', async () => {
+        const mockPush = jest.fn();
+        jest.spyOn(require('next/navigation'), 'useRouter').mockImplementation(() => ({
+            push: mockPush,
+            pathname: '/'
+        }));
+
+        await act(async () => {
+            render(
+                <SessionProvider>
+                    <Sidebar />
+                </SessionProvider>
+            )
+        });
+
+        const noticeButton = screen.getByText('Notice');
+        await act(async () => {
+            fireEvent.click(noticeButton);
+        });
+        expect(mockPush).toHaveBeenCalledWith('/notice');
+    });
+
+    it('handles missing user name', async () => {
+        jest.spyOn(require('next-auth/react'), 'useSession').mockImplementation(() => ({
+            data: {
+                user: {}
+            },
+            status: 'authenticated'
+        }));
+
+        await act(async () => {
+            render(
+                <SessionProvider>
+                    <Sidebar />
+                </SessionProvider>
+            )
+        });
+
+        expect(screen.getByText('John Doe')).toBeInTheDocument();
+    });
 }) 
