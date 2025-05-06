@@ -93,8 +93,8 @@ const ExplorationPage = () => {
     // Number of simulations to run
     const [simulationCount, setSimulationCount] = useState(1);
     // Second investment's bounds are calculated as complementary values
-    const secondAllocationLowerBound = allocationLowerBound !== null ? 100 - allocationLowerBound : null;
-    const secondAllocationUpperBound = allocationUpperBound !== null ? 100 - allocationUpperBound : null;
+    const secondAllocationLowerBound = allocationLowerBound !== null ? 100 - allocationUpperBound : null;
+    const secondAllocationUpperBound = allocationUpperBound !== null ? 100 - allocationLowerBound : null;
 
     const { data: session } = useSession();
 
@@ -328,10 +328,206 @@ const ExplorationPage = () => {
     };
 
     const handleExploreClick = () => {
-        // Clear any previous feedback
+        // Reset feedback and results
         setFeedbackMessage('');
+        setExplorationResults(null);
 
-        if (parameter === 'amount') {
+        // Check if a scenario is selected
+        if (!selectedScenario) {
+            setFeedbackMessage('Please select a scenario to explore');
+            return;
+        }
+
+        if (parameter === 'allocations') {
+            // Check if an investment event is selected
+            if (!selectedInvestEvent) {
+                setFeedbackMessage('Please select an investment event to explore');
+                return;
+            }
+
+            // Check if we have a valid investment pair
+            if (!investmentPair || !investmentPair.first || !investmentPair.second) {
+                setFeedbackMessage('Please select investment allocations to explore');
+                return;
+            }
+
+            console.log(`Exploring allocations for ${investmentPair.first.name} and ${investmentPair.second.name} in ${selectedInvestEvent.name || selectedInvestEvent.title}`);
+
+            // Array to hold each step value
+            const stepValues = [];
+            // Arrays to hold scenario data for each step
+            const scenarios = [];
+
+            // Calculate step size and generate values
+            const stepSize = allocationSteps;
+            for (let value = allocationLowerBound; value <= allocationUpperBound; value += stepSize) {
+                stepValues.push(Math.round(value)); // Round to avoid floating point issues
+            }
+
+            // Make sure upper bound is included
+            if (stepValues[stepValues.length - 1] !== allocationUpperBound) {
+                stepValues.push(allocationUpperBound);
+            }
+
+            console.log(`Generated ${stepValues.length} allocation values:`, stepValues);
+
+            // Create scenarios for each step value
+            stepValues.forEach(firstPercentage => {
+                // Get complementary percentage
+                const secondPercentage = 100 - firstPercentage;
+
+                console.log(`Creating scenario with ${investmentPair.first.name}: ${firstPercentage}%, ${investmentPair.second.name}: ${secondPercentage}%`);
+
+                // Create a deep copy of the scenario
+                const modifiedScenario = JSON.parse(JSON.stringify(selectedScenario));
+
+                // Find the investment event in the copy (by name/title AND type)
+                const eventIndex = modifiedScenario.eventSeries.findIndex(
+                    es => (
+                        (es.title === selectedInvestEvent.title || es.name === selectedInvestEvent.name) &&
+                        es.type === 'invest'
+                    )
+                );
+
+                if (eventIndex === -1) {
+                    console.error(`Investment event "${selectedInvestEvent.title || selectedInvestEvent.name}" not found in scenario.`);
+                    return;
+                }
+
+                const event = modifiedScenario.eventSeries[eventIndex];
+
+                // Make sure initialAllocations exists
+                if (!event.initialAllocations) {
+                    event.initialAllocations = {};
+                }
+
+                // Update the percentages
+                event.initialAllocations[investmentPair.first.name] = firstPercentage;
+                event.initialAllocations[investmentPair.second.name] = secondPercentage;
+
+                // Add step info to scenario name for identification
+                modifiedScenario.name = `${selectedScenario.name} (${investmentPair.first.name}: ${firstPercentage}%, ${investmentPair.second.name}: ${secondPercentage}%)`;
+
+                // Add this scenario to our array
+                scenarios.push({
+                    parameterValue: firstPercentage, // Use the specific first percentage value for this scenario
+                    scenario: modifiedScenario
+                });
+            });
+
+            // Display information about the generated scenarios
+            const allocationPairs = stepValues.map((firstPercentage, index) => {
+                const secondPercentage = 100 - firstPercentage;
+                return `Scenario ${index + 1}: ${investmentPair.first.name}: ${firstPercentage}%, ${investmentPair.second.name}: ${secondPercentage}%`;
+            });
+
+            console.log('===== ALLOCATION SCENARIOS SUMMARY =====');
+            console.log('Generated the following allocation scenarios:');
+            allocationPairs.forEach(pair => console.log(pair));
+            console.log('Each scenario is a separate test with a specific allocation.');
+            console.log('Number of scenarios:', scenarios.length);
+            console.log('Step values:', stepValues);
+            console.log('=========================================');
+
+            // Send scenarios to backend for processing
+            const exploreData = {
+                scenarios: scenarios,
+                simulationCount: simulationCount,
+                parameterType: 'allocations',
+                changedPath: `${selectedInvestEvent.title || selectedInvestEvent.name || 'Investment Event'}.initialAllocations`,
+                stepValues: stepValues, // Include the step values for reference
+                parameterInfo: {
+                    name: 'Allocations',
+                    id: 'allocations',
+                },
+                details: {
+                    firstInvestment: investmentPair.first.name,
+                    secondInvestment: investmentPair.second.name,
+                    range: {
+                        firstLower: allocationLowerBound,
+                        firstUpper: allocationUpperBound,
+                        secondLower: secondAllocationLowerBound,
+                        secondUpper: secondAllocationUpperBound,
+                        step: allocationSteps
+                    }
+                },
+                userName: session?.user?.name,
+            };
+
+            // Debug: Verify scenarios structure
+            console.log("Final scenarios structure check:");
+            scenarios.forEach((scenario, index) => {
+                // Find the event index in this specific scenario
+                const thisEventIndex = scenario.scenario.eventSeries.findIndex(
+                    es => (es.title === selectedInvestEvent.title || es.name === selectedInvestEvent.name) && es.type === 'invest'
+                );
+
+                if (thisEventIndex !== -1) {
+                    console.log(`Scenario ${index}: parameterValue=${scenario.parameterValue}, first=${scenario.scenario.eventSeries[thisEventIndex].initialAllocations[investmentPair.first.name]}%, second=${scenario.scenario.eventSeries[thisEventIndex].initialAllocations[investmentPair.second.name]}%`);
+                } else {
+                    console.log(`Scenario ${index}: parameterValue=${scenario.parameterValue}, but event not found in scenario`);
+                }
+            });
+
+            // Show loading state
+            setIsProcessing(true);
+            setFeedbackMessage(`Processing ${scenarios.length} scenarios with ${simulationCount} simulations each...`);
+
+            // Call the backend API
+            fetch('/api/explore', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(exploreData),
+            })
+                .then(response => response.json())
+                .then(data => {
+                    setIsProcessing(false);
+                    setFeedbackMessage(`Success: ${data.message}`);
+                    console.log('===== EXPLORATION RESPONSE =====');
+                    console.log('Response data:', data);
+
+                    // Store the exploration results if they exist
+                    if (data.results) {
+                        console.log('Results structure:', Object.keys(data.results));
+                        console.log('Result keys (parameter values):', Object.keys(data.results));
+
+                        // Log specific details about each result
+                        Object.entries(data.results).forEach(([paramValue, result]) => {
+                            console.log(`Result for parameter value ${paramValue}:`, {
+                                finalSuccessProb: result.finalSuccessProb,
+                                finalMedianInvest: result.finalMedianInvest,
+                                hasTimeSeries: !!result.successProbTimeSeries || !!result.medianInvestTimeSeries
+                            });
+                        });
+
+                        setExplorationResults(data.results);
+                    } else {
+                        console.warn('No results data in the response');
+                    }
+
+                    console.log('===============================');
+                })
+                .catch(error => {
+                    setIsProcessing(false);
+                    setFeedbackMessage(`Error: ${error.message}`);
+                    console.error('===== EXPLORATION ERROR =====');
+                    console.error('Error:', error);
+                    console.error('=============================');
+                });
+
+            return;
+        } else if (parameter === 'rothConversion') {
+            // Implementation for Roth conversion parameter
+            const data = {
+                parameter: 'rothConversion',
+                selectedScenario: selectedScenario,
+                toggleValue: parameterRange.min === 0 ? false : true
+            };
+
+            sendExplorationRequest(data);
+        } else if (parameter === 'amount') {
             if (!selectedEvent) {
                 setFeedbackMessage('Please select an event to explore');
                 return;
@@ -392,206 +588,6 @@ const ExplorationPage = () => {
             };
 
             sendExplorationRequest(data);
-        } else if (parameter === 'rothConversion') {
-            // Implementation for Roth conversion parameter
-            const data = {
-                parameter: 'rothConversion',
-                selectedScenario: selectedScenario,
-                toggleValue: parameterRange.min === 0 ? false : true
-            };
-
-            sendExplorationRequest(data);
-        } else if (parameter === 'allocations') {
-            if (!selectedInvestEvent) {
-                setFeedbackMessage('Please select an investment event to explore');
-                return;
-            }
-
-            if (!investmentPair) {
-                setFeedbackMessage('The selected investment event does not have a valid allocation (needs exactly two investments in initialAllocations). Please select a different event.');
-                return;
-            }
-
-            // Validate bounds for allocations
-            if (allocationLowerBound >= allocationUpperBound) {
-                setFeedbackMessage(`The minimum allocation for ${investmentPair.first.name} must be less than the maximum allocation.`);
-                return;
-            }
-
-            if (allocationLowerBound < 0 || allocationLowerBound > 100) {
-                setFeedbackMessage(`The minimum allocation for ${investmentPair.first.name} must be between 0 and 100.`);
-                return;
-            }
-
-            if (allocationUpperBound < 0 || allocationUpperBound > 100) {
-                setFeedbackMessage(`The maximum allocation for ${investmentPair.first.name} must be between 0 and 100.`);
-                return;
-            }
-
-            if (allocationSteps <= 0) {
-                setFeedbackMessage('The step size must be greater than 0.');
-                return;
-            }
-
-            // Generate scenarios with different allocation percentages
-            const scenarios = [];
-            const stepValues = [];
-
-            // Calculate step size and generate values
-            const stepSize = allocationSteps;
-            for (let value = allocationLowerBound; value <= allocationUpperBound; value += stepSize) {
-                stepValues.push(Math.round(value)); // Round to avoid floating point issues
-            }
-
-            // Make sure upper bound is included
-            if (stepValues[stepValues.length - 1] !== allocationUpperBound) {
-                stepValues.push(allocationUpperBound);
-            }
-
-            // Create scenarios for each step value
-            stepValues.forEach(firstPercentage => {
-                // Get complementary percentage
-                const secondPercentage = 100 - firstPercentage;
-
-                console.log(`Creating scenario with ${investmentPair.first.name}: ${firstPercentage}%, ${investmentPair.second.name}: ${secondPercentage}%`);
-
-                // Create a deep copy of the scenario
-                const modifiedScenario = JSON.parse(JSON.stringify(selectedScenario));
-
-                // Find the selected event in the copy
-                const eventIndex = modifiedScenario.eventSeries.findIndex(
-                    es => es === selectedInvestEvent || es.title === selectedInvestEvent.title
-                );
-
-                if (eventIndex === -1) {
-                    console.error(`Event "${selectedInvestEvent.title}" not found in scenario.`);
-                    return;
-                }
-
-                const event = modifiedScenario.eventSeries[eventIndex];
-
-                // Make sure initialAllocations exists
-                if (!event.initialAllocations) {
-                    event.initialAllocations = {};
-                }
-
-                // Update the percentages
-                event.initialAllocations[investmentPair.first.name] = firstPercentage;
-                event.initialAllocations[investmentPair.second.name] = secondPercentage;
-
-                // Add step info to scenario name for identification
-                modifiedScenario.name = `${selectedScenario.name} (${investmentPair.first.name}: ${firstPercentage}%, ${investmentPair.second.name}: ${secondPercentage}%)`;
-
-                // Add this scenario to our array
-                scenarios.push({
-                    parameterValue: firstPercentage, // Use the specific first percentage value for this scenario
-                    scenario: modifiedScenario
-                });
-            });
-
-            // Display information about the generated scenarios
-            const allocationPairs = stepValues.map((firstPercentage, index) => {
-                const secondPercentage = 100 - firstPercentage;
-                return `Scenario ${index + 1}: ${investmentPair.first.name}: ${firstPercentage}%, ${investmentPair.second.name}: ${secondPercentage}%`;
-            });
-
-            console.log('===== ALLOCATION SCENARIOS SUMMARY =====');
-            console.log('Generated the following allocation scenarios:');
-            allocationPairs.forEach(pair => console.log(pair));
-            console.log('Each scenario is a separate test with a specific allocation.');
-            console.log('Number of scenarios:', scenarios.length);
-            console.log('Step values:', stepValues);
-            console.log('=========================================');
-
-            // Send scenarios to backend for processing
-            const exploreData = {
-                scenarios: scenarios,
-                simulationCount: simulationCount,
-                parameterType: 'allocations',
-                changedPath: `${selectedInvestEvent.title || 'Investment Event'}.initialAllocations`,
-                stepValues: stepValues, // Include the step values for reference
-                parameterInfo: {
-                    name: 'Allocations',
-                    id: 'allocations',
-                },
-                details: {
-                    firstInvestment: investmentPair.first.name,
-                    secondInvestment: investmentPair.second.name,
-                    range: {
-                        firstLower: allocationLowerBound,
-                        firstUpper: allocationUpperBound,
-                        secondLower: secondAllocationLowerBound,
-                        secondUpper: secondAllocationUpperBound,
-                        step: allocationSteps
-                    }
-                },
-                userName: session.user.name,
-            };
-
-            // Debug: Verify scenarios structure
-            console.log("Final scenarios structure check:");
-            scenarios.forEach((scenario, index) => {
-                // Find the event index in this specific scenario
-                const thisEventIndex = scenario.scenario.eventSeries.findIndex(
-                    es => es.title === selectedInvestEvent.title
-                );
-
-                if (thisEventIndex !== -1) {
-                    console.log(`Scenario ${index}: parameterValue=${scenario.parameterValue}, first=${scenario.scenario.eventSeries[thisEventIndex].initialAllocations[investmentPair.first.name]}%, second=${scenario.scenario.eventSeries[thisEventIndex].initialAllocations[investmentPair.second.name]}%`);
-                } else {
-                    console.log(`Scenario ${index}: parameterValue=${scenario.parameterValue}, but event not found in scenario`);
-                }
-            });
-
-            // Show loading state
-            setIsProcessing(true);
-            setFeedbackMessage(`Processing ${scenarios.length} scenarios with ${simulationCount} simulations each...`);
-
-            // Call the backend API
-            fetch('/api/explore', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify(exploreData),
-            })
-                .then(response => response.json())
-                .then(data => {
-                    setIsProcessing(false);
-                    setFeedbackMessage(`Success: ${data.message}`);
-                    console.log('===== EXPLORATION RESPONSE =====');
-                    console.log('Response data:', data);
-
-                    // Store the exploration results if they exist
-                    if (data.results) {
-                        console.log('Results structure:', Object.keys(data.results));
-                        console.log('Result keys (parameter values):', Object.keys(data.results));
-
-                        // Log specific details about each result
-                        Object.entries(data.results).forEach(([paramValue, result]) => {
-                            console.log(`Result for parameter value ${paramValue}:`, {
-                                finalSuccessProb: result.finalSuccessProb,
-                                finalMedianInvest: result.finalMedianInvest,
-                                hasTimeSeries: !!result.successProbTimeSeries || !!result.medianInvestTimeSeries
-                            });
-                        });
-
-                        setExplorationResults(data.results);
-                    } else {
-                        console.warn('No results data in the response');
-                    }
-
-                    console.log('===============================');
-                })
-                .catch(error => {
-                    setIsProcessing(false);
-                    setFeedbackMessage(`Error: ${error.message}`);
-                    console.error('===== EXPLORATION ERROR =====');
-                    console.error('Error:', error);
-                    console.error('=============================');
-                });
-
-            return;
         } else {
             setFeedbackMessage(`Parameter ${parameter} is not yet supported for exploration.`);
         }
@@ -618,90 +614,122 @@ const ExplorationPage = () => {
 
     // Function to send exploration request to the backend
     const sendExplorationRequest = (data) => {
-        // Generate scenarios based on parameter type
-        const scenarios = [];
-        let stepValues = [];
-        let adjustedStepSize = null; // Add a variable to store the adjusted step size
+        // Reset feedback and results
+        setFeedbackMessage('');
+        setExplorationResults(null);
 
-        // Define max allowed scenarios
-        const MAX_SCENARIOS = 15;
+        // Calculate step size based on range and number of desired points
+        let range, stepValues, adjustedStepSize;
+        let scenarios = [];
 
-        // If there's an event series, log its properties for debugging
-        if (data.parameter === 'eventSeriesTiming' || data.parameter === 'eventSeriesAmount') {
-            console.log('===== EVENT SERIES DEBUG INFO =====');
-            console.log('Selected Event Series:', data.selectedEventSeries);
-            console.log('Event Series Properties:');
-            for (const key in data.selectedEventSeries) {
-                console.log(`  ${key}: ${JSON.stringify(data.selectedEventSeries[key])}`);
-            }
-            console.log('=================================');
-        }
+        // Set to true to show loading state
+        setIsProcessing(true);
 
-        // Create step values based on bounds and step size
-        if (data.parameter === 'eventSeriesTiming' || data.parameter === 'eventSeriesAmount') {
-            // Calculate step values for ranges with numeric steps
-            const lowerBound = data.lowerBound;
-            const upperBound = data.upperBound;
-            let stepSize = data.steps;
-
-            // Ensure reasonable step size to prevent too many scenarios
-            const range = upperBound - lowerBound;
-            const minStepSize = Math.max(1, Math.ceil(range / MAX_SCENARIOS));
-
-            if (stepSize < minStepSize) {
-                console.warn(`Step size ${stepSize} is too small for range ${range}, adjusting to ${minStepSize}`);
-                stepSize = minStepSize;
-            }
-
-            // Store the adjusted step size for logging
-            adjustedStepSize = stepSize;
+        // Generate appropriate values for each parameter type
+        if (['amount', 'recurringAmount', 'eventSeriesAmount'].includes(data.parameter)) {
+            range = data.upperBound - data.lowerBound;
+            const steps = data.steps || 10;
+            adjustedStepSize = Math.max(1, Math.round(range / steps));
 
             // Generate step values
-            for (let value = lowerBound; value <= upperBound; value += stepSize) {
+            stepValues = [];
+            for (let value = data.lowerBound; value <= data.upperBound; value += adjustedStepSize) {
                 stepValues.push(Math.round(value));
-
-                // Safety check to prevent infinite or extremely large arrays
-                if (stepValues.length >= MAX_SCENARIOS) {
-                    console.warn(`Maximum number of scenarios (${MAX_SCENARIOS}) reached, truncating`);
-                    break;
-                }
+                // Safety check to prevent too many values
+                if (stepValues.length >= 10) break;
             }
 
-            // Make sure upper bound is included if we haven't reached max scenarios
-            if (stepValues.length < MAX_SCENARIOS && stepValues[stepValues.length - 1] !== upperBound) {
-                stepValues.push(upperBound);
+            // Make sure upper bound is included
+            if (stepValues[stepValues.length - 1] !== data.upperBound) {
+                stepValues.push(data.upperBound);
+            }
+        } else if (data.parameter === 'eventSeriesTiming') {
+            range = data.upperBound - data.lowerBound;
+            const steps = data.steps || Math.min(10, range);
+            adjustedStepSize = Math.max(1, Math.round(range / steps));
+
+            // Generate step values
+            stepValues = [];
+            for (let value = data.lowerBound; value <= data.upperBound; value += adjustedStepSize) {
+                stepValues.push(Math.round(value));
+                // Safety check to prevent too many values
+                if (stepValues.length >= 10) break;
             }
 
-            // Remove duplicates that might occur due to rounding
-            stepValues = [...new Set(stepValues)];
+            // Make sure upper bound is included
+            if (stepValues[stepValues.length - 1] !== data.upperBound) {
+                stepValues.push(data.upperBound);
+            }
+        } else if (data.parameter === 'rothConversion') {
+            // For Roth conversion, we only have true/false
+            stepValues = data.toggleValue ? ['true'] : ['false', 'true'];
+        }
 
-            // For each step value, create a scenario
-            stepValues.forEach(stepValue => {
-                // Create a deep copy of the scenario
-                const modifiedScenario = JSON.parse(JSON.stringify(data.selectedScenario));
+        console.log(`Generated ${stepValues ? stepValues.length : 0} values for parameter ${data.parameter}:`, stepValues);
 
-                // Give it a descriptive name
-                if (data.parameter === 'eventSeriesTiming') {
-                    const attributeLabel = data.modifyAttribute === 'startYear' ? 'Start Year' : 'Duration';
-                    modifiedScenario.name = `${data.selectedScenario.name} (${data.selectedEventSeries.name || data.selectedEventSeries.title || 'Event'}: ${attributeLabel} = ${stepValue})`;
+        // Create scenarios for the different parameter values
+        if (stepValues && stepValues.length > 0) {
+            if (data.parameter === 'rothConversion') {
+                // Special case for Roth conversion (boolean parameter)
+                stepValues.forEach(isEnabled => {
+                    const modifiedScenario = JSON.parse(JSON.stringify(data.selectedScenario));
+                    modifiedScenario.name = `${data.selectedScenario.name} (Roth Conversion: ${isEnabled === 'true' ? 'Enabled' : 'Disabled'})`;
 
-                    // Use the stored index to find the event series directly
-                    const eventSeriesIndex = data.selectedEventSeriesIndex;
-                    console.log(`Using index ${eventSeriesIndex} to update event`);
+                    // Find Roth conversion setting and toggle it
+                    modifiedScenario.rothConversion = isEnabled === 'true';
 
-                    // Check if we have a valid index
-                    if (eventSeriesIndex === undefined || eventSeriesIndex === null || eventSeriesIndex < 0) {
-                        console.warn(`No valid eventSeriesIndex provided, trying to find by name/title instead`);
-                        // Try to find the event series by name or title as fallback
-                        const foundIndex = modifiedScenario.eventSeries.findIndex(es =>
-                            (data.selectedEventSeries.name && es.name === data.selectedEventSeries.name) ||
-                            (data.selectedEventSeries.title && es.title === data.selectedEventSeries.title)
-                        );
+                    scenarios.push({
+                        parameterValue: isEnabled, // 'true' or 'false' as string
+                        scenario: modifiedScenario
+                    });
+                });
+            } else if (data.parameter === 'eventSeriesTiming') {
+                stepValues.forEach(stepValue => {
+                    // Create a deep copy of the scenario
+                    const modifiedScenario = JSON.parse(JSON.stringify(data.selectedScenario));
 
-                        if (foundIndex !== -1) {
-                            console.log(`Found event series at index ${foundIndex} by name/title`);
-                            // Use the found index instead
-                            const targetEventSeries = modifiedScenario.eventSeries[foundIndex];
+                    // Give it a descriptive name
+                    if (data.parameter === 'eventSeriesTiming') {
+                        const attributeLabel = data.modifyAttribute === 'startYear' ? 'Start Year' : 'Duration';
+                        modifiedScenario.name = `${data.selectedScenario.name} (${data.selectedEventSeries.name || data.selectedEventSeries.title || 'Event'}: ${attributeLabel} = ${stepValue})`;
+
+                        // Use the stored index to find the event series directly
+                        const eventSeriesIndex = data.selectedEventSeriesIndex;
+                        console.log(`Using index ${eventSeriesIndex} to update event`);
+
+                        // Check if we have a valid index
+                        if (eventSeriesIndex === undefined || eventSeriesIndex === null || eventSeriesIndex < 0) {
+                            console.warn(`No valid eventSeriesIndex provided, trying to find by name/title instead`);
+                            // Try to find the event series by name or title as fallback
+                            const foundIndex = modifiedScenario.eventSeries.findIndex(es =>
+                                (data.selectedEventSeries.name && es.name === data.selectedEventSeries.name) ||
+                                (data.selectedEventSeries.title && es.title === data.selectedEventSeries.title)
+                            );
+
+                            if (foundIndex !== -1) {
+                                console.log(`Found event series at index ${foundIndex} by name/title`);
+                                // Use the found index instead
+                                const targetEventSeries = modifiedScenario.eventSeries[foundIndex];
+                                console.log(`Modifying event series: ${targetEventSeries.name || targetEventSeries.title || 'Unknown'}`);
+
+                                if (data.modifyAttribute === 'startYear') {
+                                    // Update start year
+                                    targetEventSeries.startYear = stepValue;
+                                    targetEventSeries.startYearType = 'fixed';
+                                    console.log(`Updated startYear to ${stepValue}`);
+                                } else if (data.modifyAttribute === 'duration') {
+                                    // Update duration - use durationFixed as the property name
+                                    targetEventSeries.durationFixed = stepValue;
+                                    targetEventSeries.durationType = 'fixed';
+                                    console.log(`Updated durationFixed to ${stepValue}`);
+                                }
+                                console.log('Updated event series:', targetEventSeries);
+                            } else {
+                                console.error(`Could not find event series by name or title`);
+                            }
+                        } else if (eventSeriesIndex !== -1 && eventSeriesIndex < modifiedScenario.eventSeries.length) {
+                            // Modify the event series based on the attribute
+                            const targetEventSeries = modifiedScenario.eventSeries[eventSeriesIndex];
                             console.log(`Modifying event series: ${targetEventSeries.name || targetEventSeries.title || 'Unknown'}`);
 
                             if (data.modifyAttribute === 'startYear') {
@@ -717,29 +745,19 @@ const ExplorationPage = () => {
                             }
                             console.log('Updated event series:', targetEventSeries);
                         } else {
-                            console.error(`Could not find event series by name or title`);
+                            console.error(`Invalid event series index: ${eventSeriesIndex} (total: ${modifiedScenario.eventSeries.length})`);
                         }
-                    } else if (eventSeriesIndex !== -1 && eventSeriesIndex < modifiedScenario.eventSeries.length) {
-                        // Modify the event series based on the attribute
-                        const targetEventSeries = modifiedScenario.eventSeries[eventSeriesIndex];
-                        console.log(`Modifying event series: ${targetEventSeries.name || targetEventSeries.title || 'Unknown'}`);
-
-                        if (data.modifyAttribute === 'startYear') {
-                            // Update start year
-                            targetEventSeries.startYear = stepValue;
-                            targetEventSeries.startYearType = 'fixed';
-                            console.log(`Updated startYear to ${stepValue}`);
-                        } else if (data.modifyAttribute === 'duration') {
-                            // Update duration - use durationFixed as the property name
-                            targetEventSeries.durationFixed = stepValue;
-                            targetEventSeries.durationType = 'fixed';
-                            console.log(`Updated durationFixed to ${stepValue}`);
-                        }
-                        console.log('Updated event series:', targetEventSeries);
-                    } else {
-                        console.error(`Invalid event series index: ${eventSeriesIndex} (total: ${modifiedScenario.eventSeries.length})`);
                     }
-                } else if (data.parameter === 'eventSeriesAmount') {
+
+                    scenarios.push({
+                        parameterValue: stepValue, // The specific value being tested
+                        scenario: modifiedScenario // The scenario modified for this value
+                    });
+                });
+            } else if (data.parameter === 'eventSeriesAmount') {
+                stepValues.forEach(stepValue => {
+                    const modifiedScenario = JSON.parse(JSON.stringify(data.selectedScenario));
+
                     modifiedScenario.name = `${data.selectedScenario.name} (${data.selectedEventSeries.name || data.selectedEventSeries.title || 'Event'}: Amount = ${stepValue})`;
 
                     // Use the stored index to find the event series directly
@@ -772,133 +790,49 @@ const ExplorationPage = () => {
                     } else {
                         console.error(`Invalid event series index: ${eventSeriesIndex} (total: ${modifiedScenario.eventSeries.length})`);
                     }
-                }
 
-                scenarios.push({
-                    parameterValue: stepValue, // The specific value being tested
-                    scenario: modifiedScenario // The scenario modified for this value
+                    scenarios.push({
+                        parameterValue: stepValue, // The specific value being tested
+                        scenario: modifiedScenario // The scenario modified for this value
+                    });
                 });
-            });
-        } else if (data.parameter === 'rothConversion') {
-            // For boolean toggle parameters, just create one modified scenario
-            const enabledScenario = JSON.parse(JSON.stringify(data.selectedScenario)); // Deep copy
-            enabledScenario.name = `${data.selectedScenario.name} (Roth Conversion: Enabled)`;
-
-            // Set the boolean flag (assuming your backend/simulation uses this)
-            enabledScenario.enableTaxOptimization = true;
-
-            if (enabledScenario.rothOptimizationStartYear === null || enabledScenario.rothOptimizationStartYear === undefined) {
-                const currentYear = new Date().getFullYear();
-                // Convert years to string if your scenario object expects strings
-                enabledScenario.rothOptimizationStartYear = String(currentYear);
-                enabledScenario.rothOptimizationEndYear = String(currentYear + 20); // Default 20-year span
-                console.log(`Setting default RCO years for enabled state: ${enabledScenario.rothOptimizationStartYear}-${enabledScenario.rothOptimizationEndYear}`);
             } else {
-                // Ensure they are strings if needed by backend
-                enabledScenario.rothOptimizationStartYear = String(enabledScenario.rothOptimizationStartYear);
-                enabledScenario.rothOptimizationEndYear = String(enabledScenario.rothOptimizationEndYear);
-                console.log(`Using existing RCO years for enabled state: ${enabledScenario.rothOptimizationStartYear}-${enabledScenario.rothOptimizationEndYear}`);
-            }
+                // Generic parameter handling for things like amount, date, recurringAmount
+                stepValues.forEach(value => {
+                    const modifiedScenario = JSON.parse(JSON.stringify(data.selectedScenario));
 
+                    // Find the specified event in the scenario
+                    if (data.itemName && data.parameter) {
+                        const eventIndex = modifiedScenario.eventSeries.findIndex(
+                            es => es.title === data.itemName
+                        );
 
-            scenarios.push({
-                parameterValue: true, // The value being tested
-                scenario: enabledScenario
-            });
+                        if (eventIndex !== -1) {
+                            const event = modifiedScenario.eventSeries[eventIndex];
 
-            // --- Create Scenario for 'false' (Disabled) ---
-            const disabledScenario = JSON.parse(JSON.stringify(data.selectedScenario)); // Deep copy
-            disabledScenario.name = `${data.selectedScenario.name} (Roth Conversion: Disabled)`;
-
-            // Set the boolean flag
-            disabledScenario.enableTaxOptimization = false;
-
-            // Explicitly disable by setting years to null
-            disabledScenario.rothOptimizationStartYear = null;
-            disabledScenario.rothOptimizationEndYear = null;
-            console.log("Set RCO years to null for disabled state.");
-
-            // Add the 'false' case to the scenarios array
-            scenarios.push({
-                parameterValue: false, // The value being tested
-                scenario: disabledScenario
-            });
-
-            // Set stepValues for logging/context
-            stepValues = [true, false];
-            adjustedStepSize = null;
-        } else {
-            // For other parameter types (amount, date, recurringAmount)
-            // Create scenarios based on min, max, step
-            const min = data.min;
-            const max = data.max;
-            let step = data.step;
-
-            // Ensure reasonable step size
-            const range = max - min;
-            const minStepSize = Math.max(1, Math.ceil(range / MAX_SCENARIOS));
-
-            if (step < minStepSize) {
-                console.warn(`Step size ${step} is too small for range ${range}, adjusting to ${minStepSize}`);
-                step = minStepSize;
-            }
-
-            // Store the adjusted step size for logging
-            adjustedStepSize = step;
-
-            // Generate step values
-            for (let value = min; value <= max; value += step) {
-                stepValues.push(value);
-
-                // Safety check to prevent infinite or extremely large arrays
-                if (stepValues.length >= MAX_SCENARIOS) {
-                    console.warn(`Maximum number of scenarios (${MAX_SCENARIOS}) reached, truncating`);
-                    break;
-                }
-            }
-
-            // Make sure max value is included if we haven't reached max scenarios
-            if (stepValues.length < MAX_SCENARIOS && stepValues[stepValues.length - 1] !== max) {
-                stepValues.push(max);
-            }
-
-            // Remove duplicates
-            stepValues = [...new Set(stepValues)];
-
-            stepValues.forEach(value => {
-                const modifiedScenario = JSON.parse(JSON.stringify(data.selectedScenario));
-
-                // Find the specified event in the scenario
-                if (data.itemName && data.parameter) {
-                    const eventIndex = modifiedScenario.eventSeries.findIndex(
-                        es => es.title === data.itemName
-                    );
-
-                    if (eventIndex !== -1) {
-                        const event = modifiedScenario.eventSeries[eventIndex];
-
-                        // Update the appropriate field based on parameter type
-                        if (data.parameter === 'amount') {
-                            event.amount = value;
-                            event.initialAmount = value;
-                        } else if (data.parameter === 'date') {
-                            // Format date: YYYY-MM-DD
-                            // For simplicity, just changing the year
-                            const currentDate = event.date || '2023-01-01';
-                            const [_, month, day] = currentDate.split('-');
-                            event.date = `${value}-${month || '01'}-${day || '01'}`;
-                        } else if (data.parameter === 'recurringAmount') {
-                            event.recurringAmount = value;
+                            // Update the appropriate field based on parameter type
+                            if (data.parameter === 'amount') {
+                                event.amount = value;
+                                event.initialAmount = value;
+                            } else if (data.parameter === 'date') {
+                                // Format date: YYYY-MM-DD
+                                // For simplicity, just changing the year
+                                const currentDate = event.date || '2023-01-01';
+                                const [_, month, day] = currentDate.split('-');
+                                event.date = `${value}-${month || '01'}-${day || '01'}`;
+                            } else if (data.parameter === 'recurringAmount') {
+                                event.recurringAmount = value;
+                            }
                         }
                     }
-                }
 
-                modifiedScenario.name = `${data.selectedScenario.name} (${data.parameter}: ${value})`;
-                scenarios.push({
-                    parameterValue: value, // Use the specific value being tested
-                    scenario: modifiedScenario // The scenario modified for this value
+                    modifiedScenario.name = `${data.selectedScenario.name} (${data.parameter}: ${value})`;
+                    scenarios.push({
+                        parameterValue: value, // Use the specific value being tested
+                        scenario: modifiedScenario // The scenario modified for this value
+                    });
                 });
-            });
+            }
         }
 
         // Prepare data for the backend
@@ -913,7 +847,7 @@ const ExplorationPage = () => {
             },
             stepValues: stepValues, // Send the values tested
             // baseSeed: "your-seed-value" // Optional
-            userName: session.user.name,
+            userName: session?.user?.name,
         };
 
         // Log detailed information about what we're sending
@@ -1504,161 +1438,160 @@ const ExplorationPage = () => {
                                             </div>
                                         </div>
                                     ) : parameter === 'allocations' ? (
-                                        // Allocations UI
                                         <div className="space-y-4">
-                                            {/* Invest event selection dropdown */}
-                                            <div className="flex flex-col mb-4">
-                                                <label className="mb-2">Select an Investment Event:</label>
+                                            <div>
+                                                <label className="block text-xs text-gray-500 mb-1">
+                                                    Select Investment Event
+                                                </label>
                                                 <select
-                                                    className="p-2 border rounded"
-                                                    value={selectedScenario.eventSeries.indexOf(selectedInvestEvent)}
+                                                    className="w-full p-2 border rounded-md bg-gray-50 border-gray-300 text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                                    value=""
                                                     onChange={(e) => {
-                                                        const selectedIndex = parseInt(e.target.value);
-                                                        const selectedEvent = selectedScenario.eventSeries[selectedIndex];
-                                                        setSelectedInvestEvent(selectedEvent);
+                                                        if (!e.target.value) return; // Handle empty selection
+                                                        const selectedInvestEventIndex = parseInt(e.target.value);
+                                                        const investEvents = selectedScenario.eventSeries.filter(es => es.type === 'invest');
+                                                        const selectedEvent = investEvents[selectedInvestEventIndex];
 
-                                                        // Check if the event has a valid initialAllocations
-                                                        if (selectedEvent.initialAllocations && Object.keys(selectedEvent.initialAllocations).length === 2) {
-                                                            // Initialize the investment pair
-                                                            const initialAllocations = selectedEvent.initialAllocations;
-                                                            const investmentNames = Object.keys(initialAllocations);
+                                                        // Only proceed if event has initialAllocations with at least 2 items
+                                                        if (selectedEvent && selectedEvent.initialAllocations &&
+                                                            Object.keys(selectedEvent.initialAllocations).length >= 2) {
+
+                                                            setSelectedInvestEvent(selectedEvent);
+                                                            console.log(`Selected investment event: "${selectedEvent.name || selectedEvent.title}" (type: ${selectedEvent.type})`);
+
+                                                            // Get allocation keys
+                                                            const allocationKeys = Object.keys(selectedEvent.initialAllocations);
+
+                                                            // Create the investment pair
                                                             const firstInvestment = {
-                                                                name: investmentNames[0],
-                                                                percentage: initialAllocations[investmentNames[0]]
+                                                                name: allocationKeys[0],
+                                                                percentage: selectedEvent.initialAllocations[allocationKeys[0]]
                                                             };
+
                                                             const secondInvestment = {
-                                                                name: investmentNames[1],
-                                                                percentage: initialAllocations[investmentNames[1]]
+                                                                name: allocationKeys[1],
+                                                                percentage: selectedEvent.initialAllocations[allocationKeys[1]]
                                                             };
+
                                                             setInvestmentPair({ first: firstInvestment, second: secondInvestment });
 
-                                                            // Set bounds for allocation based on current values
-                                                            // Ensure we provide a reasonable range around the current allocation
+                                                            // Set default allocation range based on current allocation
                                                             const currentPercentage = firstInvestment.percentage;
-                                                            const range = 30; // Range of +/- 30% around current value
-                                                            setAllocationLowerBound(Math.max(0, currentPercentage - range));
-                                                            setAllocationUpperBound(Math.min(100, currentPercentage + range));
+                                                            // Provide a reasonable range for exploration
+                                                            const minValue = Math.max(0, Math.round(currentPercentage - 30));
+                                                            const maxValue = Math.min(100, Math.round(currentPercentage + 30));
+
+                                                            setAllocationLowerBound(minValue);
+                                                            setAllocationUpperBound(maxValue);
                                                             setAllocationSteps(10);
                                                         } else {
-                                                            // Clear investment pair if not valid
-                                                            setInvestmentPair(null);
+                                                            setFeedbackMessage('Selected investment event must have at least two allocations.');
                                                         }
                                                     }}
                                                 >
-                                                    {selectedScenario.eventSeries
-                                                        .filter(es => es.type === 'invest')
-                                                        .map((es, i) => {
-                                                            const hasValidAllocation = es.initialAllocations && Object.keys(es.initialAllocations).length === 2;
-                                                            return (
-                                                                <option key={i} value={selectedScenario.eventSeries.indexOf(es)}>
-                                                                    {es.title || `Investment ${i + 1}`} {hasValidAllocation ? '✓' : '(invalid allocation)'}
-                                                                </option>
-                                                            );
-                                                        })}
+                                                    <option value="">-- Select Investment Event --</option>
+                                                    {selectedScenario?.eventSeries
+                                                        .filter(es => es.type === 'invest' && es.initialAllocations && Object.keys(es.initialAllocations).length >= 2)
+                                                        .map((event, index) => (
+                                                            <option key={index} value={index}>
+                                                                {event.name || event.title || `Investment ${index + 1}`}
+                                                            </option>
+                                                        ))
+                                                    }
                                                 </select>
                                             </div>
 
-                                            {selectedInvestEvent && !investmentPair && (
-                                                <div className="p-3 bg-yellow-100 text-yellow-800 rounded mb-4">
-                                                    <p className="font-semibold">Invalid Allocation</p>
-                                                    <p>The selected investment event does not have a valid initialAllocations property or does not have exactly two investments. Please select a different investment event or update this event to include two investments in its initialAllocations.</p>
-                                                </div>
-                                            )}
-
-                                            {investmentPair && (
-                                                <>
-                                                    <div className="flex flex-col space-y-4 mb-4">
-                                                        <label className="font-medium mb-2">{investmentPair.first.name} Allocation Range</label>
-                                                        <div className="flex space-x-4">
-                                                            <div className="flex-1">
-                                                                <label className="block text-xs text-gray-500 mb-1">Min %</label>
-                                                                <input
-                                                                    type="number"
-                                                                    value={allocationLowerBound}
-                                                                    onChange={(e) => setAllocationLowerBound(Number(e.target.value))}
-                                                                    min={0}
-                                                                    max={100}
-                                                                    className="w-full p-2 border rounded-md bg-gray-50 border-gray-300 text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                                                                />
-                                                            </div>
-                                                            <div className="flex-1">
-                                                                <label className="block text-xs text-gray-500 mb-1">Max %</label>
-                                                                <input
-                                                                    type="number"
-                                                                    value={allocationUpperBound}
-                                                                    onChange={(e) => setAllocationUpperBound(Number(e.target.value))}
-                                                                    min={0}
-                                                                    max={100}
-                                                                    className="w-full p-2 border rounded-md bg-gray-50 border-gray-300 text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                                                                />
-                                                            </div>
-                                                            <div className="flex-1">
-                                                                <label className="block text-xs text-gray-500 mb-1">Step %</label>
-                                                                <input
-                                                                    type="number"
-                                                                    value={allocationSteps}
-                                                                    onChange={(e) => {
-                                                                        const inputValue = Math.max(1, Number(e.target.value));
-
-                                                                        // Calculate minimum step size to prevent too many scenarios
-                                                                        const range = allocationUpperBound - allocationLowerBound;
-                                                                        const minRecommendedStep = Math.max(1, Math.ceil(range / 15));
-
-                                                                        if (inputValue < minRecommendedStep) {
-                                                                            console.warn(`Step size ${inputValue} may create too many scenarios, recommended: ${minRecommendedStep}`);
-                                                                        }
-
-                                                                        setAllocationSteps(inputValue);
-                                                                    }}
-                                                                    min={1}
-                                                                    className="w-full p-2 border rounded-md bg-gray-50 border-gray-300 text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                                                                />
-                                                                {allocationSteps < Math.ceil((allocationUpperBound - allocationLowerBound) / 15) && (
-                                                                    <p className="text-xs text-orange-600 mt-1">
-                                                                        Step size may create too many scenarios. Consider a larger value.
-                                                                    </p>
-                                                                )}
-                                                            </div>
-                                                        </div>
-
-                                                        <div className="mt-4">
-                                                            <label className="font-medium mb-2">{investmentPair.second.name} Allocation Range (Auto-calculated)</label>
-                                                            <div className="flex space-x-4">
-                                                                <div className="flex-1">
-                                                                    <label className="block text-xs text-gray-500 mb-1">Min % = 100% - {investmentPair.first.name} Min %</label>
-                                                                    <input
-                                                                        type="number"
-                                                                        value={secondAllocationLowerBound}
-                                                                        disabled
-                                                                        className="w-full p-2 border rounded-md bg-gray-100 border-gray-300 text-gray-900"
-                                                                    />
+                                            {/* Allocation details */}
+                                            {selectedInvestEvent && investmentPair && (
+                                                <div className="mt-4 p-3 bg-gray-50 rounded-md">
+                                                    <h4 className="text-sm font-medium text-gray-700 mb-2">Allocation Details</h4>
+                                                    <div className="space-y-2">
+                                                        <p className="text-xs text-gray-600">
+                                                            Investment: <span className="font-semibold">{selectedInvestEvent.title || selectedInvestEvent.name}</span>
+                                                        </p>
+                                                        <div className="grid grid-cols-1 gap-4">
+                                                            <div className="bg-white p-3 rounded border border-blue-200">
+                                                                <p className="text-xs font-medium mb-2">{investmentPair.first.name}</p>
+                                                                <div className="grid grid-cols-2 gap-3">
+                                                                    <div>
+                                                                        <label className="block text-xs text-gray-500 mb-1">Min %</label>
+                                                                        <input
+                                                                            type="number"
+                                                                            value={allocationLowerBound}
+                                                                            onChange={(e) => {
+                                                                                const newMin = Number(e.target.value);
+                                                                                if (newMin >= 0 && newMin <= 100 && newMin <= allocationUpperBound) {
+                                                                                    setAllocationLowerBound(newMin);
+                                                                                }
+                                                                            }}
+                                                                            min={0}
+                                                                            max={100}
+                                                                            className="w-full p-1 border rounded-md bg-gray-50 border-gray-300 text-gray-900"
+                                                                        />
+                                                                    </div>
+                                                                    <div>
+                                                                        <label className="block text-xs text-gray-500 mb-1">Max %</label>
+                                                                        <input
+                                                                            type="number"
+                                                                            value={allocationUpperBound}
+                                                                            onChange={(e) => {
+                                                                                const newMax = Number(e.target.value);
+                                                                                if (newMax >= 0 && newMax <= 100 && newMax >= allocationLowerBound) {
+                                                                                    setAllocationUpperBound(newMax);
+                                                                                }
+                                                                            }}
+                                                                            min={0}
+                                                                            max={100}
+                                                                            className="w-full p-1 border rounded-md bg-gray-50 border-gray-300 text-gray-900"
+                                                                        />
+                                                                    </div>
                                                                 </div>
-                                                                <div className="flex-1">
-                                                                    <label className="block text-xs text-gray-500 mb-1">Max % = 100% - {investmentPair.first.name} Max %</label>
-                                                                    <input
-                                                                        type="number"
-                                                                        value={secondAllocationUpperBound}
-                                                                        disabled
-                                                                        className="w-full p-2 border rounded-md bg-gray-100 border-gray-300 text-gray-900"
-                                                                    />
-                                                                </div>
-                                                                <div className="flex-1">
-                                                                    <label className="block text-xs text-gray-500 mb-1">Step %</label>
-                                                                    <input
-                                                                        type="number"
-                                                                        value={allocationSteps}
-                                                                        disabled
-                                                                        className="w-full p-2 border rounded-md bg-gray-100 border-gray-300 text-gray-900"
-                                                                    />
+                                                            </div>
+                                                            <div className="bg-white p-3 rounded border border-blue-200">
+                                                                <p className="text-xs font-medium mb-2">{investmentPair.second.name}</p>
+                                                                <div className="grid grid-cols-2 gap-3">
+                                                                    <div>
+                                                                        <label className="block text-xs text-gray-500 mb-1">Min % (= 100 - Max %)</label>
+                                                                        <input
+                                                                            type="number"
+                                                                            value={secondAllocationLowerBound}
+                                                                            disabled
+                                                                            className="w-full p-1 border rounded-md bg-gray-100 border-gray-300 text-gray-600"
+                                                                        />
+                                                                    </div>
+                                                                    <div>
+                                                                        <label className="block text-xs text-gray-500 mb-1">Max % (= 100 - Min %)</label>
+                                                                        <input
+                                                                            type="number"
+                                                                            value={secondAllocationUpperBound}
+                                                                            disabled
+                                                                            className="w-full p-1 border rounded-md bg-gray-100 border-gray-300 text-gray-600"
+                                                                        />
+                                                                    </div>
                                                                 </div>
                                                             </div>
                                                         </div>
-
+                                                        <div>
+                                                            <label className="block text-xs text-gray-500 mb-1">Step %</label>
+                                                            <input
+                                                                type="number"
+                                                                value={allocationSteps}
+                                                                onChange={(e) => {
+                                                                    const newStep = Number(e.target.value);
+                                                                    if (newStep > 0 && newStep <= 20) {
+                                                                        setAllocationSteps(newStep);
+                                                                    }
+                                                                }}
+                                                                min={1}
+                                                                max={20}
+                                                                className="w-1/3 p-1 border rounded-md bg-gray-50 border-gray-300 text-gray-900"
+                                                            />
+                                                        </div>
                                                         <p className="text-xs text-gray-500 mt-2">
-                                                            At each point in the exploration, {investmentPair.first.name} and {investmentPair.second.name} percentages will always sum to 100%.
+                                                            For each allocation value, {investmentPair.first.name} and {investmentPair.second.name} percentages will always sum to 100%.
                                                         </p>
                                                     </div>
-                                                </>
+                                                </div>
                                             )}
                                         </div>
                                     ) : (
