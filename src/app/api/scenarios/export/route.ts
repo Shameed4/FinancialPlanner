@@ -335,7 +335,7 @@ export function scenarioToYaml(data: StringScenarioFormData): string {
                         event.assetAllocation2[yamlKey] = Number(ev.finalAllocations[key]) / 100;
                     }
                 }
-            } else if (ev.allocations) {
+            } else if (ev.allocationType === "fixed" && ev.allocations) {
                 // Fixed allocation
                 event.assetAllocation = {};
                 for (const key in ev.allocations) {

@@ -876,7 +876,29 @@ export async function POST(request: NextRequest) {
         })),
         eventSeries: scenarioYaml.eventSeries.map(event => {
           const parsedEvent = { ...event };
-          //parsedEvent.
+
+          // Debug logging for invest events with allocations
+          if (parsedEvent.type === 'invest' || parsedEvent.type === 'rebalance') {
+            console.log(`DEBUG - Processing ${parsedEvent.type} event "${parsedEvent.name}" for DB save:`);
+            console.log(`  allocationType: ${parsedEvent.allocationType}`);
+
+            if (parsedEvent.allocationType === 'glide') {
+              console.log(`  Has initialAllocations: ${!!parsedEvent.initialAllocations}`);
+              if (parsedEvent.initialAllocations) {
+                console.log(`  initialAllocations: ${JSON.stringify(parsedEvent.initialAllocations)}`);
+              }
+
+              console.log(`  Has finalAllocations: ${!!parsedEvent.finalAllocations}`);
+              if (parsedEvent.finalAllocations) {
+                console.log(`  finalAllocations: ${JSON.stringify(parsedEvent.finalAllocations)}`);
+              }
+            } else {
+              console.log(`  Has allocations: ${!!parsedEvent.allocations}`);
+              if (parsedEvent.allocations) {
+                console.log(`  allocations: ${JSON.stringify(parsedEvent.allocations)}`);
+              }
+            }
+          }
 
           // Parse numeric fields based on event type and structure
           if (parsedEvent.startYear) parsedEvent.startYear = parseInt(parsedEvent.startYear);
@@ -915,9 +937,23 @@ export async function POST(request: NextRequest) {
         })
       };
 
+      console.log("Final scenario data to be saved to DB:", JSON.stringify({
+        name: scenarioData.name,
+        eventSeriesCount: scenarioData.eventSeries.length,
+        investEventCount: scenarioData.eventSeries.filter(e => e.type === 'invest').length,
+        rebalanceEventCount: scenarioData.eventSeries.filter(e => e.type === 'rebalance').length,
+        // Show just the first invest event as an example
+        sampleInvestEvent: scenarioData.eventSeries.find(e => e.type === 'invest')
+      }, null, 2));
+
       // Call the main scenarios API endpoint
       const scenariosApiUrl = new URL(request.url);
       const baseUrl = `${scenariosApiUrl.protocol}//${scenariosApiUrl.host}`;
+
+      console.log("IMPORTANT: Verify the allocation keys match the investment keys in the database.");
+      console.log("For invest events with allocationType='glide', make sure initialAllocations and finalAllocations keys");
+      console.log("match exactly the format 'AssetTypeName taxStatus' (e.g. 'S&P 500 non-retirement')");
+
       const response = await fetch(`${baseUrl}/api/scenarios`, {
         method: 'POST',
         headers: {
