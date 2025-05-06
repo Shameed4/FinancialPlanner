@@ -18,7 +18,7 @@ import { useSession } from 'next-auth/react';
 import { motion } from 'framer-motion';
 import { useState, useEffect, useRef, ReactNode, ChangeEventHandler } from 'react';
 import Link from 'next/link';
-import { jsonToYaml, yamlToJson, validateScenario, investmentToId } from '@/utils/scenarioConverter';
+import { jsonToYaml, yamlToJson, validateScenario } from '@/utils/scenarioConverter';
 import pageVariants from "../components/PageAnimation";
 import ShareScenarioModal from './ShareScenarioModal';
 import ScenarioCard from './ScenarioCard.js';
@@ -64,7 +64,17 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel, initialData = null }: 
         if (initialData) {
             return {
                 ...initialData,
-                assetTypes: initialData.assetTypes,
+                assetTypes: initialData.assetTypes.map(asset => ({
+                    ...asset,
+                    // Convert any numeric zeros to string zeros for form display
+                    fixedReturn: asset.fixedReturn === 0 ? "0" : asset.fixedReturn?.toString(),
+                    normalReturnMean: asset.normalReturnMean === 0 ? "0" : asset.normalReturnMean?.toString(),
+                    normalReturnStd: asset.normalReturnStd === 0 ? "0" : asset.normalReturnStd?.toString(),
+                    expenseRatio: asset.expenseRatio === 0 ? "0" : asset.expenseRatio?.toString(),
+                    fixedIncome: asset.fixedIncome === 0 ? "0" : asset.fixedIncome?.toString(),
+                    normalIncomeMean: asset.normalIncomeMean === 0 ? "0" : asset.normalIncomeMean?.toString(),
+                    normalIncomeStd: asset.normalIncomeStd === 0 ? "0" : asset.normalIncomeStd?.toString()
+                })),
                 investments: initialData.investments,
                 eventSeries: initialData.eventSeries || [],
                 userBirthYear: initialData.userBirthYear?.toString() || '',
@@ -77,11 +87,11 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel, initialData = null }: 
                 initialAfterTaxRetirementContributionLimit:
                     initialData.initialAfterTaxRetirementContributionLimit?.toString() || '',
                 inflationAssumption: initialData.inflationAssumption || 'fixed',
-                inflation: initialData.inflation?.toString(),
-                inflationMin: initialData.inflationMin?.toString(),
-                inflationMax: initialData.inflationMax?.toString(),
-                inflationMean: initialData.inflationMean?.toString(),
-                inflationStd: initialData.inflationStd?.toString(),
+                inflation: initialData.inflation === 0 ? "0" : initialData.inflation?.toString(),
+                inflationMin: initialData.inflationMin === 0 ? "0" : initialData.inflationMin?.toString(),
+                inflationMax: initialData.inflationMax === 0 ? "0" : initialData.inflationMax?.toString(),
+                inflationMean: initialData.inflationMean === 0 ? "0" : initialData.inflationMean?.toString(),
+                inflationStd: initialData.inflationStd === 0 ? "0" : initialData.inflationStd?.toString(),
                 enableTaxOptimization: Boolean(initialData.rothOptimizationStartYear),
                 forIndividual: Boolean(initialData.forIndividual),
                 rothOptimizationStartYear: initialData.rothOptimizationStartYear?.toString(),
@@ -99,7 +109,18 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel, initialData = null }: 
             spouseBirthYear: '',
             spouseLifeExpectancyMean: '',
             spouseLifeExpectancyStd: '0',
-            assetTypes: [{ name: "Cash", description: "Pre-defined", returnType: "fixed", expenseRatio: "", incomeAmtOrPct: "amount", returnAmtOrPct: "amount" }],
+            assetTypes: [{
+                name: "Cash",
+                description: "Pre-defined",
+                returnType: "fixed",
+                fixedReturn: "0", // Explicitly set as string "0" 
+                expenseRatio: "0", // Explicitly set as string "0"
+                incomeAmtOrPct: "amount",
+                returnAmtOrPct: "amount",
+                normalIncomeMean: "0", // Explicitly set as string "0"
+                normalIncomeStd: "0", // Explicitly set as string "0"
+                taxable: false
+            }],
             investments: [{ assetType: "Cash", value: "0", taxStatus: "non-retirement", rothConversionStrategy: "1" }],
             eventSeries: [],
             inflationAssumption: '',
@@ -173,13 +194,18 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel, initialData = null }: 
 
                     // Validate return fields based on return type
                     if (asset.returnType === 'fixed') {
-                        if (!asset.fixedReturn) newErrors[`assetTypes.${index}.fixedReturn`] = 'Fixed return is required';
+                        // Check if it's undefined/null/empty, but consider "0" as valid
+                        if (asset.fixedReturn === undefined || asset.fixedReturn === null || asset.fixedReturn === '')
+                            newErrors[`assetTypes.${index}.fixedReturn`] = 'Fixed return is required';
                         if (asset.fixedReturn && isNaN(Number(asset.fixedReturn))) {
                             newErrors[`assetTypes.${index}.fixedReturn`] = 'Fixed return must be a number';
                         }
                     } else {
-                        if (!asset.normalReturnMean) newErrors[`assetTypes.${index}.normalReturnMean`] = 'Expected return mean is required';
-                        if (!asset.normalReturnStd) newErrors[`assetTypes.${index}.normalReturnStd`] = 'Return standard deviation is required';
+                        // Check if it's undefined/null/empty, but consider "0" as valid
+                        if (asset.normalReturnMean === undefined || asset.normalReturnMean === null || asset.normalReturnMean === '')
+                            newErrors[`assetTypes.${index}.normalReturnMean`] = 'Expected return mean is required';
+                        if (asset.normalReturnStd === undefined || asset.normalReturnStd === null || asset.normalReturnStd === '')
+                            newErrors[`assetTypes.${index}.normalReturnStd`] = 'Return standard deviation is required';
                         if (asset.normalReturnMean && isNaN(Number(asset.normalReturnMean))) {
                             newErrors[`assetTypes.${index}.normalReturnMean`] = 'Expected return mean must be a number';
                         }
@@ -188,8 +214,13 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel, initialData = null }: 
                         }
                     }
 
-                    if (!asset.expenseRatio) newErrors[`assetTypes.${index}.expenseRatio`] = 'Expense ratio is required';
-                    if (!asset.normalIncomeMean) newErrors[`assetTypes.${index}.normalIncomeMean`] = 'Income mean is required';
+                    // Check if it's undefined/null/empty, but consider "0" as valid
+                    if (asset.expenseRatio === undefined || asset.expenseRatio === null || asset.expenseRatio === '')
+                        newErrors[`assetTypes.${index}.expenseRatio`] = 'Expense ratio is required';
+
+                    // Check if it's undefined/null/empty, but consider "0" as valid
+                    if (asset.normalIncomeMean === undefined || asset.normalIncomeMean === null || asset.normalIncomeMean === '')
+                        newErrors[`assetTypes.${index}.normalIncomeMean`] = 'Income mean is required';
                 });
                 break;
             case 3:
@@ -274,20 +305,8 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel, initialData = null }: 
                             if (!event.allocations || Object.keys(event.allocations).length === 0) {
                                 newErrors[`eventSeries.${index}.allocations`] = 'Asset allocations are required';
                             } else {
-                                // Filter out allocations for pre-tax investments
-                                const filteredAllocations: Record<string, string> = {};
-                                Object.entries(event.allocations).forEach(([assetName, percentage]) => {
-                                    // Check if this asset type exists in any pre-tax investment
-                                    const isPreTax = formData.investments?.every(
-                                        inv => inv.assetType === assetName && inv.taxStatus === 'pre-tax-retirement'
-                                    );
-                                    if (!isPreTax) {
-                                        filteredAllocations[assetName] = percentage;
-                                    }
-                                });
-
                                 // Check if allocations sum to 100%
-                                const sum = Object.values(filteredAllocations)
+                                const sum = Object.values(event.allocations)
                                     .reduce((acc, val) => acc + parseFloat(val || "0"), 0);
                                 if (Math.abs(sum - 100) > 0.1) { // Allow small rounding errors
                                     newErrors[`eventSeries.${index}.allocations`] = 'Asset allocations must sum to 100%';
@@ -298,19 +317,7 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel, initialData = null }: 
                             if (!event.initialAllocations || Object.keys(event.initialAllocations).length === 0) {
                                 newErrors[`eventSeries.${index}.initialAllocations`] = 'Initial allocations are required';
                             } else {
-                                // Filter out allocations for pre-tax investments
-                                const filteredInitialAllocations: Record<string, string> = {};
-                                Object.entries(event.initialAllocations).forEach(([assetName, percentage]) => {
-                                    // Check if this asset type exists in any pre-tax investment
-                                    const isPreTax = formData.investments?.every(
-                                        inv => inv.assetType === assetName && inv.taxStatus === 'pre-tax-retirement'
-                                    );
-                                    if (!isPreTax) {
-                                        filteredInitialAllocations[assetName] = percentage;
-                                    }
-                                });
-
-                                const initialSum = Object.values(filteredInitialAllocations)
+                                const initialSum = Object.values(event.initialAllocations)
                                     .reduce((acc, val) => acc + parseFloat(val || "0"), 0);
                                 if (Math.abs(initialSum - 100) > 0.1) {
                                     newErrors[`eventSeries.${index}.initialAllocations`] = 'Initial allocations must sum to 100%';
@@ -320,19 +327,7 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel, initialData = null }: 
                             if (!event.finalAllocations || Object.keys(event.finalAllocations).length === 0) {
                                 newErrors[`eventSeries.${index}.finalAllocations`] = 'Final allocations are required';
                             } else {
-                                // Filter out allocations for pre-tax investments
-                                const filteredFinalAllocations: Record<string, string> = {};
-                                Object.entries(event.finalAllocations).forEach(([assetName, percentage]) => {
-                                    // Check if this asset type exists in any pre-tax investment
-                                    const isPreTax = formData.investments?.every(
-                                        inv => inv.assetType === assetName && inv.taxStatus === 'pre-tax-retirement'
-                                    );
-                                    if (!isPreTax) {
-                                        filteredFinalAllocations[assetName] = percentage;
-                                    }
-                                });
-
-                                const finalSum = Object.values(filteredFinalAllocations)
+                                const finalSum = Object.values(event.finalAllocations)
                                     .reduce((acc, val) => acc + parseFloat(val || "0"), 0);
                                 if (Math.abs(finalSum - 100) > 0.1) {
                                     newErrors[`eventSeries.${index}.finalAllocations`] = 'Final allocations must sum to 100%';
@@ -1156,17 +1151,17 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel, initialData = null }: 
                                         name: '',
                                         description: '',
                                         returnType: 'random_normal',
-                                        fixedReturn: '',
-                                        normalReturnMean: '',
-                                        normalReturnStd: '',
-                                        expenseRatio: '',
+                                        fixedReturn: "0", // Use string "0" instead of empty string
+                                        normalReturnMean: "0", // Use string "0" instead of empty string
+                                        normalReturnStd: "0", // Use string "0" instead of empty string
+                                        expenseRatio: "0", // Use string "0" instead of empty string
                                         incomeType: 'fixed',
                                         incomeAmtOrPct: 'amount',
                                         returnAmtOrPct: 'amount',
                                         expectedAnnualIncomeType: 'FIXED',
-                                        fixedIncome: '',
-                                        normalIncomeMean: '',
-                                        normalIncomeStd: '',
+                                        fixedIncome: "0", // Use string "0" instead of empty string
+                                        normalIncomeMean: "0", // Use string "0" instead of empty string
+                                        normalIncomeStd: "0", // Use string "0" instead of empty string
                                         taxable: false,
                                         taxability: 'TAXABLE'
                                     }]
@@ -1862,25 +1857,26 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel, initialData = null }: 
                                                     <div>
                                                         <label className="block text-sm font-medium text-gray-700 mb-1">Asset Allocations (%)</label>
                                                         {formData.investments?.filter(inv =>
-                                                            inv.taxStatus !== 'pre-tax-retirement'
-                                                        ).map((inv, invIdx) => (
-                                                            <div key={invIdx} className="flex items-center gap-2 mb-2">
-                                                                <span className="text-sm text-gray-600 w-32">{inv.assetType} ({inv.taxStatus}):</span>
+                                                            // Remove filter that excludes pre-tax investments
+                                                            true
+                                                        ).map((inv, invIndex) => (
+                                                            <div key={invIndex} className="flex items-center gap-2 mb-2">
+                                                                <span className="text-sm text-gray-600 w-48">{inv.assetType} ({inv.taxStatus})</span>
                                                                 <input
                                                                     type="number"
                                                                     step="0.1"
                                                                     min="0"
                                                                     max="100"
-                                                                    value={event.allocations?.[investmentToId(inv)] || ''}
+                                                                    value={event.allocations?.[`${inv.assetType} ${inv.taxStatus}`] || ''}
                                                                     onChange={(e) => {
                                                                         const newEventSeries = [...formData.eventSeries];
                                                                         if (!newEventSeries[index].allocations) {
                                                                             newEventSeries[index].allocations = {};
                                                                         }
-                                                                        newEventSeries[index].allocations[investmentToId(inv)] = e.target.value;
+                                                                        newEventSeries[index].allocations[`${inv.assetType} ${inv.taxStatus}`] = e.target.value;
                                                                         setFormData({ ...formData, eventSeries: newEventSeries });
                                                                     }}
-                                                                    className={`${getInputClassName(`eventSeries.${index}.allocations.${investmentToId(inv)}`)} text-black`}
+                                                                    className={`${getInputClassName(`eventSeries.${index}.allocations.${inv.assetType} ${inv.taxStatus}`)} text-black`}
                                                                     placeholder="0"
                                                                 />
                                                                 <span className="text-sm text-gray-600">%</span>
@@ -1894,30 +1890,27 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel, initialData = null }: 
                                                     <>
                                                         <div>
                                                             <label className="block text-sm font-medium text-gray-700 mb-1">Initial Allocations (%)</label>
-                                                            {formData.assetTypes?.filter(asset =>
-                                                                // Only show non-pre-tax assets
-                                                                formData.investments?.some(inv =>
-                                                                    inv.assetType === asset.name &&
-                                                                    inv.taxStatus !== 'pre-tax-retirement'
-                                                                )
-                                                            ).map((asset, assetIndex) => (
-                                                                <div key={assetIndex} className="flex items-center gap-2 mb-2">
-                                                                    <span className="text-sm text-gray-600 w-32">{asset.name}:</span>
+                                                            {formData.investments?.filter(inv =>
+                                                                // Remove filter that excludes pre-tax investments
+                                                                true
+                                                            ).map((inv, invIndex) => (
+                                                                <div key={invIndex} className="flex items-center gap-2 mb-2">
+                                                                    <span className="text-sm text-gray-600 w-48">{inv.assetType} ({inv.taxStatus})</span>
                                                                     <input
                                                                         type="number"
                                                                         step="0.1"
                                                                         min="0"
                                                                         max="100"
-                                                                        value={event.initialAllocations?.[asset.name] || '0'}
+                                                                        value={event.initialAllocations?.[`${inv.assetType} ${inv.taxStatus}`] || '0'}
                                                                         onChange={(e) => {
                                                                             const newEventSeries = [...formData.eventSeries];
                                                                             if (!newEventSeries[index].initialAllocations) {
                                                                                 newEventSeries[index].initialAllocations = {};
                                                                             }
-                                                                            newEventSeries[index].initialAllocations[asset.name] = e.target.value;
+                                                                            newEventSeries[index].initialAllocations[`${inv.assetType} ${inv.taxStatus}`] = e.target.value;
                                                                             setFormData({ ...formData, eventSeries: newEventSeries });
                                                                         }}
-                                                                        className={`${getInputClassName(`eventSeries.${index}.initialAllocations.${asset.name}`)} text-black`}
+                                                                        className={`${getInputClassName(`eventSeries.${index}.initialAllocations.${inv.assetType} ${inv.taxStatus}`)} text-black`}
                                                                         placeholder="0"
                                                                     />
                                                                     <span className="text-sm text-gray-600">%</span>
@@ -1929,30 +1922,27 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel, initialData = null }: 
                                                         </div>
                                                         <div>
                                                             <label className="block text-sm font-medium text-gray-700 mb-1">Final Allocations (%)</label>
-                                                            {formData.assetTypes?.filter(asset =>
-                                                                // Only show non-pre-tax assets
-                                                                formData.investments?.some(inv =>
-                                                                    inv.assetType === asset.name &&
-                                                                    inv.taxStatus !== 'pre-tax-retirement'
-                                                                )
-                                                            ).map((asset, assetIndex) => (
-                                                                <div key={assetIndex} className="flex items-center gap-2 mb-2">
-                                                                    <span className="text-sm text-gray-600 w-32">{asset.name}:</span>
+                                                            {formData.investments?.filter(inv =>
+                                                                // Remove filter that excludes pre-tax investments
+                                                                true
+                                                            ).map((inv, invIndex) => (
+                                                                <div key={invIndex} className="flex items-center gap-2 mb-2">
+                                                                    <span className="text-sm text-gray-600 w-48">{inv.assetType} ({inv.taxStatus})</span>
                                                                     <input
                                                                         type="number"
                                                                         step="0.1"
                                                                         min="0"
                                                                         max="100"
-                                                                        value={event.finalAllocations?.[asset.name] || '0'}
+                                                                        value={event.finalAllocations?.[`${inv.assetType} ${inv.taxStatus}`] || '0'}
                                                                         onChange={(e) => {
                                                                             const newEventSeries = [...formData.eventSeries];
                                                                             if (!newEventSeries[index].finalAllocations) {
                                                                                 newEventSeries[index].finalAllocations = {};
                                                                             }
-                                                                            newEventSeries[index].finalAllocations[asset.name] = e.target.value;
+                                                                            newEventSeries[index].finalAllocations[`${inv.assetType} ${inv.taxStatus}`] = e.target.value;
                                                                             setFormData({ ...formData, eventSeries: newEventSeries });
                                                                         }}
-                                                                        className={`${getInputClassName(`eventSeries.${index}.finalAllocations.${asset.name}`)} text-black`}
+                                                                        className={`${getInputClassName(`eventSeries.${index}.finalAllocations.${inv.assetType} ${inv.taxStatus}`)} text-black`}
                                                                         placeholder="0"
                                                                     />
                                                                     <span className="text-sm text-gray-600">%</span>
@@ -2261,7 +2251,7 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel, initialData = null }: 
                                                 newInvestments[originalIndex].rothConversionStrategy = val === "" ? "" : String(parseInt(val));
                                                 setFormData({ ...formData, investments: newInvestments });
                                             }}
-                                            className="w-20 p-1 border rounded"
+                                            className="w-20 p-1 border rounded text-black"
                                             placeholder="Order"
                                         />
                                     </div>
@@ -2281,7 +2271,7 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel, initialData = null }: 
 
                                     return (
                                         <div key={`${investment.assetType} ${investment.taxStatus}`} className="flex items-center gap-2 bg-gray-50 p-2 rounded">
-                                            <span className="flex-1 text-gray-500">{investment.assetType} ({investment.taxStatus})</span>
+                                            <span className="text-black flex-1">{investment.assetType} ({investment.taxStatus})</span>
                                             <input
                                                 type="number"
                                                 min="1"
@@ -2305,7 +2295,7 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel, initialData = null }: 
                                                     newInvestments[investmentIndex].expenseWithdrawalStrategy = newOrder + '';
                                                     setFormData({ ...formData, investments: newInvestments });
                                                 }}
-                                                className="w-20 p-1 border rounded"
+                                                className="w-20 p-1 border rounded text-black"
                                                 placeholder="Order"
                                             />
                                         </div>
