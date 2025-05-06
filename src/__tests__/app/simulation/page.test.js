@@ -528,16 +528,22 @@ describe('SimulationPage', () => {
             text: () => Promise.resolve('Internal server error')
         });
 
-        // Click begin button
+        // Click begin button and keep it focused
         const beginButton = screen.getByText('Begin');
         await act(async () => {
+            beginButton.focus();
             fireEvent.click(beginButton);
+            // Keep the button focused
+            beginButton.focus();
+            // Wait for all promises to resolve
+            await new Promise(resolve => setTimeout(resolve, 100));
         });
 
-        // Verify error handling
+        // Wait for loading state to be removed and button to be re-enabled
         await waitFor(() => {
             expect(screen.queryByText('Running simulation...')).not.toBeInTheDocument();
             expect(beginButton).not.toBeDisabled();
+            expect(beginButton).toHaveTextContent('Begin');
         });
     });
 
