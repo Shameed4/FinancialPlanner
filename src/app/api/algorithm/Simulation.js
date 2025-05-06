@@ -947,7 +947,6 @@ export default async function runSimulation(initialState, userName, generateLog 
         .filter(inv => inv.assetType !== 'Cash' && inv.value > 0)
         .sort((a, b) => (a.expenseWithdrawalStrategy || Infinity) - (b.expenseWithdrawalStrategy || Infinity));
 
-
       // Iterate over investments (using the ordering in state.investments)
       for (let inv of investmentsToSell) {
         // let inv = state.investments[i];
@@ -990,8 +989,15 @@ export default async function runSimulation(initialState, userName, generateLog 
         inv.value -= amountSold;
 
         // Adjust the cost basis (purchasePrice) proportionally.
-        inv.purchasePrice -= fractionSold * inv.purchasePrice;
+        // inv.purchasePrice -= fractionSold * inv.purchasePrice;
+        const purchasePrice = typeof inv.purchasePrice === 'number' ? inv.purchasePrice : 0;
+        if (Math.abs(inv.value) < 0.01) { // Check if value is near zero after sale
+          inv.purchasePrice = 0; // Set basis to zero if all sold
+        } else if (purchasePrice > 0 && fractionSold > 0) {
+          inv.purchasePrice = Math.max(0, purchasePrice - (fractionSold * purchasePrice));
+        }
 
+        cash.value += amountSold;
         totalWithdrawn += amountSold;
 
         // Log investment sale
@@ -1095,9 +1101,9 @@ export default async function runSimulation(initialState, userName, generateLog 
           // If the investment is not held in a pre-tax retirement account, record the realized gain.
           // Otherwise, treat the withdrawn amount as ordinary income.
           if (inv.taxStatus === "non-retirement") {
-            params.curYearGains += saleCapitalGain;
+            params.curYearGains += realizedGain;
           } else if (inv.taxStatus === "pre-tax-retirement") {
-            params.curYearIncome += amountSold;
+            params.curYearIncome += withdrawalAmount;
           }
 
           // For retirement accounts and if the user is under 59, record early withdrawals.
@@ -1109,6 +1115,7 @@ export default async function runSimulation(initialState, userName, generateLog 
           inv.value -= withdrawalAmount;
           inv.purchasePrice -= fractionSold * inv.purchasePrice;
 
+          cash.value += withdrawalAmount;
           totalWithdrawn += withdrawalAmount;
 
           // Log investment sale for discretionary expense
