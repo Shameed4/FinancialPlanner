@@ -1,6 +1,17 @@
 // Implemented with the help of Cursor AI
 import yaml from 'js-yaml';
 
+export function investmentToId(inv) {
+    return `${inv.assetType} ${inv.taxStatus}`
+}
+
+export function idToInvestment(id) {
+    const lastSpaceIndex = id.lastIndexOf(' ');
+    const assetType = id.slice(0, lastSpaceIndex);
+    const taxStatus = id.slice(lastSpaceIndex + 1);
+    return {assetType, taxStatus};
+}
+
 export function jsonToYaml(json) {
     return yaml.dump(json, {
         indent: 2,
