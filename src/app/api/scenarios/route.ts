@@ -5,7 +5,19 @@ import { Event as StringEventSeries } from '../../scenario/types'
 
 // Helper function to map string distribution type to DistributionType enum
 function mapDistributionType(distributionTypeString: string): DistributionType {
-  return distributionTypeString;
+  switch (distributionTypeString.toLowerCase()) {
+    case 'fixed':
+      return DistributionType.fixed;
+    case 'percentage':
+      return DistributionType.percentage;
+    case 'random_uniform':
+      return DistributionType.random_uniform;
+    case 'random_normal':
+      return DistributionType.random_normal;
+    default:
+      console.warn(`Unknown distribution type: ${distributionTypeString}, defaulting to fixed`);
+      return DistributionType.fixed;
+  }
 }
 
 // Helper function to create event series and their details
@@ -13,9 +25,20 @@ async function createEventSeries(scenarioId: number, eventSeries: any[], investm
   let createdEvents = [];
 
   // Create a map of asset names to investment IDs
-  const assetToInvestmentMap = new Map(
-    investments.map(inv => [inv.assetType.name, inv.id])
-  );
+  const assetToInvestmentMap = new Map();
+
+  // Map both the investment type name and the full key (with tax status) to the investment ID
+  investments.forEach(inv => {
+    // Map the basic asset type name
+    assetToInvestmentMap.set(inv.assetType.name, inv.id);
+
+    // Map the full key with tax status that's used in allocations
+    const taxStatus = inv.taxStatus.toLowerCase().replace(/_/g, '-');
+    const fullKey = `${inv.assetType.name} ${taxStatus}`;
+    assetToInvestmentMap.set(fullKey, inv.id);
+
+    console.log(`Mapping investment: "${fullKey}" -> ID: ${inv.id}`);
+  });
 
   const nameToEventSeries = new Map<string, number>();
   const pendingStartOnOtherSeriesUpdates: { id: number; startOnOtherSeriesName: string }[] = [];
@@ -118,12 +141,22 @@ async function createEventSeries(scenarioId: number, eventSeries: any[], investm
           }
         });
 
+        console.log(`DEBUG - Creating invest event "${event.name}" in DB:`);
+        console.log(`  allocationType: ${event.allocationType}`);
+
         if (event.allocationType === 'glide' && event.initialAllocations && event.finalAllocations) {
+          console.log(`  Processing glide path allocations`);
+          console.log(`  initialAllocations: ${JSON.stringify(event.initialAllocations)}`);
+          console.log(`  finalAllocations: ${JSON.stringify(event.finalAllocations)}`);
+
           for (const assetName in event.initialAllocations) {
             if (event.initialAllocations.hasOwnProperty(assetName)) {
               const initialPercentage = parseFloat(event.initialAllocations[assetName]);
               const finalPercentage = parseFloat(event.finalAllocations[assetName]);
               const investmentId = assetToInvestmentMap.get(assetName);
+
+              console.log(`    Asset: ${assetName}, Initial: ${initialPercentage}, Final: ${finalPercentage}, InvestmentId: ${investmentId}`);
+
               if (investmentId) {
                 await prisma.assetAllocation.create({
                   data: {
@@ -133,13 +166,22 @@ async function createEventSeries(scenarioId: number, eventSeries: any[], investm
                     investmentId
                   }
                 });
+                console.log(`    Created allocation in DB`);
+              } else {
+                console.log(`    WARNING: No investment ID found for ${assetName}`);
               }
             }
           }
         } else if (event.allocations) {
+          console.log(`  Processing fixed allocations`);
+          console.log(`  allocations: ${JSON.stringify(event.allocations)}`);
+
           for (const [assetName, percentage] of Object.entries(event.allocations)) {
             const numericPercentage = parseFloat(percentage as string);
             const investmentId = assetToInvestmentMap.get(assetName);
+
+            console.log(`    Asset: ${assetName}, Percentage: ${numericPercentage}, InvestmentId: ${investmentId}`);
+
             if (investmentId) {
               await prisma.assetAllocation.create({
                 data: {
@@ -149,8 +191,13 @@ async function createEventSeries(scenarioId: number, eventSeries: any[], investm
                   investmentId
                 }
               });
+              console.log(`    Created allocation in DB`);
+            } else {
+              console.log(`    WARNING: No investment ID found for ${assetName}`);
             }
           }
+        } else {
+          console.log(`  WARNING: No allocations found for invest event "${event.name}"`);
         }
         break;
 
@@ -197,10 +244,10 @@ async function createEventSeries(scenarioId: number, eventSeries: any[], investm
         break;
     }
 
-    createdEvents.push(createdEvents.push({
+    createdEvents.push({
       ...createdEvent,
-      startOnOtherSeries: event.startOnOtherSeries || null
-    }));
+      startOnOtherSeriesName: event.startOnOtherSeries || null
+    });
   }
 
   // after all event series created, update startOnOtherSeriesId
@@ -281,26 +328,36 @@ async function createAssetTypes(assetTypes: any[]) {
 
     let createdAssetType;
     try {
-      // console.log("---")
-      // console.log(assetType);
+      console.log(`Creating asset type: ${assetType.name} with returnType: ${returnType}, fixedReturn: ${assetType.fixedReturn}, fixedIncome: ${assetType.fixedIncome}`);
       createdAssetType = await prisma.assetType.create({
         data: {
           name: assetType.name,
           description: assetType.description,
           returnType: returnType,
-          fixedReturn: returnType === ReturnType.FIXED ? parseFloat(assetType.fixedReturn) : null,
-          normalReturnMean: returnType === ReturnType.NORMAL ? parseFloat(assetType.normalReturnMean) : null,
-          normalReturnStd: returnType === ReturnType.NORMAL ? parseFloat(assetType.normalReturnStd) : null,
+          fixedReturn: returnType === ReturnType.FIXED ?
+            (assetType.fixedReturn !== null && assetType.fixedReturn !== undefined ?
+              parseFloat(String(assetType.fixedReturn)) : null) : null,
+          normalReturnMean: returnType === ReturnType.NORMAL ?
+            (assetType.normalReturnMean !== null && assetType.normalReturnMean !== undefined ?
+              parseFloat(String(assetType.normalReturnMean)) : null) : null,
+          normalReturnStd: returnType === ReturnType.NORMAL ?
+            (assetType.normalReturnStd !== null && assetType.normalReturnStd !== undefined ?
+              parseFloat(String(assetType.normalReturnStd)) : null) : null,
           expectedAnnualIncomeType: expectedAnnualIncomeType,
-          fixedIncome: assetType.fixedIncome,
-          normalIncomeMean: assetType.normalIncomeMean,
-          normalIncomeStd: assetType.normalIncomeStd,
-          expenseRatio: assetType.expenseRatio || 0,
+          fixedIncome: assetType.fixedIncome !== null && assetType.fixedIncome !== undefined ?
+            parseFloat(String(assetType.fixedIncome)) : null,
+          normalIncomeMean: assetType.normalIncomeMean !== null && assetType.normalIncomeMean !== undefined ?
+            parseFloat(String(assetType.normalIncomeMean)) : null,
+          normalIncomeStd: assetType.normalIncomeStd !== null && assetType.normalIncomeStd !== undefined ?
+            parseFloat(String(assetType.normalIncomeStd)) : null,
+          expenseRatio: assetType.expenseRatio !== null && assetType.expenseRatio !== undefined ?
+            parseFloat(String(assetType.expenseRatio)) : 0,
           taxability: taxability,
-          incomeAmtOrPct: assetType.incomeAmtOrPct,
-          returnAmtOrPct: assetType.returnAmtOrPct,
+          incomeAmtOrPct: assetType.incomeAmtOrPct || 'amount',
+          returnAmtOrPct: assetType.returnAmtOrPct || 'amount',
         }
       });
+      console.log(`Successfully created asset type: ${assetType.name} with ID: ${createdAssetType.id}`);
     } catch (error) {
       console.error(`Error creating asset type ${assetType.name}:`, error);
       throw error;
@@ -401,14 +458,43 @@ const transformScenarioForFrontend = (scenario: any) => {
         // Defensive check: ensure that allocation has investment and assetType data.
         if (!alloc.investment || !alloc.investment.assetType) {
           console.warn("Missing investment or assetType in allocation:", alloc);
+
+          // Try to fetch the investment directly from the database using investmentId
+          const matchingInvestment = scenario.investmentScenario?.find((is: any) =>
+            is.investment.id === alloc.investmentId
+          )?.investment;
+
+          if (matchingInvestment && matchingInvestment.assetType) {
+            // If we found a matching investment, use its asset type name
+            const assetName = matchingInvestment.assetType.name;
+            const taxStatus = matchingInvestment.taxStatus.toLowerCase().replace(/_/g, '-');
+            const fullKey = `${assetName} ${taxStatus}`;
+
+            console.log(`Recovered allocation for ${fullKey} with values: initial=${alloc.initialAllocation * 100}, final=${alloc.finalAllocation * 100}`);
+
+            const initPercent = alloc.initialAllocation * 100;
+            const finalPercent = alloc.finalAllocation * 100;
+            fixedAllocations[fullKey] = initPercent;
+            initialAllocations[fullKey] = initPercent;
+            finalAllocations[fullKey] = finalPercent;
+
+            if (Math.abs(initPercent - finalPercent) > 0.1) {
+              isGlide = true;
+            }
+          }
           return;
         }
+
         const assetName = alloc.investment.assetType.name;
+        const taxStatus = alloc.investment.taxStatus.toLowerCase().replace(/_/g, '-');
+        const fullKey = `${assetName} ${taxStatus}`;
+
         const initPercent = alloc.initialAllocation * 100;
         const finalPercent = alloc.finalAllocation * 100;
-        fixedAllocations[assetName] = initPercent;
-        initialAllocations[assetName] = initPercent;
-        finalAllocations[assetName] = finalPercent;
+        fixedAllocations[fullKey] = initPercent;
+        initialAllocations[fullKey] = initPercent;
+        finalAllocations[fullKey] = finalPercent;
+
         if (Math.abs(initPercent - finalPercent) > 0.1) {
           isGlide = true;
         }
@@ -442,17 +528,48 @@ const transformScenarioForFrontend = (scenario: any) => {
         // Defensive check: ensure that allocation has investment and assetType data.
         if (!alloc.investment || !alloc.investment.assetType) {
           console.warn("Missing investment or assetType in allocation (rebalance):", alloc);
+
+          // Try to fetch the investment directly from the database using investmentId
+          const matchingInvestment = scenario.investmentScenario?.find((is: any) =>
+            is.investment.id === alloc.investmentId
+          )?.investment;
+
+          if (matchingInvestment && matchingInvestment.assetType) {
+            // If we found a matching investment, use its asset type name
+            const assetName = matchingInvestment.assetType.name;
+            const taxStatus = matchingInvestment.taxStatus.toLowerCase().replace(/_/g, '-');
+            const fullKey = `${assetName} ${taxStatus}`;
+
+            console.log(`Recovered rebalance allocation for ${fullKey} with value: ${alloc.initialAllocation * 100}`);
+
+            const initPercent = alloc.initialAllocation * 100;
+            const finalPercent = alloc.finalAllocation !== undefined && alloc.finalAllocation !== null
+              ? alloc.finalAllocation * 100
+              : initPercent;
+
+            fixedAllocations[fullKey] = initPercent;
+            initialAllocations[fullKey] = initPercent;
+            finalAllocations[fullKey] = finalPercent;
+
+            if (Math.abs(initPercent - finalPercent) > 0.1) {
+              isGlide = true;
+            }
+          }
           return;
         }
+
         const assetName = alloc.investment.assetType.name;
+        const taxStatus = alloc.investment.taxStatus.toLowerCase().replace(/_/g, '-');
+        const fullKey = `${assetName} ${taxStatus}`;
+
         const initPercent = alloc.initialAllocation * 100;
         const finalPercent = alloc.finalAllocation !== undefined && alloc.finalAllocation !== null
           ? alloc.finalAllocation * 100
           : initPercent;
 
-        fixedAllocations[assetName] = initPercent;
-        initialAllocations[assetName] = initPercent;
-        finalAllocations[assetName] = finalPercent;
+        fixedAllocations[fullKey] = initPercent;
+        initialAllocations[fullKey] = initPercent;
+        finalAllocations[fullKey] = finalPercent;
 
         if (Math.abs(initPercent - finalPercent) > 0.1) {
           isGlide = true;
@@ -819,6 +936,43 @@ export async function POST(request: NextRequest) {
       createdInvestments = await createInvestments(scenario.id, investments, assetTypeMap);
     }
 
+    // Check for asset types without investments and create placeholder investments
+    if (createdAssetTypes && createdAssetTypes.length > 0) {
+      const assetsWithInvestments = new Set(createdInvestments.map(inv => inv.assetType.name));
+
+      for (const assetType of createdAssetTypes) {
+        if (!assetsWithInvestments.has(assetType.name)) {
+          console.log(`Creating placeholder investment for asset type: ${assetType.name}`);
+
+          // Create a placeholder investment with 0 value
+          const placeholderInvestment = await prisma.investment.create({
+            data: {
+              assetTypeId: assetType.id,
+              value: 0,
+              taxStatus: TaxStatus.NON_RETIREMENT,
+              expenseWithdrawalStrategy: 1, // Default strategy
+              rothConversionStrategy: null,
+              rmdStrategy: null
+            },
+            include: {
+              assetType: true
+            }
+          });
+
+          // Link investment to scenario
+          await prisma.investmentScenario.create({
+            data: {
+              investmentId: placeholderInvestment.id,
+              scenarioId: scenario.id
+            }
+          });
+
+          createdInvestments.push(placeholderInvestment);
+          console.log(`Created placeholder investment for ${assetType.name} with ID: ${placeholderInvestment.id}`);
+        }
+      }
+    }
+
     // Create event series and their details
     if (eventSeries && eventSeries.length > 0) {
       await createEventSeries(scenario.id, eventSeries, createdInvestments);
@@ -873,11 +1027,13 @@ export async function POST(request: NextRequest) {
         normalReturnMean: at.normalReturnMean,
         normalReturnStd: at.normalReturnStd,
         expenseRatio: at.expenseRatio,
+        fixedIncome: at.fixedIncome,
         normalIncomeMean: at.normalIncomeMean,
         normalIncomeStd: at.normalIncomeStd,
         taxable: at.taxability.toLowerCase() === 'taxable',
         returnAmtOrPct: at.returnAmtOrPct,
         incomeAmtOrPct: at.incomeAmtOrPct,
+        expectedAnnualIncomeType: at.expectedAnnualIncomeType?.toLowerCase()
       }));
 
     const responseData = {
@@ -1113,6 +1269,43 @@ export async function PUT(request: NextRequest) {
       createdInvestments = await createInvestments(scenario.id, investments, assetTypeMap);
     }
 
+    // Check for asset types without investments and create placeholder investments
+    if (createdAssetTypes && createdAssetTypes.length > 0) {
+      const assetsWithInvestments = new Set(createdInvestments.map(inv => inv.assetType.name));
+
+      for (const assetType of createdAssetTypes) {
+        if (!assetsWithInvestments.has(assetType.name)) {
+          console.log(`Creating placeholder investment for asset type: ${assetType.name}`);
+
+          // Create a placeholder investment with 0 value
+          const placeholderInvestment = await prisma.investment.create({
+            data: {
+              assetTypeId: assetType.id,
+              value: 0,
+              taxStatus: TaxStatus.NON_RETIREMENT,
+              expenseWithdrawalStrategy: 1, // Default strategy
+              rothConversionStrategy: null,
+              rmdStrategy: null
+            },
+            include: {
+              assetType: true
+            }
+          });
+
+          // Link investment to scenario
+          await prisma.investmentScenario.create({
+            data: {
+              investmentId: placeholderInvestment.id,
+              scenarioId: scenario.id
+            }
+          });
+
+          createdInvestments.push(placeholderInvestment);
+          console.log(`Created placeholder investment for ${assetType.name} with ID: ${placeholderInvestment.id}`);
+        }
+      }
+    }
+
     // Create event series and their details
     if (eventSeries && eventSeries.length > 0) {
       await createEventSeries(scenario.id, eventSeries, createdInvestments);
@@ -1181,9 +1374,13 @@ export async function PUT(request: NextRequest) {
         normalReturnMean: at.normalReturnMean,
         normalReturnStd: at.normalReturnStd,
         expenseRatio: at.expenseRatio,
+        fixedIncome: at.fixedIncome,
         normalIncomeMean: at.normalIncomeMean,
         normalIncomeStd: at.normalIncomeStd,
-        taxable: at.taxability.toLowerCase() === 'taxable'
+        taxable: at.taxability.toLowerCase() === 'taxable',
+        returnAmtOrPct: at.returnAmtOrPct,
+        incomeAmtOrPct: at.incomeAmtOrPct,
+        expectedAnnualIncomeType: at.expectedAnnualIncomeType?.toLowerCase()
       }));
 
     const responseData = {
