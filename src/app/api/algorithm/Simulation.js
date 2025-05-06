@@ -203,164 +203,192 @@ export default async function runSimulation(initialState, userName, generateLog 
   eventTotals.income = {};
   eventTotals.expense = {};
 
-  // Preprocess event timings for this simulation run
-  console.log("Preprocessing event timings for this simulation run...");
-  // Process all non-dependent events
-  state.eventSeries.forEach(event => {
-    if (event.startYearType !== 'same_as' && event.startYearType !== 'after') {
-      let calculatedStartYear;
-      let calculatedDuration;
-      let actualDuration;
+  function getEventDuration(event) {
+    const durationMode = event.durationType ?? 'fixed';
+    let calculatedDuration = 1;
 
-      // --- Determine Start Year ---
-      const startMode = event.startYearType ?? 'fixed';
-      switch (startMode) {
-        case 'random_normal':
-          if (!event.startYearMean || !event.startYearStd) {
-            console.warn(`Event '${event.name}': Missing required parameters for random_normal start year. Using current year.`);
-            calculatedStartYear = params.curYear;
-          } else {
-            calculatedStartYear = Math.round(sampleNormal(event.startYearMean, event.startYearStd));
-          }
-          break;
-
-        case 'random_uniform':
-          if (!event.startYearMin || !event.startYearMax) {
-            console.warn(`Event '${event.name}': Missing required parameters for random_uniform start year. Using current year.`);
-            calculatedStartYear = params.curYear;
-          } else {
-            calculatedStartYear = Math.round(sampleUniform(event.startYearMin, event.startYearMax));
-          }
-          break;
-
-        case 'fixed':
-          calculatedStartYear = event.startYear;
-          break;
-
-        default:
-          calculatedStartYear = event.startYear ?? params.curYear;
-          break;
-      }
-
-      // Store the determined start year
-      event.startYear = calculatedStartYear;
-
-      // --- Determine Duration ---
-      const durationMode = event.durationType ?? 'fixed';
-
+    try {
       switch (durationMode) {
         case 'random_normal':
-          if (!event.durationMean || !event.durationStd) {
-            console.warn(`Event '${event.name}': Missing required parameters for random_normal duration. Using 1 year.`);
-            calculatedDuration = 1;
-          } else {
+          if (typeof event.durationMean === 'number' && typeof event.durationStd === 'number') {
             calculatedDuration = Math.round(sampleNormal(event.durationMean, event.durationStd));
+          } else {
+            console.warn(`Event '${event.name}': Missing parameters for random_normal duration.`);
           }
           break;
-
         case 'random_uniform':
-          if (!event.durationMin || !event.durationMax) {
-            console.warn(`Event '${event.name}': Missing required parameters for random_uniform duration. Using 1 year.`);
-            calculatedDuration = 1;
-          } else {
+          if (typeof event.durationMin === 'number' && typeof event.durationMax === 'number') {
             calculatedDuration = Math.round(sampleUniform(event.durationMin, event.durationMax));
-          }
-          break;
-
-        case 'fixed':
-          calculatedDuration = event.durationFixed;
-          break;
-
-        default:
-          // If duration is not specified but endYear exists, calculate from endYear
-          if (!event.duration && event.endYear) {
-            calculatedDuration = event.endYear - event.startYear + 1;
           } else {
-            calculatedDuration = event.duration ?? 1;
+            console.warn(`Event '${event.name}': Missing parameters for random_uniform duration.`);
           }
+          break;
+        case 'fixed':
+          if (typeof event.durationFixed === 'number') {
+            calculatedDuration = event.durationFixed;
+          } else {
+            console.warn(`Event '${event.name}': Missing durationFixed for fixed duration.`);
+          }
+          break;
+        default:
+          console.warn(`Event '${event.name}': Unknown duration type '${durationMode}'.`);
+          calculatedDuration = event.duration ?? 1; // Fallback
           break;
       }
-
-      // Ensure duration is at least 1 year
-      actualDuration = Math.max(1, calculatedDuration);
-
-      // Calculate and store end year
-      event.endYear = event.startYear + actualDuration - 1;
-
-      // Log the calculated timing for debugging
-      // console.log(`Event '${event.name}': Type S:${startMode}/D:${durationMode} -> Start: ${event.startYear}, End: ${event.endYear} (Duration: ${actualDuration})`);
+    } catch (e) {
+      console.error(`Error calculating duration for event '${event.name}':`, e);
+      calculatedDuration = 1; // Fallback on error
     }
-  });
 
-  // Process dependent events ('same_as' and 'after')
+    if (typeof calculatedDuration !== 'number' || isNaN(calculatedDuration)) {
+      calculatedDuration = 1; // Fallback if calculation failed
+    }
+    return calculatedDuration < 0 ? 1 : Math.round(calculatedDuration);
+  }
+
+  console.log("Preprocessing event timings using Topological Sort...");
+
+  // 1. Build Dependency Information & Calculate In-Degrees
+  const adj = new Map();
+  const inDegree = new Map();
+  const eventMap = new Map();
+  let eventsProcessedCount = 0;
+
   state.eventSeries.forEach(event => {
+    if (!event || !event.name) {
+      console.warn("Skipping invalid event object:", event);
+      return; // Skip invalid events
+    }
+    const eventName = event.name;
     if (event.startYearType === 'same_as' || event.startYearType === 'after') {
-      if (!event.startOnOtherSeriesId) {
-        console.warn(`Event '${event.name}': Missing startOnOtherSeriesId for ${event.startYearType} timing. Using current year.`);
-        event.startYear = params.curYear;
-        return;
-      }
+      event.startYear = null;
+    }
+    event.endYear = null; // Always calculate endYear based on startYear + duration
 
-      // Find the referenced event
-      const referencedEvent = state.eventSeries.find(e => e.id === event.startOnOtherSeriesId);
-      if (!referencedEvent) {
-        console.warn(`Event '${event.name}': Referenced event ${event.startOnOtherSeriesId} not found. Using current year.`);
-        event.startYear = params.curYear;
-        return;
-      }
-
-      // Calculate start year based on the referenced event
-      if (event.startYearType === 'same_as') {
-        event.startYear = referencedEvent.startYear;
-      } else { // 'after'
-        event.startYear = referencedEvent.endYear + 1;
-      }
-
-      // --- Determine Duration ---
-      const durationMode = event.durationType ?? 'fixed';
-      let calculatedDuration;
-      let actualDuration;
-
-      switch (durationMode) {
-        case 'random_normal':
-          if (!event.durationMean || !event.durationStd) {
-            console.warn(`Event '${event.name}': Missing required parameters for random_normal duration. Using 1 year.`);
-            calculatedDuration = 1;
-          } else {
-            calculatedDuration = Math.round(sampleNormal(event.durationMean, event.durationStd));
-          }
-          break;
-
-        case 'random_uniform':
-          if (!event.durationMin || !event.durationMax) {
-            console.warn(`Event '${event.name}': Missing required parameters for random_uniform duration. Using 1 year.`);
-            calculatedDuration = 1;
-          } else {
-            calculatedDuration = Math.round(sampleUniform(event.durationMin, event.durationMax));
-          }
-          break;
-
-        case 'fixed':
-        default:
-          // If duration is not specified but endYear exists, calculate from endYear
-          if (!event.duration && event.endYear) {
-            calculatedDuration = event.endYear - event.startYear + 1;
-          } else {
-            calculatedDuration = event.duration ?? 1;
-          }
-          break;
-      }
-
-      // Ensure duration is at least 1 year
-      actualDuration = Math.max(1, calculatedDuration);
-
-      // Calculate and store end year
-      event.endYear = event.startYear + actualDuration - 1;
-
-      // Log the calculated timing for debugging
-      // console.log(`Event '${event.name}': Type S:${event.startYearType}/D:${durationMode} -> Start: ${event.startYear}, End: ${event.endYear} (Duration: ${actualDuration})`);
+    eventMap.set(eventName, event);
+    inDegree.set(eventName, 0); // Initialize in-degree
+    if (!adj.has(eventName)) {
+      adj.set(eventName, []); // Initialize adjacency list entry
     }
   });
+
+  // Second pass: Build graph edges and update in-degrees based on dependencies
+  state.eventSeries.forEach(event => {
+    if (!event || !event.name) return; // Skip invalid
+    const eventName = event.name;
+    let prereqName = null;
+
+    // Determine prerequisite based on start type and startOnOtherSeries field
+    if ((event.startYearType === 'same_as' || event.startYearType === 'after') && event.startOnOtherSeries) {
+      prereqName = event.startOnOtherSeries;
+    }
+
+    if (prereqName) {
+      if (eventMap.has(prereqName)) {
+        if (!adj.has(prereqName)) adj.set(prereqName, []);
+        adj.get(prereqName).push(eventName);
+        inDegree.set(eventName, (inDegree.get(eventName) || 0) + 1);
+      } else {
+        console.warn(`Event '${eventName}' depends on prerequisite '${prereqName}', but prerequisite event was not found! Treating as independent.`);
+      }
+    }
+  });
+
+  // 2. Initialize Queue with 0-in-degree events
+  const queue = [];
+  inDegree.forEach((degree, eventName) => {
+    if (degree === 0) {
+      queue.push(eventName);
+    }
+  });
+
+  // 3. Process Events in Topological Order
+  while (queue.length > 0) {
+    const eventName = queue.shift();
+    eventsProcessedCount++; // Count processed events
+    const event = eventMap.get(eventName);
+
+
+    if (typeof event.startYear !== 'number') {
+      if (event.startYearType === 'same_as' || event.startYearType === 'after') {
+        const prereqName = event.startOnOtherSeries;
+        const referencedEvent = eventMap.get(prereqName);
+
+        if (referencedEvent) {
+          if (event.startYearType === 'same_as') {
+            if (typeof referencedEvent.startYear === 'number') {
+              event.startYear = referencedEvent.startYear;
+            } else {
+              event.startYear = params.curYear; // Fallback
+            }
+          } else { // 'after'
+            if (typeof referencedEvent.endYear === 'number') {
+              event.startYear = referencedEvent.endYear + 1;
+            } else {
+              event.startYear = params.curYear; // Fallback
+            }
+          }
+        } else {
+          // Prerequisite was missing, use default start
+          console.warn(`Calculating start for '${eventName}' without prerequisite '${prereqName}' (not found). Using default.`);
+          event.startYear = params.curYear;
+        }
+      } else {
+        // Calculate independent start year based on fixed, random_normal, random_uniform
+        let calculatedStartYear;
+        const startMode = event.startYearType ?? 'fixed';
+        switch (startMode) {
+          case 'random_normal':
+            calculatedStartYear = (typeof event.startYearMean === 'number' && typeof event.startYearStd === 'number')
+              ? Math.round(sampleNormal(event.startYearMean, event.startYearStd))
+              : params.curYear;
+            if (calculatedStartYear === params.curYear) console.warn(`Event '${event.name}': Missing parameters for random_normal start.`);
+            break;
+          case 'random_uniform':
+            calculatedStartYear = (typeof event.startYearMin === 'number' && typeof event.startYearMax === 'number')
+              ? Math.round(sampleUniform(event.startYearMin, event.startYearMax))
+              : params.curYear;
+            if (calculatedStartYear === params.curYear) console.warn(`Event '${event.name}': Missing parameters for random_uniform start.`);
+            break;
+          case 'fixed':
+          default:
+            // Use fixed value if present and valid, else default
+            calculatedStartYear = typeof event.startYear === 'number' ? event.startYear : params.curYear;
+            if (calculatedStartYear === params.curYear && typeof event.startYear !== 'number') console.warn(`Event '${event.name}': Missing fixed startYear.`);
+            break;
+        }
+        event.startYear = calculatedStartYear;
+      }
+    } // End if startYear needed calculation
+
+    if (typeof event.startYear !== 'number' || isNaN(event.startYear)) {
+      console.error(`Cannot calculate endYear for ${event.name} because startYear is invalid: ${event.startYear}. Defaulting end year.`);
+      event.startYear = params.curYear; // Attempt recovery
+      event.endYear = event.startYear + getEventDuration(event) - 1;
+    } else {
+      event.endYear = event.startYear + getEventDuration(event) - 1;
+    }
+
+    // --- Process Neighbors ---
+    const neighbors = adj.get(eventName) || [];
+    neighbors.forEach(neighborName => {
+      const newInDegree = (inDegree.get(neighborName) || 0) - 1;
+      inDegree.set(neighborName, newInDegree);
+      if (newInDegree === 0) {
+        queue.push(neighborName); // Add to queue when all prerequisites are done
+      }
+    });
+  } // End while(queue.length > 0)
+
+  // 4. Check for Cycles / Unprocessed Events
+  if (eventsProcessedCount !== eventMap.size) {
+    const unprocessed = [];
+    inDegree.forEach((degree, name) => {
+      if (degree > 0) {
+        unprocessed.push(`${name} (inDegree: ${degree})`);
+      }
+    });
+  }
 
   // (state.eventSeries);
 
