@@ -62,11 +62,6 @@ export async function POST(request) {
             { status: 200 }
         );
 
-        // In a production environment, this is where you would:
-        // 1. Save the scenarios to the database
-        // 2. Queue up the simulations for processing
-        // 3. Return a job ID that the client can use to check the status
-
     } catch (error) {
         console.error('Error in /api/explore/1d POST handler (Frontend Mod):', error);
         // Check if it's a JSON parsing error

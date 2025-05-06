@@ -162,6 +162,7 @@ function calculateMarginalTax(taxableIncome, brackets) {
 export default async function runSimulation(initialState, userName, generateLog = false) {
   let state = deepCopy(initialState);
 
+  console.log(state.eventSeries);
   // Ensure 'Cash' asset type exists in assetTypes
   if (!state.assetTypes) {
     state.assetTypes = [];
@@ -499,7 +500,6 @@ export default async function runSimulation(initialState, userName, generateLog 
       event.endYear && params.curYear <= event.endYear
     );
 
-    // console.log(activeIncomeEvents);
     activeIncomeEvents.forEach(event => {
       // Initialize event.amount if undefined
       if (typeof event.amount === 'undefined') {
@@ -567,7 +567,6 @@ export default async function runSimulation(initialState, userName, generateLog 
       const s = params.prevYearEndPreTaxSum ?? 0; // Use sum calculated at end of *last* year
       const rmdEntry = params.rmdTable.find(entry => entry.age === params.userAge);
       const d = rmdEntry?.distributionPeriod;
-      console.log(s, rmdEntry, d);
 
       if (s > 0 && d > 0) {
         calculatedRmdCurrentYear = s / d;
@@ -829,13 +828,13 @@ export default async function runSimulation(initialState, userName, generateLog 
         if (generateLog) {
           // Create a detailed log of each investment converted
           const conversionDetails = preTaxInvestmentsForRoth
-            .filter(inv => inv.value < inv.originalValue)     // only those with a conversion
-            .map(inv => inv.assetType);                       // now just the name
+            .filter(inv => inv.value < inv.originalValue)
+            .map(inv => inv.assetType);
 
           logEvent(logStream, params.curYear, 'Roth Conversion', {
             TotalConverted: totalConverted,
             TargetBracketMax: taxBracket.max,
-            Conversions: conversionDetails    // e.g. ["Vanguard 401k", "Fidelity IRA", …]
+            Conversions: conversionDetails
           });
         }
       }
@@ -870,7 +869,7 @@ export default async function runSimulation(initialState, userName, generateLog 
       prevYearFedTax = calculateMarginalTax(prevYearIncomeAfterDeduction, fedBracketsForStatus);
     } else {
       prevYearFedTax = 0;
-      // console.warn(`Year ${params.curYear}: Missing or empty federal tax brackets for status ${filingStatus} for previous year tax calculation.`);
+      console.warn(`Year ${params.curYear}: Missing or empty federal tax brackets for status ${filingStatus} for previous year tax calculation.`);
     }
 
     // --- State Income Tax Calculation ---
@@ -882,7 +881,7 @@ export default async function runSimulation(initialState, userName, generateLog 
       prevYearStateTax = calculateMarginalTax(prevYearFedTaxableIncome, stateBracketsForStatus);
     } else {
       prevYearStateTax = 0;
-      // console.warn(`Year ${params.curYear}: Missing or empty state tax brackets for ${state.residenceState} ${filingStatus} for previous year tax calculation.`);
+      console.warn(`Year ${params.curYear}: Missing or empty state tax brackets for ${state.residenceState} ${filingStatus} for previous year tax calculation.`);
     }
 
     // --- Capital Gains Tax Calculation ---
@@ -894,7 +893,7 @@ export default async function runSimulation(initialState, userName, generateLog 
       prevYearCapitalGainsTax = calculateMarginalTax(Math.max(0, params.prevYearGains ?? 0), capitalGainsBracketsForStatus);
     } else {
       prevYearCapitalGainsTax = 0;
-      // console.warn(`Year ${params.curYear}: Missing or empty capital gains tax brackets for status ${filingStatus} for previous year tax calculation.`);
+      console.warn(`Year ${params.curYear}: Missing or empty capital gains tax brackets for status ${filingStatus} for previous year tax calculation.`);
     }
 
     // Early withdrawal penalty
@@ -1049,7 +1048,7 @@ export default async function runSimulation(initialState, userName, generateLog 
       }
 
       if (totalWithdrawn < withdrawalAmount) {
-        // console.warn("Withdrawal shortfall: unable to fully cover the required non-discretionary expenses and taxes from investments.");
+        console.warn("Withdrawal shortfall: unable to fully cover the required non-discretionary expenses and taxes from investments.");
         if (generateLog) {
           logEvent(logStream, params.curYear, 'Withdrawal Shortfall', {
             Required: withdrawalAmount,
@@ -1204,65 +1203,88 @@ export default async function runSimulation(initialState, userName, generateLog 
     let activeInvestEvents = state.eventSeries.filter(event =>
       event.type === "invest" &&
       params.curYear >= event.startYear &&
-      params.curYear <= event.endYear &&
-      event.investEventDetails // Ensure details exist
+      params.curYear <= event.endYear
     );
 
     for (let event of activeInvestEvents) {
-      // Access allocation details through investEventDetails
-      const allocationDetails = event.investEventDetails.assetAllocation;
+      // pull allocation params straight off the event
+      const {
+        allocationType, // "fixed" or "glide"
+        initialAllocations,
+        finalAllocations = {}, // only used if allocationType==="glide"
+        maxCashValue // threshold below which we won't invest
+      } = event;
 
-      if (!allocationDetails) {
-        // console.warn(`Event '${event.name}': Missing asset allocation details. Skipping invest event.`);
-        continue;
-      }
-
-      // Calculate excess cash available for investment
-      let excessCash = Math.max(0, cash.value - event.investEventDetails.maxCash);
-
+      // Compute excess cash
+      let excessCash = Math.max(0, cash.value - maxCashValue);
       if (excessCash <= 0) continue;
 
-      // Get the current year's after-tax retirement contribution limit
+      // How much we can put into after-tax retirement this year
       const L = params.afterTaxRetirementContributionLimit;
 
-      // Calculate current allocation percentages based on glide path if applicable
+      // Build a “rawAllocation” array of { assetType, percentage }
       let rawAllocation;
-      if (allocationDetails.isGlidePath) {
-        // Calculate progress through glide path (t)
-        const duration = event.endYear - event.startYear;
-        const t = duration === 0 ? 1 : Math.min(1, Math.max(0, (params.curYear - event.startYear) / duration));
+      if (allocationType === "glide") {
+        // determine glide‐path progress [0..1]
+        const duration = event.durationType === "fixed"
+          ? event.durationFixed
+          : event.durationMean;
+        const t = duration === 0
+          ? 1
+          : Math.min(1, Math.max(0, (params.curYear - event.startYear) / duration));
 
-        // Calculate current percentages by interpolating between initial and final
-        rawAllocation = allocationDetails.initialPercentages.map((initial, i) => {
-          const final = allocationDetails.finalPercentages[i];
+        // turn the initial/final objects into arrays
+        const initialArray = Object.entries(initialAllocations)
+          .map(([assetType, pct]) => ({ assetType, percentage: pct }));
+        const finalArray = Object.entries(finalAllocations)
+          .map(([assetType, pct]) => ({ assetType, percentage: pct }));
+
+        // linearly interpolate each asset's percentage
+        rawAllocation = initialArray.map(init => {
+          const fin = finalArray.find(f => f.assetType === init.assetType) || { percentage: 0 };
           return {
-            assetType: initial.assetType,
-            taxStatus: initial.taxStatus,
-            percentage: initial.percentage * (1 - t) + final.percentage * t
+            assetType: init.assetType,
+            percentage: init.percentage * (1 - t) + fin.percentage * t
           };
         });
       } else {
-        rawAllocation = allocationDetails.percentages;
+        // fixed allocation: just use initialAllocations
+        rawAllocation = Object.entries(initialAllocations)
+          .map(([assetType, pct]) => ({ assetType, percentage: pct }));
       }
 
-      // Filter out pre-tax-retirement targets as per requirements
-      const currentAllocation = rawAllocation.filter(alloc =>
-        alloc.taxStatus === 'non-retirement' || alloc.taxStatus === 'after-tax-retirement'
+      // 3) Enrich rawAllocation with the corresponding taxStatus
+      const enrichedAllocation = rawAllocation.map(alloc => {
+        const inv = state.investments.find(i => i.assetType === alloc.assetType);
+        if (!inv) {
+          console.warn(`No investment found for assetType '${alloc.assetType}', treating as non-retirement`);
+        }
+        return {
+          assetType: alloc.assetType,
+          percentage: alloc.percentage,
+          taxStatus: inv ? inv.taxStatus : 'non-retirement'
+        };
+      });
+
+      // 4) Now filter to only non-retirement & after-tax-retirement
+      const currentAllocation = enrichedAllocation.filter(alloc =>
+        alloc.taxStatus === 'non-retirement' ||
+        alloc.taxStatus === 'after-tax-retirement'
       );
-
+      
       if (currentAllocation.length === 0) {
-        console.log(`No valid investment targets found for invest event in year ${params.curYear}`);
+        console.log(`No valid targets for invest event in year ${params.curYear}`);
         continue;
       }
 
-      // Calculate total allocation percentage from filtered list
-      let totalAllocation = currentAllocation.reduce((sum, alloc) => sum + alloc.percentage, 0);
+      // 5) Normalize percentages
+      const totalAllocation = currentAllocation.reduce((sum, a) => sum + a.percentage, 0);
       if (totalAllocation === 0) {
-        console.log(`Total allocation percentage is 0 for invest event in year ${params.curYear}`);
+        console.log(`Allocation sums to zero for invest event in year ${params.curYear}`);
         continue;
       }
 
-      // Step a: Calculate planned purchases based on filtered allocation
+      // Step a: calculate planned purchases
       const plannedPurchases = currentAllocation.map(alloc => ({
         assetType: alloc.assetType,
         taxStatus: alloc.taxStatus,
@@ -1270,85 +1292,72 @@ export default async function runSimulation(initialState, userName, generateLog 
         amountToBuy: (excessCash * alloc.percentage) / totalAllocation
       }));
 
-      // Step b: Calculate planned after-tax total (B)
+      // Step b: compute B = total planned for after-tax-retirement
       const B = plannedPurchases
         .filter(p => p.taxStatus === 'after-tax-retirement')
         .reduce((sum, p) => sum + p.amountToBuy, 0);
 
-      // Step c: Check limit and adjust planned purchases if needed
+      // Step c: if B > limit L, scale back after-tax purchases and reallocate excess
       if (B > L) {
-        // Calculate scaling factor for after-tax accounts
         const scaleFactor = L / B;
-
-        // Calculate total amount to be reduced from after-tax accounts
         const reductionAmount = B - L;
+        const totalNonRetPct = currentAllocation
+          .filter(a => a.taxStatus === 'non-retirement')
+          .reduce((sum, a) => sum + a.percentage, 0);
 
-        // Calculate sum of percentages allocated to non-retirement investments
-        const totalNonRetirementPercentage = currentAllocation
-          .filter(alloc => alloc.taxStatus === 'non-retirement')
-          .reduce((sum, alloc) => sum + alloc.percentage, 0);
-
-        // Adjust planned purchases
-        plannedPurchases.forEach(planned => {
-          if (planned.taxStatus === 'after-tax-retirement') {
-            // Scale down after-tax retirement purchases
-            planned.amountToBuy *= scaleFactor;
-          } else if (planned.taxStatus === 'non-retirement' && totalNonRetirementPercentage > 0) {
-            // Add portion of reduction to non-retirement accounts
-            const increaseAmount = reductionAmount * (planned.percentage / totalNonRetirementPercentage);
-            planned.amountToBuy += increaseAmount;
+        plannedPurchases.forEach(p => {
+          if (p.taxStatus === 'after-tax-retirement') {
+            p.amountToBuy *= scaleFactor;
+          } else if (p.taxStatus === 'non-retirement' && totalNonRetPct > 0) {
+            // redistribute the excess proportionally
+            p.amountToBuy += reductionAmount * (p.percentage / totalNonRetPct);
           }
         });
       }
 
-      // Step d: Execute purchases and track total amount invested
+      // Step d: execute purchases
       let totalAmountInvested = 0;
-      for (const planned of plannedPurchases) {
-        if (planned.amountToBuy <= 0) continue;
+      for (const p of plannedPurchases) {
+        if (p.amountToBuy <= 0) continue;
 
-        // Find or create the target investment
-        let targetInvestment = state.investments.find(inv =>
-          inv.assetType === planned.assetType &&
-          inv.taxStatus === planned.taxStatus
+        // find or create the target investment
+        let target = state.investments.find(inv =>
+          inv.assetType === p.assetType &&
+          inv.taxStatus === p.taxStatus
         );
-
-        if (!targetInvestment) {
-          // Create new investment
-          targetInvestment = {
-            assetType: planned.assetType,
-            taxStatus: planned.taxStatus,
+        if (!target) {
+          target = {
+            assetType: p.assetType,
+            taxStatus: p.taxStatus,
             value: 0,
             purchasePrice: 0
           };
-          state.investments.push(targetInvestment);
+          state.investments.push(target);
         }
 
-        // Update investment value and purchase price
-        targetInvestment.value += planned.amountToBuy;
-        targetInvestment.purchasePrice += planned.amountToBuy;
-        totalAmountInvested += planned.amountToBuy;
+        target.value += p.amountToBuy;
+        target.purchasePrice += p.amountToBuy;
+        totalAmountInvested += p.amountToBuy;
 
-        // Log investment purchase
+        // optional logging
         if (generateLog) {
           logEvent(logStream, params.curYear, 'Investment Purchase', {
-            AssetType: planned.assetType,
-            TaxStatus: planned.taxStatus,
-            Amount: planned.amountToBuy
+            AssetType: p.assetType,
+            TaxStatus: p.taxStatus,
+            Amount: p.amountToBuy
           });
         }
       }
 
-      // Reduce cash by the total amount actually invested
+      // deduct cash
       cash.value -= totalAmountInvested;
 
-      // Log invest event
-      if (totalAmountInvested > 0) {
-        if (generateLog) {
-          logEvent(logStream, params.curYear, 'Invest Event', {
-            TotalInvested: totalAmountInvested,
-            ExcessCashAvailable: excessCash
-          });
-        }
+      // log the event
+      if (totalAmountInvested > 0 && generateLog) {
+        logEvent(logStream, params.curYear, 'Invest Event', {
+          TotalInvested: totalAmountInvested,
+          ExcessCashAvailable: excessCash
+        });
       }
     }
 
@@ -1486,9 +1495,7 @@ export default async function runSimulation(initialState, userName, generateLog 
     params.prevYearEndPreTaxSum = state.investments
       .filter(inv => inv.taxStatus === "pre-tax-retirement")
       .reduce((sum, inv) => sum + inv.value, 0); // Store the current year-end pre-tax sum
-    console.log(params.prevYearEndPreTaxSum);
 
-    //console.log(params.totalDiscExpenses);
     // set fields for the return object, which will be used in generating the charts
     resObject[params.curYear] = {}
     resObject[params.curYear].success = computeTotalAssets(state) >= state.financialGoal;
@@ -1616,10 +1623,6 @@ export async function loadTaxData() {
         }
       }
     }
-
-    // Add debug logging
-    // console.log('Tax data received:', data);
-    // console.log('Filing statuses:', filingStatuses);
 
     filingStatuses.forEach(status => {
       if (!data[status]) {
