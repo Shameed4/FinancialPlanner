@@ -286,25 +286,37 @@ export function scenarioToYaml(data: StringScenarioFormData): string {
             // Map change distribution.
             let changeDistribution: any = {};
             if (ev.annualChangeType === "fixed" && ev.annualChange !== undefined) {
-                changeDistribution = { type: "fixed", value: Number(ev.annualChange) / 100 }; // Convert from percentage
+                let value = Number(ev.annualChange || 0);
+                // For percentage, divide by 100 for export
+                if (ev.changeAmtOrPct === "percent") {
+                    value = value / 100;
+                }
+                changeDistribution = { type: "fixed", value };
             } else if (ev.annualChangeType === "random_uniform" && ev.annualChangeMin !== undefined && ev.annualChangeMax !== undefined) {
-                changeDistribution = {
-                    type: "uniform",
-                    lower: Number(ev.annualChangeMin) / 100,
-                    upper: Number(ev.annualChangeMax) / 100
-                };
+                let lower = Number(ev.annualChangeMin || 0);
+                let upper = Number(ev.annualChangeMax || 0);
+
+                // For percentage, divide by 100 for export
+                if (ev.changeAmtOrPct === "percent") {
+                    lower = lower / 100;
+                    upper = upper / 100;
+                }
+
+                changeDistribution = { type: "uniform", lower, upper };
             } else if (ev.annualChangeType === "random_normal" && ev.annualChangeMean !== undefined && ev.annualChangeStd !== undefined) {
-                changeDistribution = {
-                    type: "normal",
-                    mean: Number(ev.annualChangeMean) / 100,
-                    stdev: Number(ev.annualChangeStd) / 100
-                };
+                let mean = Number(ev.annualChangeMean || 0);
+                let stdev = Number(ev.annualChangeStd || 0);
+
+                // For percentage, divide by 100 for export
+                if (ev.changeAmtOrPct === "percent") {
+                    mean = mean / 100;
+                    stdev = stdev / 100;
+                }
+
+                changeDistribution = { type: "normal", mean, stdev };
             } else {
                 // Default to fixed 0 if no change distribution is specified
-                changeDistribution = {
-                    type: "fixed",
-                    value: 0
-                };
+                changeDistribution = { type: "fixed", value: 0 };
             }
 
             event.initialAmount = Number(ev.amount);

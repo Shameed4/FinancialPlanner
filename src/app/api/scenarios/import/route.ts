@@ -575,26 +575,43 @@ export function yamlToScenario(yaml: string): StringScenarioFormData {
         switch (es.changeDistribution.type) {
           case 'fixed':
             const changeValue = typeof es.changeDistribution.value === 'number' ?
-              String(es.changeDistribution.value * 100) : "0"; // Multiply by 100 for percentage
+              String(es.changeDistribution.value) : "0";
+            // For percentage, multiply by 100, for amount keep as is
+            const fixedValue = es.changeAmtOrPct === 'percent' ?
+              String(Number(changeValue) * 100) : changeValue;
             changeFields = {
               annualChangeType: 'fixed',
-              annualChange: changeValue
+              annualChange: fixedValue
             };
             break;
           case 'uniform':
           case 'random_uniform': // Handle both 'uniform' and 'random_uniform'
+            // For percentage, multiply by 100, for amount keep as is
+            const lowerValue = es.changeAmtOrPct === 'percent' ?
+              String((es.changeDistribution.lower ?? 0) * 100) :
+              String(es.changeDistribution.lower ?? 0);
+            const upperValue = es.changeAmtOrPct === 'percent' ?
+              String((es.changeDistribution.upper ?? 0) * 100) :
+              String(es.changeDistribution.upper ?? 0);
             changeFields = {
               annualChangeType: 'random_uniform',
-              annualChangeMin: String((es.changeDistribution.lower ?? 0) * 100), // Multiply by 100 for percentage
-              annualChangeMax: String((es.changeDistribution.upper ?? 0) * 100)  // Multiply by 100 for percentage
+              annualChangeMin: lowerValue,
+              annualChangeMax: upperValue
             };
             break;
           case 'normal':
           case 'random_normal': // Handle both 'normal' and 'random_normal'
+            // For percentage, multiply by 100, for amount keep as is
+            const meanValue = es.changeAmtOrPct === 'percent' ?
+              String((es.changeDistribution.mean ?? 0) * 100) :
+              String(es.changeDistribution.mean ?? 0);
+            const stdevValue = es.changeAmtOrPct === 'percent' ?
+              String((es.changeDistribution.stdev ?? 0) * 100) :
+              String(es.changeDistribution.stdev ?? 0);
             changeFields = {
               annualChangeType: 'random_normal',
-              annualChangeMean: String((es.changeDistribution.mean ?? 0) * 100), // Multiply by 100 for percentage
-              annualChangeStd: String((es.changeDistribution.stdev ?? 0) * 100)  // Multiply by 100 for percentage
+              annualChangeMean: meanValue,
+              annualChangeStd: stdevValue
             };
             break;
           default:
