@@ -356,8 +356,8 @@ async function createInvestments(scenarioId: number, investments: any[], assetTy
 
     createdInvestments.push(createdInvestment);
   }
-  console.log("Investments", investments);
-  console.log("Created investments", createdInvestments);
+  //console.log("Investments", investments);
+  //console.log("Created investments", createdInvestments);
 
   return createdInvestments;
 }
@@ -371,7 +371,7 @@ const transformScenarioForFrontend = (scenario: any) => {
     investEventDetails?: InvestEventDetails & { AssetAllocation: any },
     rebalanceEventDetails?: RebalanceEventDetails & { AssetAllocation: any }
   }) => {
-    console.log("Event series:", es);
+    //console.log("Event series:", es);
     const baseEvent = {
       name: es.name,
       description: es.description,
@@ -544,7 +544,7 @@ const transformScenarioForFrontend = (scenario: any) => {
   // Convert map values to array
   const transformedAssetTypes = Array.from(assetTypeMap.values());
 
-  console.log("InvestmentScenario: ", scenario.investmentScenario);
+  //console.log("InvestmentScenario: ", scenario.investmentScenario);
   const transformedInvestments = scenario.investmentScenario?.map((is: any) => ({
     assetType: is.investment.assetType.name,
     value: is.investment.value,

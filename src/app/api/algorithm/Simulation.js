@@ -205,7 +205,6 @@ export default async function runSimulation(initialState, userName, generateLog 
 
   // Preprocess event timings for this simulation run
   console.log("Preprocessing event timings for this simulation run...");
-
   // Process all non-dependent events
   state.eventSeries.forEach(event => {
     if (event.startYearType !== 'same_as' && event.startYearType !== 'after') {
@@ -215,7 +214,6 @@ export default async function runSimulation(initialState, userName, generateLog 
 
       // --- Determine Start Year ---
       const startMode = event.startYearType ?? 'fixed';
-
       switch (startMode) {
         case 'random_normal':
           if (!event.startYearMean || !event.startYearStd) {
@@ -290,7 +288,7 @@ export default async function runSimulation(initialState, userName, generateLog 
       event.endYear = event.startYear + actualDuration - 1;
 
       // Log the calculated timing for debugging
-      console.log(`Event '${event.name}': Type S:${startMode}/D:${durationMode} -> Start: ${event.startYear}, End: ${event.endYear} (Duration: ${actualDuration})`);
+      // console.log(`Event '${event.name}': Type S:${startMode}/D:${durationMode} -> Start: ${event.startYear}, End: ${event.endYear} (Duration: ${actualDuration})`);
     }
   });
 
@@ -360,7 +358,7 @@ export default async function runSimulation(initialState, userName, generateLog 
       event.endYear = event.startYear + actualDuration - 1;
 
       // Log the calculated timing for debugging
-      console.log(`Event '${event.name}': Type S:${event.startYearType}/D:${durationMode} -> Start: ${event.startYear}, End: ${event.endYear} (Duration: ${actualDuration})`);
+      // console.log(`Event '${event.name}': Type S:${event.startYearType}/D:${durationMode} -> Start: ${event.startYear}, End: ${event.endYear} (Duration: ${actualDuration})`);
     }
   });
 
@@ -473,6 +471,7 @@ export default async function runSimulation(initialState, userName, generateLog 
       event.endYear && params.curYear <= event.endYear
     );
 
+    // console.log(activeIncomeEvents);
     activeIncomeEvents.forEach(event => {
       // Initialize event.amount if undefined
       if (typeof event.amount === 'undefined') {
@@ -540,6 +539,8 @@ export default async function runSimulation(initialState, userName, generateLog 
       const s = params.prevYearEndPreTaxSum ?? 0; // Use sum calculated at end of *last* year
       const rmdEntry = params.rmdTable.find(entry => entry.age === params.userAge);
       const d = rmdEntry?.distributionPeriod;
+      // console.log(params.prevYearEndPreTaxSum)
+      // console.log(s, rmdEntry, d);
 
       if (s > 0 && d > 0) {
         calculatedRmdCurrentYear = s / d;
@@ -574,7 +575,7 @@ export default async function runSimulation(initialState, userName, generateLog 
       // TODO: Implement proper sorting based on state.rmdStrategy if available
       // For now, we'll assume the investments are already in the correct order
       const preTaxInvestmentsForRMD = [...state.investments]
-        .filter(inv => inv.taxStatus === "pretax-retirement" && inv.value > 0)
+        .filter(inv => inv.taxStatus === "pre-tax-retirement" && inv.value > 0)
         .sort((a, b) => (a.rmdStrategy || Infinity) - (b.rmdStrategy || Infinity));
 
       for (let inv of preTaxInvestmentsForRMD) {
@@ -692,6 +693,7 @@ export default async function runSimulation(initialState, userName, generateLog 
       // Calculate the user's federal taxable income for the year.
       // This subtracts 85% of Social Security from the total income.
       const curYearFedTaxableIncome = params.curYearIncome - 0.85 * params.curYearSS;
+      // console.log(params.curYearIncome)
 
       // Determine the correct tax bracket based on filing status.
       let filingStatus;
@@ -740,7 +742,7 @@ export default async function runSimulation(initialState, userName, generateLog 
       let remainingConversion = rothConversionAmount;
 
       const preTaxInvestmentsForRoth = [...state.investments]
-        .filter(inv => inv.taxStatus === "pretax-retirement" && inv.value > 0)
+        .filter(inv => inv.taxStatus === "pre-tax-retirement" && inv.value > 0)
         .sort((a, b) => (a.rothConversionStrategy || Infinity) - (b.rothConversionStrategy || Infinity));
 
       // Assuming that 'state.investments' is ordered by your Roth conversion strategy,
@@ -751,7 +753,7 @@ export default async function runSimulation(initialState, userName, generateLog 
         // let inv = state.investments[i];
 
         // Only convert from pre-tax retirement investments.
-        if (inv.taxStatus === 'pretax-retirement' && inv.value > 0) {
+        if (inv.taxStatus === 'pre-tax-retirement' && inv.value > 0) {
           let transferAmount = Math.min(inv.value, remainingConversion);
 
           // Deduct the transfer amount from the source investment.
@@ -762,7 +764,7 @@ export default async function runSimulation(initialState, userName, generateLog 
 
           // Find or create the corresponding after-tax retirement investment.
           let target = state.investments.find(t =>
-            t.assetType === inv.assetType && t.taxStatus === 'aftertax-retirement'
+            t.assetType === inv.assetType && t.taxStatus === 'after-tax-retirement'
           );
 
           if (!target) {
@@ -770,7 +772,7 @@ export default async function runSimulation(initialState, userName, generateLog 
             let newInv = {
               assetType: inv.assetType, // Use the proper asset type from the investment.
               value: transferAmount,
-              taxStatus: 'aftertax-retirement',
+              taxStatus: 'after-tax-retirement',
               purchasePrice: transferAmount,
             };
             // TODO: Handle database updates for the new investment.
@@ -803,7 +805,7 @@ export default async function runSimulation(initialState, userName, generateLog 
 
     // Step 6: Pay non-discretionary expenses and the previous year's taxes,
     // i.e., subtract them from the cash investment. Perform additional withdrawals if needed to pay them.
-    //console.log("Running non-discretionary expense and tax processing...");
+    console.log("Running non-discretionary expense and tax processing...");
 
     let prevYearFedTax = 0;
     let prevYearStateTax = 0;
@@ -935,6 +937,7 @@ export default async function runSimulation(initialState, userName, generateLog 
 
     // Determine the shortfall that must be withdrawn from investments if available cash is insufficient.
     let withdrawalAmount = Math.max(0, totalPaymentAmount - cash.value);
+    console.log(withdrawalAmount);
 
     // If additional funds are needed, liquidate investments according to the specified ordering.
     if (withdrawalAmount > 0) {
@@ -943,6 +946,7 @@ export default async function runSimulation(initialState, userName, generateLog 
       const investmentsToSell = [...state.investments]
         .filter(inv => inv.assetType !== 'Cash' && inv.value > 0)
         .sort((a, b) => (a.expenseWithdrawalStrategy || Infinity) - (b.expenseWithdrawalStrategy || Infinity));
+
 
       // Iterate over investments (using the ordering in state.investments)
       for (let inv of investmentsToSell) {
@@ -955,6 +959,7 @@ export default async function runSimulation(initialState, userName, generateLog 
         let remainingToSell = withdrawalAmount - totalWithdrawn;
         let amountSold = Math.min(inv.value, remainingToSell);
 
+        // console.log(amountSold);
         // Calculate the fraction of the investment being liquidated.
         let fractionSold = amountSold / inv.value;
 
@@ -971,13 +976,13 @@ export default async function runSimulation(initialState, userName, generateLog 
         // For non-pre-tax retirement accounts, record the realized capital gain.
         if (inv.taxStatus === "non-retirement") {
           params.curYearGains += saleCapitalGain;
-        } else if (inv.taxStatus === "pretax-retirement") {
+        } else if (inv.taxStatus === "pre-tax-retirement") {
           params.curYearIncome += amountSold;
         }
 
         // For retirement accounts (pre-tax or after-tax) and if the user is under 59,
         // record early withdrawals (to account for any penalty).
-        if ((inv.taxStatus === "pretax-retirement" || inv.taxStatus === "aftertax-retirement") && params.userAge < 59) {
+        if ((inv.taxStatus === "pre-tax-retirement" || inv.taxStatus === "after-tax-retirement") && params.userAge < 59) {
           params.curYearEarlyWithdrawals += amountSold;
         }
 
@@ -1024,7 +1029,7 @@ export default async function runSimulation(initialState, userName, generateLog 
     // except stop if continuing would reduce the user's total assets below the financial goal.
     // The last discretionary expense to be paid can be partially paid if incurring the entire expense would violate the financial goal.
     // Perform additional withdrawals if needed to pay them.
-    //console.log("Running discretionary expense processing...");
+    console.log("Running discretionary expense processing...");
 
     const financialGoal = state.financialGoal;
 
@@ -1091,12 +1096,12 @@ export default async function runSimulation(initialState, userName, generateLog 
           // Otherwise, treat the withdrawn amount as ordinary income.
           if (inv.taxStatus === "non-retirement") {
             params.curYearGains += saleCapitalGain;
-          } else if (inv.taxStatus === "pretax-retirement") {
+          } else if (inv.taxStatus === "pre-tax-retirement") {
             params.curYearIncome += amountSold;
           }
 
           // For retirement accounts and if the user is under 59, record early withdrawals.
-          if ((inv.taxStatus === "pretax-retirement" || inv.taxStatus === "aftertax-retirement") && params.userAge < 59) {
+          if ((inv.taxStatus === "pre-tax-retirement" || inv.taxStatus === "after-tax-retirement") && params.userAge < 59) {
             params.curYearEarlyWithdrawals += withdrawalAmount;
           }
 
@@ -1196,9 +1201,9 @@ export default async function runSimulation(initialState, userName, generateLog 
         rawAllocation = allocationDetails.percentages;
       }
 
-      // Filter out pretax-retirement targets as per requirements
+      // Filter out pre-tax-retirement targets as per requirements
       const currentAllocation = rawAllocation.filter(alloc =>
-        alloc.taxStatus === 'non-retirement' || alloc.taxStatus === 'aftertax-retirement'
+        alloc.taxStatus === 'non-retirement' || alloc.taxStatus === 'after-tax-retirement'
       );
 
       if (currentAllocation.length === 0) {
@@ -1223,7 +1228,7 @@ export default async function runSimulation(initialState, userName, generateLog 
 
       // Step b: Calculate planned after-tax total (B)
       const B = plannedPurchases
-        .filter(p => p.taxStatus === 'aftertax-retirement')
+        .filter(p => p.taxStatus === 'after-tax-retirement')
         .reduce((sum, p) => sum + p.amountToBuy, 0);
 
       // Step c: Check limit and adjust planned purchases if needed
@@ -1241,7 +1246,7 @@ export default async function runSimulation(initialState, userName, generateLog 
 
         // Adjust planned purchases
         plannedPurchases.forEach(planned => {
-          if (planned.taxStatus === 'aftertax-retirement') {
+          if (planned.taxStatus === 'after-tax-retirement') {
             // Scale down after-tax retirement purchases
             planned.amountToBuy *= scaleFactor;
           } else if (planned.taxStatus === 'non-retirement' && totalNonRetirementPercentage > 0) {
@@ -1391,11 +1396,11 @@ export default async function runSimulation(initialState, userName, generateLog 
 
           if (investment.taxStatus === "non-retirement") {
             params.curYearGains += saleCapitalGain;
-          } else if (investment.taxStatus === "pretax-retirement") {
+          } else if (investment.taxStatus === "pre-tax-retirement") {
             params.curYearIncome += amountToSell;
           }
 
-          if ((investment.taxStatus === "pretax-retirement" || investment.taxStatus === "aftertax-retirement") && params.userAge < 59) {
+          if ((investment.taxStatus === "pre-tax-retirement" || investment.taxStatus === "after-tax-retirement") && params.userAge < 59) {
             params.curYearEarlyWithdrawals += amountToSell;
           }
 
@@ -1435,8 +1440,9 @@ export default async function runSimulation(initialState, userName, generateLog 
 
     params.rmdAmountFromPreviousYear = params.prevRMD; // Store the RMD calculated this year for next year's transfer
     params.prevYearEndPreTaxSum = state.investments
-      .filter(inv => inv.taxStatus === "pretax-retirement")
+      .filter(inv => inv.taxStatus === "pre-tax-retirement")
       .reduce((sum, inv) => sum + inv.value, 0); // Store the current year-end pre-tax sum
+    // console.log(params.prevYearEndPreTaxSum);
 
     //console.log(params.totalDiscExpenses);
     // set fields for the return object, which will be used in generating the charts

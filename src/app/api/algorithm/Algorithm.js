@@ -26,7 +26,7 @@ export function saveChartData() {
     console.log('Chart data saved to file system');
     return true;
   } catch (error) {
-    console.error('Error saving chart data:', error);
+    //console.error('Error saving chart data:', error);
     return false;
   }
 }
@@ -41,7 +41,7 @@ export function loadChartData() {
       return chartData;
     }
   } catch (error) {
-    console.error('Error loading chart data:', error);
+    //console.error('Error loading chart data:', error);
   }
   return chartData;
 }

@@ -10,9 +10,6 @@ export async function POST(request: Request) {
     const simulationData = await request.json();
     const { scenario, numberOfSimulations, userName } = simulationData;
 
-    // console.log(numberOfSimulations);
-    // console.log(scenario);
-
     // Run the simulation algorithm multiple times.
     console.time('runAlgorithm');
     const simulationResults = await runAlgorithm(scenario, Number(numberOfSimulations), 4, userName);
@@ -29,7 +26,7 @@ export async function POST(request: Request) {
     }, { status: 200 });
   } 
   catch (error: any) {
-    console.error('Simulation API error:', error);
+    // console.error('Simulation API error:', error);
     return NextResponse.json(
       { error: error.message || 'Internal server error.' },
       { status: 500 }
@@ -49,7 +46,7 @@ export async function GET(request: Request) {
       timestamp: new Date().toISOString()
     }, { status: 200 });
   } catch (error: any) {
-    console.error('Error fetching chart data:', error);
+    // console.error('Error fetching chart data:', error);
     return NextResponse.json(
       { error: error.message || 'Failed to retrieve chart data.' },
       { status: 500 }

@@ -2236,7 +2236,7 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel, initialData = null }: 
 
                                 return (
                                     <div key={originalIndex} className="flex items-center gap-2 bg-gray-50 p-2 rounded">
-                                        <span className="flex-1 text-gray-500">
+                                        <span className="flex-1 text-black">
                                             {investment.assetType} ({investment.taxStatus})
                                         </span>
                                         <input
@@ -2251,7 +2251,7 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel, initialData = null }: 
                                                 newInvestments[originalIndex].rothConversionStrategy = val === "" ? "" : String(parseInt(val));
                                                 setFormData({ ...formData, investments: newInvestments });
                                             }}
-                                            className="w-20 p-1 border rounded"
+                                            className="w-20 p-1 border rounded text-black"
                                             placeholder="Order"
                                         />
                                     </div>
@@ -2271,7 +2271,7 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel, initialData = null }: 
 
                                     return (
                                         <div key={`${investment.assetType} ${investment.taxStatus}`} className="flex items-center gap-2 bg-gray-50 p-2 rounded">
-                                            <span className="flex-1 text-gray-500">{investment.assetType} ({investment.taxStatus})</span>
+                                            <span className="text-black flex-1">{investment.assetType} ({investment.taxStatus})</span>
                                             <input
                                                 type="number"
                                                 min="1"
@@ -2295,7 +2295,7 @@ const CreateScenarioForm = ({ onScenarioCreate, onCancel, initialData = null }: 
                                                     newInvestments[investmentIndex].expenseWithdrawalStrategy = newOrder + '';
                                                     setFormData({ ...formData, investments: newInvestments });
                                                 }}
-                                                className="w-20 p-1 border rounded"
+                                                className="w-20 p-1 border rounded text-black"
                                                 placeholder="Order"
                                             />
                                         </div>
