@@ -626,6 +626,27 @@ export function yamlToScenario(yaml: string): StringScenarioFormData {
               const formKey = `${matchingInv.investmentType} ${taxStatus}`;
               initialAllocations[formKey] = String(Number(value) * 100);
               console.log(`Initial allocation: ${key} -> ${formKey} = ${initialAllocations[formKey]}`);
+            } else {
+              // Try direct mapping - support both formats
+              // If the key matches "S&P 500 non-retirement" type format
+              if (key.includes(' ')) {
+                const parts = key.split(' ');
+                const assetType = parts[0];
+                let taxStatus = parts.slice(1).join(' ');
+
+                // Handle various tax status formats
+                if (taxStatus === 'pre-tax') taxStatus = 'pre-tax-retirement';
+                else if (taxStatus === 'after-tax') taxStatus = 'after-tax-retirement';
+
+                const formKey = `${assetType} ${taxStatus}`;
+                initialAllocations[formKey] = String(Number(value) * 100);
+                console.log(`Direct initial mapping: ${key} -> ${formKey} = ${initialAllocations[formKey]}`);
+              } else {
+                // For keys like "S&P 500" without tax status, assume non-retirement
+                const formKey = `${key} non-retirement`;
+                initialAllocations[formKey] = String(Number(value) * 100);
+                console.log(`Assumed non-retirement: ${key} -> ${formKey} = ${initialAllocations[formKey]}`);
+              }
             }
           });
         }
@@ -642,6 +663,27 @@ export function yamlToScenario(yaml: string): StringScenarioFormData {
               const formKey = `${matchingInv.investmentType} ${taxStatus}`;
               finalAllocations[formKey] = String(Number(value) * 100);
               console.log(`Final allocation: ${key} -> ${formKey} = ${finalAllocations[formKey]}`);
+            } else {
+              // Try direct mapping - support both formats
+              // If the key matches "S&P 500 non-retirement" type format
+              if (key.includes(' ')) {
+                const parts = key.split(' ');
+                const assetType = parts[0];
+                let taxStatus = parts.slice(1).join(' ');
+
+                // Handle various tax status formats
+                if (taxStatus === 'pre-tax') taxStatus = 'pre-tax-retirement';
+                else if (taxStatus === 'after-tax') taxStatus = 'after-tax-retirement';
+
+                const formKey = `${assetType} ${taxStatus}`;
+                finalAllocations[formKey] = String(Number(value) * 100);
+                console.log(`Direct final mapping: ${key} -> ${formKey} = ${finalAllocations[formKey]}`);
+              } else {
+                // For keys like "S&P 500" without tax status, assume non-retirement
+                const formKey = `${key} non-retirement`;
+                finalAllocations[formKey] = String(Number(value) * 100);
+                console.log(`Assumed non-retirement: ${key} -> ${formKey} = ${finalAllocations[formKey]}`);
+              }
             }
           });
         }

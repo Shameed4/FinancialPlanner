@@ -1125,21 +1125,8 @@ export async function PUT(request: NextRequest) {
             }
           }
         }
-      }),
-      // Delete asset types (only those linked to investments)
-      prisma.assetType.deleteMany({
-        where: {
-          investments: {
-            some: {
-              investmentScenario: {
-                some: {
-                  scenarioId: scenarioId
-                }
-              }
-            }
-          }
-        }
       })
+      // Note: We deliberately don't delete asset types here to preserve them for other scenarios
     ]);
 
     const {

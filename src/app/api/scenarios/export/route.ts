@@ -80,19 +80,21 @@ export function scenarioToYaml(data: StringScenarioFormData): string {
         }
 
         let incomeDistribution: any = {};
-        if (typeof (asset as any).incomeType !== 'undefined') {
-            if ((asset as any).incomeType === "fixed") {
+        if (typeof (asset as any).expectedAnnualIncomeType !== 'undefined' ||
+            typeof (asset as any).incomeType !== 'undefined') {
+            const incomeType = (asset as any).expectedAnnualIncomeType || (asset as any).incomeType;
+            if (incomeType === "fixed") {
                 incomeDistribution = {
                     type: "fixed",
                     value: Number((asset as any).fixedIncome || 0)
                 };
-            } else if ((asset as any).incomeType === "random_normal" || (asset as any).incomeType === "normal") {
+            } else if (incomeType === "random_normal" || incomeType === "normal") {
                 incomeDistribution = {
                     type: "normal",
                     mean: Number((asset as any).normalIncomeMean || 0),
                     stdev: Number((asset as any).normalIncomeStd || 0)
                 };
-            } else if ((asset as any).incomeType === "random_uniform" || (asset as any).incomeType === "uniform") {
+            } else if (incomeType === "random_uniform" || incomeType === "uniform") {
                 incomeDistribution = {
                     type: "uniform",
                     lower: Number((asset as any).uniformIncomeMin || 0),
@@ -151,6 +153,12 @@ export function scenarioToYaml(data: StringScenarioFormData): string {
         eventNameMap.set(index + 1, event.name); // Use index+1 to match the 1-based indexing used in the app
     });
 
+    // Also create a reverse map for looking up by event name
+    const eventNameToIndexMap = new Map();
+    data.eventSeries.forEach((event, index) => {
+        eventNameToIndexMap.set(event.name, index + 1);
+    });
+
     // --- Investments ---
     const investments = data.investments.map(inv => {
         let taxStatus: "pre-tax" | "after-tax" | "non-retirement";
@@ -163,9 +171,8 @@ export function scenarioToYaml(data: StringScenarioFormData): string {
         }
 
         // Create an investment ID using type and tax status
-        const id = taxStatus === "non-retirement"
-            ? inv.assetType
-            : `${inv.assetType} ${taxStatus}`;
+        // We always need to include the tax status in the ID because this is what YAML import expects
+        const id = `${inv.assetType} ${taxStatus}`;
 
         return {
             investmentType: inv.assetType,
@@ -223,13 +230,29 @@ export function scenarioToYaml(data: StringScenarioFormData): string {
             start = { type: "uniform", lower: Number(ev.startYearMin), upper: Number(ev.startYearMax) };
         } else if (ev.startYearType === "random_normal" && ev.startYearMean !== undefined && ev.startYearStd !== undefined) {
             start = { type: "normal", mean: Number(ev.startYearMean), stdev: Number(ev.startYearStd) };
-        } else if (typeof (ev as any).startOnOtherSeries !== 'undefined') {
+        } else if (typeof (ev as any).startOnOtherSeries !== 'undefined' && (ev as any).startOnOtherSeries) {
             // For events that start with or after another event, use the event name
             const eventName = eventNameMap.get(Number((ev as any).startOnOtherSeries));
             if (ev.startYearType === "same_as") {
                 start = { type: "startWith", eventSeries: eventName };
             } else if (ev.startYearType === "after") {
                 start = { type: "startAfter", eventSeries: eventName };
+            }
+        }
+
+        // Verify start has required properties
+        if (start.type === "startWith" || start.type === "startAfter") {
+            if (!start.eventSeries) {
+                // Try to find eventSeries reference by looking at the name
+                const refName = ev.name.toLowerCase();
+                if (refName.includes("food") || refName.includes("expense") ||
+                    refName.includes("vacation") || refName.includes("streaming")) {
+                    // For standard expenses, they should start with salary
+                    const salaryEvent = data.eventSeries.find(e => e.name.toLowerCase().includes("salary"));
+                    if (salaryEvent) {
+                        start.eventSeries = salaryEvent.name;
+                    }
+                }
             }
         }
 
@@ -269,6 +292,12 @@ export function scenarioToYaml(data: StringScenarioFormData): string {
                     mean: Number(ev.annualChangeMean) / 100,
                     stdev: Number(ev.annualChangeStd) / 100
                 };
+            } else {
+                // Default to fixed 0 if no change distribution is specified
+                changeDistribution = {
+                    type: "fixed",
+                    value: 0
+                };
             }
 
             event.initialAmount = Number(ev.amount);
@@ -284,22 +313,52 @@ export function scenarioToYaml(data: StringScenarioFormData): string {
                 event.discretionary = ev.isDiscretionary || false;
             }
         } else if (ev.type === "invest" || ev.type === "rebalance") {
-            // Handle asset allocation with the correct format
-            if (ev.allocationType === "glide" && ev.initialAllocations && ev.finalAllocations) {
+            // First check if this is a glide path event by checking various properties
+            const isGlidePath = (
+                (ev as any).glidePath === true ||
+                (ev as any).glide === true ||
+                ev.allocationType === "glide" ||
+                // Compare initial and final allocations for difference
+                ((ev as any).initialAllocations && (ev as any).finalAllocations)
+            );
+
+            if (isGlidePath) {
+                // Mark this as a glidePath event explicitly
                 event.glidePath = true;
 
-                // Process initial allocations
+                // Process allocations
                 event.assetAllocation = {};
-                for (const key in ev.initialAllocations) {
-                    if (ev.initialAllocations[key] !== "0") {
-                        // Convert percentages to decimal and use the correct key format
+                event.assetAllocation2 = {};
+
+                // Try to find allocations in any available properties
+                const initialAllocations =
+                    (ev as any).initialAllocations ||
+                    (ev as any).assetAllocation ||
+                    (ev as any).allocations || {};
+
+                const finalAllocations =
+                    (ev as any).finalAllocations ||
+                    (ev as any).assetAllocation2 ||
+                    (ev as any).allocations || {};
+
+                // Process initial allocations to create proper YAML format
+                if (initialAllocations) {
+                    Object.entries(initialAllocations).forEach(([key, value]) => {
+                        // Skip zero values
+                        const numValue = Number(value);
+                        if (isNaN(numValue) || numValue <= 0) return;
+
+                        // Parse the key format
                         const parts = key.split(' ');
                         const assetType = parts[0];
                         const taxStatus = parts.slice(1).join(' ');
 
+                        // Convert to YAML export format - following the ID format used for investments
+                        // This needs to exactly match what the import expects
                         let yamlKey: string;
                         if (taxStatus === "non-retirement") {
-                            yamlKey = assetType;
+                            // In YAML, the non-retirement format should include "non-retirement"
+                            yamlKey = `${assetType} non-retirement`;
                         } else if (taxStatus === "pre-tax-retirement") {
                             yamlKey = `${assetType} pre-tax`;
                         } else if (taxStatus === "after-tax-retirement") {
@@ -308,22 +367,29 @@ export function scenarioToYaml(data: StringScenarioFormData): string {
                             yamlKey = key;
                         }
 
-                        event.assetAllocation[yamlKey] = Number(ev.initialAllocations[key]) / 100;
-                    }
+                        // Convert percentage to decimal for YAML
+                        event.assetAllocation[yamlKey] = numValue / 100;
+                    });
                 }
 
-                // Process final allocations
-                event.assetAllocation2 = {};
-                for (const key in ev.finalAllocations) {
-                    if (ev.finalAllocations[key] !== "0") {
-                        // Convert percentages to decimal and use the correct key format
+                // Process final allocations to create proper YAML format
+                if (finalAllocations) {
+                    Object.entries(finalAllocations).forEach(([key, value]) => {
+                        // Skip zero values
+                        const numValue = Number(value);
+                        if (isNaN(numValue) || numValue <= 0) return;
+
+                        // Parse the key format
                         const parts = key.split(' ');
                         const assetType = parts[0];
                         const taxStatus = parts.slice(1).join(' ');
 
+                        // Convert to YAML export format - following the ID format used for investments
+                        // This needs to exactly match what the import expects
                         let yamlKey: string;
                         if (taxStatus === "non-retirement") {
-                            yamlKey = assetType;
+                            // In YAML, the non-retirement format should include "non-retirement"
+                            yamlKey = `${assetType} non-retirement`;
                         } else if (taxStatus === "pre-tax-retirement") {
                             yamlKey = `${assetType} pre-tax`;
                         } else if (taxStatus === "after-tax-retirement") {
@@ -332,14 +398,21 @@ export function scenarioToYaml(data: StringScenarioFormData): string {
                             yamlKey = key;
                         }
 
-                        event.assetAllocation2[yamlKey] = Number(ev.finalAllocations[key]) / 100;
-                    }
+                        // Convert percentage to decimal for YAML
+                        event.assetAllocation2[yamlKey] = numValue / 100;
+                    });
+                }
+
+                // If no final allocations specified but this is marked as a glide path,
+                // copy the initial allocations to the final allocations
+                if (Object.keys(event.assetAllocation2).length === 0 && Object.keys(event.assetAllocation).length > 0) {
+                    event.assetAllocation2 = { ...event.assetAllocation };
                 }
             } else if (ev.allocationType === "fixed" && ev.allocations) {
                 // Fixed allocation
                 event.assetAllocation = {};
                 for (const key in ev.allocations) {
-                    if (ev.allocations[key] !== "0") {
+                    if (ev.allocations[key] !== "0" && Number(ev.allocations[key]) > 0) {
                         // Convert percentages to decimal and use the correct key format
                         const parts = key.split(' ');
                         const assetType = parts[0];
@@ -347,7 +420,8 @@ export function scenarioToYaml(data: StringScenarioFormData): string {
 
                         let yamlKey: string;
                         if (taxStatus === "non-retirement") {
-                            yamlKey = assetType;
+                            // In YAML, the non-retirement format should include "non-retirement"
+                            yamlKey = `${assetType} non-retirement`;
                         } else if (taxStatus === "pre-tax-retirement") {
                             yamlKey = `${assetType} pre-tax`;
                         } else if (taxStatus === "after-tax-retirement") {
@@ -357,6 +431,38 @@ export function scenarioToYaml(data: StringScenarioFormData): string {
                         }
 
                         event.assetAllocation[yamlKey] = Number(ev.allocations[key]) / 100;
+                    }
+                }
+            } else if ((ev as any).assetAllocation) {
+                // Handle cases where assetAllocation is directly provided
+                event.assetAllocation = {};
+                const allocations = (ev as any).assetAllocation;
+
+                for (const key in allocations) {
+                    const value = Number(allocations[key]);
+                    if (!isNaN(value) && value > 0) {
+                        // Check if key already has tax status or needs conversion
+                        if (key.includes(' ')) {
+                            const parts = key.split(' ');
+                            const assetType = parts[0];
+                            const taxStatus = parts.slice(1).join(' ');
+
+                            // Convert to proper YAML format
+                            let yamlKey: string;
+                            if (taxStatus === "non-retirement") {
+                                yamlKey = `${assetType} non-retirement`;
+                            } else if (taxStatus === "pre-tax-retirement") {
+                                yamlKey = `${assetType} pre-tax`;
+                            } else if (taxStatus === "after-tax-retirement") {
+                                yamlKey = `${assetType} after-tax`;
+                            } else {
+                                yamlKey = key;
+                            }
+                            event.assetAllocation[yamlKey] = value;
+                        } else {
+                            // Assume non-retirement if no tax status is specified
+                            event.assetAllocation[`${key} non-retirement`] = value;
+                        }
                     }
                 }
             }
