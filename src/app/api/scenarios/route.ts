@@ -909,6 +909,8 @@ export async function POST(request: NextRequest) {
       ? inflationStd
       : null;
 
+    console.log("Processed inflation:", processedInflation);
+
     // Create the base scenario
     const scenario = await prisma.scenario.create({
       data: {
@@ -934,6 +936,8 @@ export async function POST(request: NextRequest) {
         residenceState
       }
     });
+
+    console.log("Created scenario", scenario, processedInflation);
 
     // Create asset types first if provided
     let assetTypeMap = new Map();

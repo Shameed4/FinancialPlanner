@@ -305,6 +305,7 @@ export function yamlToScenario(yaml: string): StringScenarioFormData {
         inflationAssumption: 'fixed',
         inflation: String(jsonYaml.inflationAssumption.value ?? 0),
       };
+      console.log("Set inflation fields:", inflationFields);
       break;
     case 'random_uniform':
       inflationFields = {
@@ -877,7 +878,7 @@ export function yamlToScenario(yaml: string): StringScenarioFormData {
     }
   }).filter((event: any) => event !== null) as (IncomeEvent | ExpenseEvent | InvestEvent | RebalanceEvent)[]; // Filter out any nulls from unknown types
 
-
+  console.log("Final imported scenario: ", res);
   return res;
 }
 
@@ -887,15 +888,16 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     console.log("Received YAML import request");
     const scenarioYaml = yamlToScenario(body.scenarioYaml);
+    // console.log("Final imported scenario: ", scenarioYaml);
 
-    console.log("Final asset types for DB:", scenarioYaml.assetTypes.map(asset => ({
-      name: asset.name,
-      returnType: asset.returnType,
-      fixedReturn: asset.fixedReturn,
-      expenseRatio: asset.expenseRatio,
-      incomeType: asset.incomeType,
-      normalIncomeMean: asset.normalIncomeMean
-    })));
+    // console.log("Final asset types for DB:", scenarioYaml.assetTypes.map(asset => ({
+    //   name: asset.name,
+    //   returnType: asset.returnType,
+    //   fixedReturn: asset.fixedReturn,
+    //   expenseRatio: asset.expenseRatio,
+    //   incomeType: asset.incomeType,
+    //   normalIncomeMean: asset.normalIncomeMean
+    // })));
 
     // If saveToDB flag is true, save the scenario to the database
     if (body.saveToDB && body.userEmail) {
@@ -917,6 +919,7 @@ export async function POST(request: NextRequest) {
         rothOptimizationStartYear: scenarioYaml.rothOptimizationStartYear ? parseInt(scenarioYaml.rothOptimizationStartYear) : null,
         rothOptimizationEndYear: scenarioYaml.rothOptimizationEndYear ? parseInt(scenarioYaml.rothOptimizationEndYear) : null,
         // Parse inflation values if available
+        inflationAssumption: scenarioYaml.inflationAssumption,
         inflation: scenarioYaml.inflation ? parseFloat(scenarioYaml.inflation) : null,
         inflationMin: scenarioYaml.inflationMin ? parseFloat(scenarioYaml.inflationMin) : null,
         inflationMax: scenarioYaml.inflationMax ? parseFloat(scenarioYaml.inflationMax) : null,
@@ -1007,14 +1010,7 @@ export async function POST(request: NextRequest) {
         })
       };
 
-      console.log("Final scenario data to be saved to DB:", JSON.stringify({
-        name: scenarioData.name,
-        eventSeriesCount: scenarioData.eventSeries.length,
-        investEventCount: scenarioData.eventSeries.filter(e => e.type === 'invest').length,
-        rebalanceEventCount: scenarioData.eventSeries.filter(e => e.type === 'rebalance').length,
-        // Show just the first invest event as an example
-        sampleInvestEvent: scenarioData.eventSeries.find(e => e.type === 'invest')
-      }, null, 2));
+      console.log("Final scenario data to be saved to DB:", scenarioData);
 
       // Call the main scenarios API endpoint
       const scenariosApiUrl = new URL(request.url);

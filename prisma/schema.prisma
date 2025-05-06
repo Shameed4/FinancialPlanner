@@ -232,9 +232,9 @@ model Scenario {
   eventSeries        EventSeries[]
 
   inflationAssumption DistributionType
-  inflation           Int? // for fixed
-  inflationMin        Int? // for random_uniform
-  inflationMax        Int? // for random_uniform
+  inflation           Float? // for fixed
+  inflationMin        Float? // for random_uniform
+  inflationMax        Float? // for random_uniform
   inflationMean       Float? // for random_normal
   inflationStd        Float? // for random_normal
 
