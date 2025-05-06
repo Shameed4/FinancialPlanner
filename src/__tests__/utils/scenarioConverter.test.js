@@ -74,6 +74,27 @@ describe('Scenario Converter', () => {
             expect(Array.isArray(jsonOutput.eventSeries)).toBe(true);
             expect(jsonOutput.assetTypes.length).toBe(testScenario.assetTypes.length);
         });
+
+        it('should handle undefined YAML content', () => {
+            const jsonOutput = yamlToJson('');
+            expect(jsonOutput).toEqual({});
+        });
+
+        it('should handle non-string YAML input', () => {
+            expect(() => yamlToJson(123)).toThrow('Failed to parse YAML');
+            expect(() => yamlToJson(null)).toThrow('Failed to parse YAML');
+            expect(() => yamlToJson(undefined)).toThrow('Failed to parse YAML');
+            expect(() => yamlToJson({})).toThrow('Failed to parse YAML');
+        });
+
+        it('should handle YAML with only comments', () => {
+            const yamlWithComments = `
+# This is a comment
+# Another comment
+`;
+            const jsonOutput = yamlToJson(yamlWithComments);
+            expect(jsonOutput).toEqual(null);
+        });
     });
 
     describe('Scenario Validation', () => {
@@ -85,7 +106,7 @@ describe('Scenario Converter', () => {
             const invalidScenario = { ...testScenario };
             delete invalidScenario.name;
             expect(() => validateScenario(invalidScenario))
-                .toThrow('Missing required field: name');
+                .toThrow('Missing or invalid required field: name');
         });
 
         it('should validate array fields', () => {
@@ -113,6 +134,61 @@ describe('Scenario Converter', () => {
             };
             expect(() => validateScenario(invalidScenario))
                 .toThrow('Invalid US state: XX');
+        });
+
+        it('should validate null/undefined field values', () => {
+            const invalidScenario = {
+                ...testScenario,
+                name: null
+            };
+            expect(() => validateScenario(invalidScenario))
+                .toThrow('Missing or invalid required field: name');
+
+            invalidScenario.name = undefined;
+            expect(() => validateScenario(invalidScenario))
+                .toThrow('Missing or invalid required field: name');
+        });
+
+        it('should validate investments array', () => {
+            const invalidScenario = {
+                ...testScenario,
+                investments: 'not an array'
+            };
+            expect(() => validateScenario(invalidScenario))
+                .toThrow('investments must be an array');
+        });
+
+        it('should validate eventSeries array', () => {
+            const invalidScenario = {
+                ...testScenario,
+                eventSeries: 'not an array'
+            };
+            expect(() => validateScenario(invalidScenario))
+                .toThrow('eventSeries must be an array');
+        });
+
+        it('should validate all required fields', () => {
+            const requiredFields = [
+                'name',
+                'forIndividual',
+                'userBirthYear',
+                'userLifeExpectancyMean',
+                'userLifeExpectancyStd',
+                'assetTypes',
+                'investments',
+                'eventSeries',
+                'inflationAssumption',
+                'residenceState',
+                'financialGoal',
+                'initialAfterTaxRetirementContributionLimit'
+            ];
+
+            for (const field of requiredFields) {
+                const invalidScenario = { ...testScenario };
+                delete invalidScenario[field];
+                expect(() => validateScenario(invalidScenario))
+                    .toThrow(`Missing or invalid required field: ${field}`);
+            }
         });
     });
 
